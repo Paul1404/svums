@@ -26,33 +26,33 @@ async def lifespan(app: FastAPI):
     # Create all database tables
     Base.metadata.create_all(bind=engine)
 
-    # Add new columns if they don't exist (lightweight migration)
-    import sqlite3
+    # SQLite-only: add new columns to existing databases that pre-date the model
     from app.config import get_settings as _get_cfg
-    db_path = _get_cfg().database_url.replace("sqlite:///", "")
-    try:
-        conn = sqlite3.connect(db_path)
-        cursor = conn.cursor()
-        cursor.execute("PRAGMA table_info(membership_applications)")
-        columns = {row[1] for row in cursor.fetchall()}
-        if "consent_at" not in columns:
-            cursor.execute("ALTER TABLE membership_applications ADD COLUMN consent_at DATETIME")
-            logger.info("Added consent_at column")
-        # Partner columns for Familie type
-        for col_name, col_type in [
-            ("geschlecht", "VARCHAR(10)"),
-            ("partner_vorname", "VARCHAR(100)"),
-            ("partner_nachname", "VARCHAR(100)"),
-            ("partner_geburtsdatum", "DATE"),
-            ("partner_abteilungen", "TEXT"),
-        ]:
-            if col_name not in columns:
-                cursor.execute(f"ALTER TABLE membership_applications ADD COLUMN {col_name} {col_type}")
-                logger.info(f"Added {col_name} column")
-        conn.commit()
-        conn.close()
-    except Exception as e:
-        logger.warning(f"Migration check: {e}")
+    if _get_cfg().database_url.startswith("sqlite"):
+        import sqlite3
+        db_path = _get_cfg().database_url.replace("sqlite:///", "")
+        try:
+            conn = sqlite3.connect(db_path)
+            cursor = conn.cursor()
+            cursor.execute("PRAGMA table_info(membership_applications)")
+            columns = {row[1] for row in cursor.fetchall()}
+            if "consent_at" not in columns:
+                cursor.execute("ALTER TABLE membership_applications ADD COLUMN consent_at DATETIME")
+                logger.info("Added consent_at column")
+            for col_name, col_type in [
+                ("geschlecht", "VARCHAR(10)"),
+                ("partner_vorname", "VARCHAR(100)"),
+                ("partner_nachname", "VARCHAR(100)"),
+                ("partner_geburtsdatum", "DATE"),
+                ("partner_abteilungen", "TEXT"),
+            ]:
+                if col_name not in columns:
+                    cursor.execute(f"ALTER TABLE membership_applications ADD COLUMN {col_name} {col_type}")
+                    logger.info(f"Added {col_name} column")
+            conn.commit()
+            conn.close()
+        except Exception as e:
+            logger.warning(f"Migration check: {e}")
 
     # Encrypt any plaintext IBANs
     try:

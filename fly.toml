@@ -7,7 +7,8 @@ primary_region = "fra"
   CORS_ORIGINS = "https://svums.sv-untereuerheim.de"
   COOKIE_SECURE = "true"
   COOKIE_NAME = "svums_admin_session"
-  DATABASE_URL = "sqlite:////app/data/svums.db"
+  # DATABASE_URL, ADMIN_PASSWORD, COOKIE_SECRET → set via:
+  # flyctl secrets set DATABASE_URL="postgresql://..." ADMIN_PASSWORD="..." COOKIE_SECRET="..."
 
 [http_service]
   internal_port = 8000
@@ -32,7 +33,3 @@ primary_region = "fra"
   memory = "512mb"
   cpu_kind = "shared"
   cpus = 1
-
-[[mounts]]
-  source = "svums_data"
-  destination = "/app/data"
