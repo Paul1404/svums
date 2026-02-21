@@ -1,0 +1,492 @@
+import csv
+import io
+import json
+import logging
+from datetime import date, datetime
+
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, Response
+from fastapi.responses import StreamingResponse
+from pydantic import BaseModel
+from sqlalchemy import or_
+from sqlalchemy.orm import Session
+from itsdangerous import URLSafeTimedSerializer, BadSignature, SignatureExpired
+
+from app.config import get_settings, Settings
+from app.database import get_db
+from app.models.application import MembershipApplication
+from app.models.settings import AppSettings
+from app.schemas.application import (
+    ApplicationResponse,
+    ApplicationListResponse,
+    ApplicationUpdate,
+)
+from app.schemas.settings import (
+    AdminLoginRequest,
+    SettingsResponse,
+    SettingsUpdate,
+    TestSmtpRequest,
+)
+from app.services.email import send_test_email
+from app.services.fees import calculate_fee
+from app.services.pdf import generate_pdf, generate_cancellation_pdf
+from app.services.crypto import decrypt_iban
+from app.services.email import send_status_email
+from app.routers.public import _build_application_data, _compute_anrede, _format_iban, _send_email_task
+
+logger = logging.getLogger(__name__)
+
+router = APIRouter(prefix="/api/admin", tags=["admin"])
+
+
+def get_serializer(settings: Settings = None) -> URLSafeTimedSerializer:
+    if settings is None:
+        settings = get_settings()
+    return URLSafeTimedSerializer(settings.cookie_secret)
+
+
+def require_admin(request: Request) -> bool:
+    """Dependency to check admin authentication."""
+    settings = get_settings()
+    cookie = request.cookies.get(settings.cookie_name)
+    if not cookie:
+        raise HTTPException(status_code=401, detail="Nicht angemeldet")
+    try:
+        serializer = get_serializer(settings)
+        serializer.loads(cookie, max_age=settings.session_max_age)
+        return True
+    except (BadSignature, SignatureExpired):
+        raise HTTPException(status_code=401, detail="Sitzung abgelaufen")
+
+
+def _get_or_create_settings(db: Session) -> AppSettings:
+    """Get or create the singleton settings row."""
+    settings = db.query(AppSettings).filter(AppSettings.id == 1).first()
+    if not settings:
+        settings = AppSettings(id=1)
+        db.add(settings)
+        db.commit()
+        db.refresh(settings)
+    return settings
+
+
+# --- Auth ---
+
+@router.post("/login")
+async def admin_login(data: AdminLoginRequest, response: Response):
+    settings = get_settings()
+    if data.password != settings.admin_password:
+        raise HTTPException(status_code=401, detail="Falsches Passwort")
+
+    serializer = get_serializer(settings)
+    token = serializer.dumps({"admin": True})
+
+    response.set_cookie(
+        key=settings.cookie_name,
+        value=token,
+        httponly=True,
+        secure=settings.cookie_secure,
+        samesite="lax",
+        max_age=settings.session_max_age,
+        path="/",
+    )
+    return {"message": "Angemeldet"}
+
+
+@router.post("/logout")
+async def admin_logout(response: Response):
+    settings = get_settings()
+    response.delete_cookie(key=settings.cookie_name, path="/")
+    return {"message": "Abgemeldet"}
+
+
+@router.get("/me")
+async def admin_check(is_admin: bool = Depends(require_admin)):
+    return {"authenticated": True}
+
+
+# --- Applications ---
+
+@router.get("/applications", response_model=ApplicationListResponse)
+async def list_applications(
+    page: int = 1,
+    per_page: int = 25,
+    status: str | None = None,
+    search: str | None = None,
+    is_admin: bool = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    query = db.query(MembershipApplication)
+
+    if status:
+        query = query.filter(MembershipApplication.status == status)
+
+    if search:
+        search_term = f"%{search}%"
+        query = query.filter(
+            or_(
+                MembershipApplication.vorname.ilike(search_term),
+                MembershipApplication.nachname.ilike(search_term),
+                MembershipApplication.email.ilike(search_term),
+                MembershipApplication.ort.ilike(search_term),
+            )
+        )
+
+    total = query.count()
+    applications = (
+        query.order_by(MembershipApplication.created_at.desc())
+        .offset((page - 1) * per_page)
+        .limit(per_page)
+        .all()
+    )
+
+    return ApplicationListResponse(
+        items=[ApplicationResponse.model_validate(app) for app in applications],
+        total=total,
+        page=page,
+        per_page=per_page,
+    )
+
+
+@router.get("/applications/{application_id}", response_model=ApplicationResponse)
+async def get_application(
+    application_id: int,
+    is_admin: bool = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    app = db.query(MembershipApplication).filter(
+        MembershipApplication.id == application_id
+    ).first()
+    if not app:
+        raise HTTPException(status_code=404, detail="Antrag nicht gefunden")
+
+    return ApplicationResponse.model_validate(app)
+
+
+@router.patch("/applications/{application_id}", response_model=ApplicationResponse)
+async def update_application(
+    application_id: int,
+    data: ApplicationUpdate,
+    is_admin: bool = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    app = db.query(MembershipApplication).filter(
+        MembershipApplication.id == application_id
+    ).first()
+    if not app:
+        raise HTTPException(status_code=404, detail="Antrag nicht gefunden")
+
+    old_status = app.status
+
+    if data.status is not None:
+        app.status = data.status
+    if data.notes is not None:
+        app.notes = data.notes
+
+    db.commit()
+    db.refresh(app)
+
+    # Send status email to applicant on approve/decline
+    new_status = app.status
+    if new_status != old_status and new_status in ("genehmigt", "abgelehnt"):
+        try:
+            settings_obj = _get_or_create_settings(db)
+            if settings_obj.smtp_host:
+                import asyncio
+                asyncio.ensure_future(
+                    send_status_email(
+                        smtp_host=settings_obj.smtp_host,
+                        smtp_port=settings_obj.smtp_port,
+                        smtp_user=settings_obj.smtp_user,
+                        smtp_password=settings_obj.smtp_password,
+                        smtp_from=settings_obj.smtp_from,
+                        smtp_use_tls=settings_obj.smtp_use_tls,
+                        applicant_email=app.email,
+                        vorname=app.vorname,
+                        nachname=app.nachname,
+                        antragsnummer=app.antragsnummer,
+                        status=new_status,
+                        anrede=_compute_anrede(app),
+                    )
+                )
+        except Exception as e:
+            logger.error(f"Failed to send status email: {e}")
+
+    return ApplicationResponse.model_validate(app)
+
+
+@router.delete("/applications/{application_id}")
+async def delete_application(
+    application_id: int,
+    is_admin: bool = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    app = db.query(MembershipApplication).filter(
+        MembershipApplication.id == application_id
+    ).first()
+    if not app:
+        raise HTTPException(status_code=404, detail="Antrag nicht gefunden")
+
+    db.delete(app)
+    db.commit()
+    return {"message": "Antrag gelöscht"}
+
+
+@router.post("/applications/{application_id}/resend-email")
+async def resend_email(
+    application_id: int,
+    background_tasks: BackgroundTasks,
+    is_admin: bool = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    """Re-send confirmation + admin notification email for an application."""
+    app = db.query(MembershipApplication).filter(
+        MembershipApplication.id == application_id
+    ).first()
+    if not app:
+        raise HTTPException(status_code=404, detail="Antrag nicht gefunden")
+
+    settings_obj = _get_or_create_settings(db)
+    if not settings_obj.smtp_host:
+        raise HTTPException(status_code=400, detail="SMTP ist nicht konfiguriert")
+
+    from app.config import get_settings
+    cfg = get_settings()
+    background_tasks.add_task(_send_email_task, application_id, cfg.database_url)
+
+    return {"message": "E-Mail wird erneut gesendet"}
+
+
+@router.get("/applications/{application_id}/pdf")
+async def download_pdf(
+    application_id: int,
+    is_admin: bool = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    app = db.query(MembershipApplication).filter(
+        MembershipApplication.id == application_id
+    ).first()
+    if not app:
+        raise HTTPException(status_code=404, detail="Antrag nicht gefunden")
+
+    from pathlib import Path
+
+    data = _build_application_data(app)
+
+    # For online-signed applications, reuse the stored signed PDF (which contains
+    # the embedded signature) instead of regenerating an unsigned blank form.
+    UPLOAD_DIR = Path("/app/data/uploads")
+    if app.uploaded_file and app.uploaded_file.endswith("_signed.pdf"):
+        signed_path = UPLOAD_DIR / app.uploaded_file
+        if signed_path.exists():
+            pdf_bytes = signed_path.read_bytes()
+        else:
+            pdf_bytes = generate_pdf(data)
+    else:
+        pdf_bytes = generate_pdf(data)
+
+    filename = f"Beitrittserklaerung_{app.nachname}_{app.vorname}.pdf"
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@router.get("/applications/{application_id}/upload")
+async def download_upload(
+    application_id: int,
+    is_admin: bool = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    """Download the uploaded signed document for an application."""
+    from pathlib import Path
+
+    app = db.query(MembershipApplication).filter(
+        MembershipApplication.id == application_id
+    ).first()
+    if not app:
+        raise HTTPException(status_code=404, detail="Antrag nicht gefunden")
+
+    if not app.uploaded_file:
+        raise HTTPException(status_code=404, detail="Kein Dokument hochgeladen")
+
+    upload_dir = Path("/app/data/uploads")
+    filepath = upload_dir / app.uploaded_file
+    if not filepath.exists():
+        raise HTTPException(status_code=404, detail="Datei nicht gefunden")
+
+    ext = filepath.suffix.lower()
+    media_types = {
+        ".pdf": "application/pdf",
+        ".jpg": "image/jpeg",
+        ".jpeg": "image/jpeg",
+        ".png": "image/png",
+        ".heic": "image/heic",
+        ".heif": "image/heif",
+    }
+    media_type = media_types.get(ext, "application/octet-stream")
+
+    content = filepath.read_bytes()
+    filename = f"Upload_{app.nachname}_{app.vorname}{ext}"
+    return Response(
+        content=content,
+        media_type=media_type,
+        headers={
+            "Content-Disposition": f'inline; filename="{filename}"',
+        },
+    )
+
+
+@router.get("/export")
+async def export_csv(
+    is_admin: bool = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    applications = (
+        db.query(MembershipApplication)
+        .order_by(MembershipApplication.created_at.desc())
+        .all()
+    )
+
+    output = io.StringIO()
+    writer = csv.writer(output, delimiter=";")
+    writer.writerow([
+        "Mitgliedsnr", "Antragstyp", "Anrede", "Nachname", "Vorname", "Geburtsdatum",
+        "Straße", "PLZ", "Ort", "Telefon", "E-Mail",
+        "Erz.berecht. Vorname", "Erz.berecht. Nachname",
+        "Kinder (JSON)",
+        "Abteilungen", "Mitgliedschaftstyp", "Elternteil Mitglied",
+        "Jahresbeitrag", "Kontoinhaber", "IBAN", "BIC", "Kreditinstitut",
+        "Status", "Notizen", "E-Mail gesendet", "Eingereicht am",
+    ])
+
+    for app in applications:
+        writer.writerow([
+            app.id, app.antragstyp or "einzel", app.geschlecht or "",
+            app.nachname, app.vorname,
+            app.geburtsdatum.strftime("%d.%m.%Y"),
+            app.strasse, app.plz, app.ort, app.telefon or "", app.email,
+            app.erziehungsberechtigter_vorname or "",
+            app.erziehungsberechtigter_nachname or "",
+            app.kinder or "",
+            ", ".join(app.get_abteilungen()), app.mitgliedschaft_typ,
+            "Ja" if app.elternteil_mitglied else ("Nein" if app.elternteil_mitglied is False else ""),
+            f"{app.jahresbeitrag:.2f}",
+            app.kontoinhaber or "", decrypt_iban(app.iban), app.bic or "", app.kreditinstitut or "",
+            app.status, app.notes or "",
+            "Ja" if app.email_sent else "Nein",
+            app.created_at.strftime("%d.%m.%Y %H:%M"),
+        ])
+
+    output.seek(0)
+    return StreamingResponse(
+        iter([output.getvalue()]),
+        media_type="text/csv",
+        headers={"Content-Disposition": 'attachment; filename="mitglieder_export.csv"'},
+    )
+
+
+# --- Settings ---
+
+@router.get("/settings", response_model=SettingsResponse)
+async def get_admin_settings(
+    is_admin: bool = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    settings = _get_or_create_settings(db)
+    return SettingsResponse.model_validate(settings)
+
+
+@router.put("/settings", response_model=SettingsResponse)
+async def update_admin_settings(
+    data: SettingsUpdate,
+    is_admin: bool = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    settings = _get_or_create_settings(db)
+
+    update_data = data.model_dump(exclude_unset=True)
+    for key, value in update_data.items():
+        setattr(settings, key, value)
+
+    db.commit()
+    db.refresh(settings)
+    return SettingsResponse.model_validate(settings)
+
+
+@router.post("/settings/test-smtp")
+async def test_smtp(
+    data: TestSmtpRequest,
+    is_admin: bool = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    settings = _get_or_create_settings(db)
+
+    if not settings.smtp_host:
+        raise HTTPException(status_code=400, detail="SMTP ist nicht konfiguriert")
+
+    try:
+        await send_test_email(
+            smtp_host=settings.smtp_host,
+            smtp_port=settings.smtp_port,
+            smtp_user=settings.smtp_user,
+            smtp_password=settings.smtp_password,
+            smtp_from=settings.smtp_from,
+            smtp_use_tls=settings.smtp_use_tls,
+            recipient=data.recipient,
+        )
+        return {"message": "Test-E-Mail wurde erfolgreich gesendet"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"SMTP-Fehler: {str(e)}")
+
+
+# --- Cancellation PDF ---
+
+class CancellationRequest(BaseModel):
+    anrede: str  # "Herr" or "Frau"
+    vorname: str
+    nachname: str
+    strasse: str
+    plz: str
+    ort: str
+    geburtsdatum: str
+    mitgliedsnummer: str | None = None
+    abteilung: str | None = None
+    austritt_datum: str
+
+
+@router.post("/cancellation-pdf")
+async def cancellation_pdf(
+    data: CancellationRequest,
+    is_admin: bool = Depends(require_admin),
+):
+    """Generate a cancellation confirmation PDF."""
+    anrede_map = {
+        "Herr": ("Sehr geehrter Herr", "Herrn"),
+        "Frau": ("Sehr geehrte Frau", "Frau"),
+    }
+    anrede_greeting, anrede_text = anrede_map.get(data.anrede, ("Sehr geehrte/r", ""))
+
+    pdf_data = {
+        "anrede": f"{anrede_greeting} {data.nachname}",
+        "anrede_text": anrede_text,
+        "vorname": data.vorname,
+        "nachname": data.nachname,
+        "strasse": data.strasse,
+        "plz": data.plz,
+        "ort": data.ort,
+        "geburtsdatum": data.geburtsdatum,
+        "mitgliedsnummer": data.mitgliedsnummer or "",
+        "abteilung": data.abteilung or "",
+        "austritt_datum": data.austritt_datum,
+        "datum": datetime.now().strftime("%d.%m.%Y"),
+    }
+
+    pdf_bytes = generate_cancellation_pdf(pdf_data)
+
+    filename = f"Kuendigungsbestaetigung_{data.nachname}_{data.vorname}.pdf"
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )

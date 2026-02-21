@@ -1,0 +1,20 @@
+# Secrets
+.env
+.env.*
+
+# Frontend
+frontend/node_modules/
+frontend/dist/
+
+# Python
+backend/__pycache__/
+**/__pycache__/
+**/*.pyc
+**/*.pyo
+
+# Runtime data (DB + uploads)
+data/
+
+# OS
+.DS_Store
+Thumbs.db

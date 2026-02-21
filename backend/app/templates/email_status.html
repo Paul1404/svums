@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="de" xmlns="http://www.w3.org/1999/xhtml" xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<!--[if mso]>
+<noscript>
+<xml>
+<o:OfficeDocumentSettings>
+<o:AllowPNG/>
+<o:PixelsPerInch>96</o:PixelsPerInch>
+</o:OfficeDocumentSettings>
+</xml>
+</noscript>
+<![endif]-->
+<style>
+  body, .body-table { margin: 0; padding: 0; width: 100% !important; -webkit-font-smoothing: antialiased; }
+  body { font-family: 'Segoe UI', Arial, Helvetica, sans-serif; color: #1f2937; line-height: 1.6; background-color: #f3f4f6; }
+  table { border-spacing: 0; border-collapse: collapse; }
+  td { padding: 0; }
+  img { border: 0; display: block; outline: none; text-decoration: none; }
+  a { color: #b91c1c; text-decoration: none; }
+  @media only screen and (max-width: 620px) {
+    .wrapper-table { width: 100% !important; }
+    .content-cell { padding: 20px 16px !important; }
+  }
+</style>
+</head>
+<body style="margin: 0; padding: 0; background-color: #f3f4f6;">
+<table role="presentation" class="body-table" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color: #f3f4f6;">
+<tr>
+<td align="center" style="padding: 24px 16px;">
+
+<table role="presentation" class="wrapper-table" width="600" cellpadding="0" cellspacing="0" border="0" style="background-color: #ffffff; border: 1px solid #e5e7eb;">
+  <!-- Header -->
+  <tr>
+    <td align="center" style="background-color: #b91c1c; padding: 28px 24px;">
+      <img src="https://svums.sv-untereuerheim.de/logo_svu-241x300.png" alt="SVU Logo" width="45" height="56" style="width: 45px; height: 56px; margin-bottom: 10px;">
+      <table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr><td style="font-family: 'Segoe UI', Arial, sans-serif; font-size: 20px; font-weight: 700; color: #ffffff; text-align: center;">Sportverein 1945 Untereuerheim e.V.</td></tr></table>
+      <table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr><td style="font-family: 'Segoe UI', Arial, sans-serif; font-size: 13px; color: #fecaca; text-align: center; padding-top: 4px;">Statusaktualisierung zu Ihrem Antrag</td></tr></table>
+      <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin-top: 10px;"><tr><td style="font-family: 'Consolas', 'Courier New', monospace; font-size: 12px; color: #ffffff; background-color: #991b1b; padding: 4px 14px; text-align: center;">{{ antragsnummer }}</td></tr></table>
+    </td>
+  </tr>
+
+  <!-- Content -->
+  <tr>
+    <td class="content-cell" style="padding: 28px 24px;">
+      <!-- Greeting -->
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom: 20px;">
+        <tr><td style="font-family: 'Segoe UI', Arial, sans-serif; font-size: 16px; color: #1f2937; padding-bottom: 8px;"><strong>{{ anrede }},</strong></td></tr>
+      </table>
+
+      {% if status == 'dokument_hochgeladen' %}
+      <!-- Upload confirmed -->
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom: 20px;">
+        <tr><td style="font-family: 'Segoe UI', Arial, sans-serif; font-size: 14px; color: #4b5563; line-height: 1.7;">
+          wir haben Ihr unterschriebenes Dokument erhalten. Vielen Dank!<br><br>
+          Ihr Antrag <strong>{{ antragsnummer }}</strong> wird nun von uns geprüft. Wir melden uns bei Ihnen, sobald wir Ihre Mitgliedschaft bestätigt haben.
+        </td></tr>
+      </table>
+
+      <!-- Status indicator -->
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin: 20px 0;">
+        <tr><td align="center" style="background-color: #eff6ff; border: 2px solid #93c5fd; padding: 18px;">
+          <span style="font-family: 'Segoe UI', Arial, sans-serif; font-size: 15px; font-weight: 700; color: #1d4ed8;">&#10003; Dokument erhalten</span><br>
+          <span style="font-family: 'Segoe UI', Arial, sans-serif; font-size: 13px; color: #6b7280; padding-top: 4px;">Ihr Antrag wird geprüft</span>
+        </td></tr>
+      </table>
+
+      {% elif status == 'genehmigt' %}
+      <!-- Approved -->
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom: 20px;">
+        <tr><td style="font-family: 'Segoe UI', Arial, sans-serif; font-size: 14px; color: #4b5563; line-height: 1.7;">
+          wir freuen uns, Ihnen mitteilen zu können, dass Ihr Antrag <strong>{{ antragsnummer }}</strong> <strong>genehmigt</strong> wurde!<br><br>
+          Herzlich willkommen beim Sportverein 1945 Untereuerheim e.V.! Wir freuen uns auf Sie.
+        </td></tr>
+      </table>
+
+      <!-- Status indicator -->
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin: 20px 0;">
+        <tr><td align="center" style="background-color: #f0fdf4; border: 2px solid #86efac; padding: 18px;">
+          <span style="font-family: 'Segoe UI', Arial, sans-serif; font-size: 22px; font-weight: 800; color: #16a34a;">&#10003; Genehmigt</span><br>
+          <span style="font-family: 'Segoe UI', Arial, sans-serif; font-size: 14px; color: #15803d; padding-top: 4px;">Willkommen im Verein!</span>
+        </td></tr>
+      </table>
+
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin: 20px 0;">
+        <tr><td style="background-color: #fffbeb; border: 1px solid #fcd34d; padding: 16px; font-family: 'Segoe UI', Arial, sans-serif; font-size: 13px; color: #92400e; line-height: 1.7;">
+          <strong style="color: #78350f;">Hinweise:</strong><br>
+          &bull; Die Mitgliedsbeiträge werden einmal jährlich per SEPA-Lastschrift eingezogen.<br>
+          &bull; Bei Fragen wenden Sie sich bitte an <a href="mailto:info@sv-untereuerheim.de" style="color: #b91c1c; font-weight: 600;">info@sv-untereuerheim.de</a>.
+        </td></tr>
+      </table>
+
+      {% elif status == 'abgelehnt' %}
+      <!-- Declined -->
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom: 20px;">
+        <tr><td style="font-family: 'Segoe UI', Arial, sans-serif; font-size: 14px; color: #4b5563; line-height: 1.7;">
+          leider müssen wir Ihnen mitteilen, dass Ihr Antrag <strong>{{ antragsnummer }}</strong> <strong>abgelehnt</strong> wurde.<br><br>
+          Bei Fragen können Sie sich gerne an uns wenden.
+        </td></tr>
+      </table>
+
+      <!-- Status indicator -->
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin: 20px 0;">
+        <tr><td align="center" style="background-color: #fef2f2; border: 2px solid #fca5a5; padding: 18px;">
+          <span style="font-family: 'Segoe UI', Arial, sans-serif; font-size: 22px; font-weight: 800; color: #dc2626;">&#10007; Abgelehnt</span>
+        </td></tr>
+      </table>
+
+      {% endif %}
+
+      <!-- Status check link -->
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin: 24px 0;">
+        <tr>
+          <td align="center">
+            <!--[if mso]>
+            <v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w="urn:schemas-microsoft-com:office:word" href="{{ status_url }}" style="height:44px;v-text-anchor:middle;width:240px;" arcsize="10%" strokecolor="#991b1b" fillcolor="#b91c1c">
+            <w:anchorlock/>
+            <center style="color:#ffffff;font-family:'Segoe UI',Arial,sans-serif;font-size:15px;font-weight:bold;">Status online prüfen</center>
+            </v:roundrect>
+            <![endif]-->
+            <!--[if !mso]><!-->
+            <a href="{{ status_url }}" style="display: inline-block; background-color: #b91c1c; color: #ffffff; padding: 12px 32px; font-family: 'Segoe UI', Arial, sans-serif; font-size: 15px; font-weight: 700; text-decoration: none; text-align: center;">Status online prüfen</a>
+            <!--<![endif]-->
+          </td>
+        </tr>
+      </table>
+
+      <!-- Help -->
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+        <tr><td align="center" style="font-family: 'Segoe UI', Arial, sans-serif; font-size: 13px; color: #6b7280; padding-top: 4px;">
+          Fragen? Schreiben Sie uns an <a href="mailto:info@sv-untereuerheim.de" style="color: #b91c1c; font-weight: 600; text-decoration: none;">info@sv-untereuerheim.de</a>
+        </td></tr>
+      </table>
+    </td>
+  </tr>
+
+  <!-- Footer -->
+  <tr>
+    <td align="center" style="background-color: #1f2937; padding: 24px; font-family: 'Segoe UI', Arial, sans-serif; font-size: 12px; color: #9ca3af; line-height: 1.8;">
+      <span style="color: #e5e7eb; font-weight: 700;">Sportverein 1945 Untereuerheim e.V.</span><br>
+      Triebweg 9 &middot; 97508 Grettstadt/Untereuerheim<br>
+      1. Vorstand: Alexander Eckert &middot; Tel: 09729/432<br>
+      <a href="mailto:info@sv-untereuerheim.de" style="color: #fca5a5; text-decoration: none;">info@sv-untereuerheim.de</a><br>
+      Registergericht: Schweinfurt &middot; Steuer-ID: 249/111/20506<br>
+      <br><span style="font-size: 11px; color: #6b7280;">Diese E-Mail wurde automatisch generiert.</span>
+    </td>
+  </tr>
+</table>
+
+</td>
+</tr>
+</table>
+</body>
+</html>

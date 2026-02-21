@@ -1,0 +1,578 @@
+import json
+import logging
+import os
+import uuid
+from datetime import date, datetime
+from pathlib import Path
+
+from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, Request, UploadFile, File
+from sqlalchemy import func
+from sqlalchemy.orm import Session
+
+from app.database import get_db
+from app.models.application import MembershipApplication
+from app.models.settings import AppSettings
+from app.schemas.application import (
+    ApplicationCreate,
+    ApplicationSubmitResponse,
+    FeeCalculationResponse,
+)
+from app.services.fees import calculate_fee, determine_mitgliedschaft_typ, calculate_age
+from app.services.pdf import generate_pdf
+from app.services.email import send_application_email, send_upload_notification
+from app.services.crypto import encrypt_iban, decrypt_iban
+
+logger = logging.getLogger(__name__)
+
+router = APIRouter(prefix="/api", tags=["public"])
+
+
+def _format_iban(iban: str) -> str:
+    """Format IBAN with spaces every 4 characters."""
+    cleaned = iban.replace(" ", "")
+    return " ".join(cleaned[i : i + 4] for i in range(0, len(cleaned), 4))
+
+
+def _compute_anrede(app: MembershipApplication) -> str:
+    """Compute a formal salutation string for the contact person of an application."""
+    antragstyp = app.antragstyp or "einzel"
+    geschlecht = app.geschlecht or ""
+    if geschlecht == "Herr":
+        prefix = "Sehr geehrter Herr"
+    elif geschlecht == "Frau":
+        prefix = "Sehr geehrte Frau"
+    else:
+        # Fallback: informal greeting with full name
+        name = app.vorname if antragstyp != "kind" else (app.erziehungsberechtigter_vorname or app.vorname)
+        return f"Hallo {name}"
+    last_name = (
+        app.erziehungsberechtigter_nachname or app.nachname
+        if antragstyp == "kind"
+        else app.nachname
+    )
+    return f"{prefix} {last_name}"
+
+
+def _build_application_data(app: MembershipApplication) -> dict:
+    """Build template data dict from application model."""
+    fee_amount, fee_label = calculate_fee(
+        app.mitgliedschaft_typ, app.elternteil_mitglied
+    )
+
+    antragstyp = app.antragstyp or "einzel"
+
+    data = {
+        "id": app.id,
+        "antragsnummer": app.antragsnummer or "",
+        "antragstyp": antragstyp,
+        "geschlecht": app.geschlecht or "",
+        "anrede": _compute_anrede(app),
+        "mandatsreferenz": app.mandatsreferenz or "",
+        "glaeubiger_id": "DE71ZZZ00000901082",
+        "upload_token": app.upload_token or "",
+        "upload_url": f"https://svums.sv-untereuerheim.de/upload/{app.upload_token}" if app.upload_token else "",
+        "vorname": app.vorname,
+        "nachname": app.nachname,
+        "geburtsdatum": app.geburtsdatum,
+        "geburtsdatum_formatted": app.geburtsdatum.strftime("%d.%m.%Y"),
+        "strasse": app.strasse,
+        "plz": app.plz,
+        "ort": app.ort,
+        "telefon": app.telefon,
+        "email": app.email,
+        "abteilungen": app.get_abteilungen(),
+        "abteilungen_display": ", ".join(app.get_abteilungen()),
+        "mitgliedschaft_typ": app.mitgliedschaft_typ,
+        "elternteil_mitglied": app.elternteil_mitglied,
+        "jahresbeitrag": int(app.jahresbeitrag),
+        "fee_label": fee_label,
+        "kontoinhaber": app.kontoinhaber,
+        "iban": decrypt_iban(app.iban),
+        "iban_formatted": _format_iban(decrypt_iban(app.iban)),
+        "bic": app.bic,
+        "kreditinstitut": app.kreditinstitut,
+        "datum": date.today().strftime("%d.%m.%Y"),
+    }
+
+    # Guardian info for Kind type
+    if antragstyp == "kind":
+        data["erziehungsberechtigter_vorname"] = app.erziehungsberechtigter_vorname or ""
+        data["erziehungsberechtigter_nachname"] = app.erziehungsberechtigter_nachname or ""
+        data["erziehungsberechtigter_name"] = (
+            f"{app.erziehungsberechtigter_nachname or ''}, {app.erziehungsberechtigter_vorname or ''}"
+        )
+
+    # Children for Familie type
+    if antragstyp == "familie":
+        kinder = app.get_kinder()
+        for k in kinder:
+            if isinstance(k.get("geburtsdatum"), str):
+                try:
+                    dob = date.fromisoformat(k["geburtsdatum"])
+                    k["geburtsdatum_formatted"] = dob.strftime("%d.%m.%Y")
+                    k["age"] = calculate_age(dob)
+                except (ValueError, TypeError):
+                    k["geburtsdatum_formatted"] = k["geburtsdatum"]
+                    k["age"] = None
+            k["abteilungen_display"] = ", ".join(k.get("abteilungen", []))
+        data["kinder"] = kinder
+
+        # Partner / second parent
+        if app.partner_vorname and app.partner_nachname:
+            data["partner_vorname"] = app.partner_vorname
+            data["partner_nachname"] = app.partner_nachname
+            data["partner_name"] = f"{app.partner_nachname}, {app.partner_vorname}"
+            if app.partner_geburtsdatum:
+                data["partner_geburtsdatum"] = app.partner_geburtsdatum
+                data["partner_geburtsdatum_formatted"] = app.partner_geburtsdatum.strftime("%d.%m.%Y")
+            data["partner_abteilungen"] = app.get_partner_abteilungen()
+            data["partner_abteilungen_display"] = ", ".join(app.get_partner_abteilungen())
+
+    return data
+
+
+async def _send_email_task(application_id: int, db_url: str, unterschrift_base64: str | None = None):
+    """Background task to generate PDF and send email."""
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import sessionmaker
+
+    eng = create_engine(db_url, connect_args={"check_same_thread": False})
+    SessionLocal = sessionmaker(bind=eng)
+    db = SessionLocal()
+
+    try:
+        app = db.query(MembershipApplication).filter(
+            MembershipApplication.id == application_id
+        ).first()
+        if not app:
+            logger.error(f"Application {application_id} not found for email")
+            return
+
+        settings = db.query(AppSettings).filter(AppSettings.id == 1).first()
+        if not settings or not settings.smtp_host:
+            logger.warning("SMTP not configured, skipping email")
+            return
+
+        data = _build_application_data(app)
+
+        # Detect online-signed: either the caller passes the raw base64 (fresh submission),
+        # or the stored filename ends with "_signed.pdf" (resend after the fact).
+        is_online_signed = bool(unterschrift_base64) or bool(
+            app.uploaded_file and app.uploaded_file.endswith("_signed.pdf")
+        )
+        data["signed_online"] = is_online_signed
+
+        if unterschrift_base64:
+            # Fresh submission: embed the signature and regenerate the PDF.
+            data["unterschrift_base64"] = unterschrift_base64
+            pdf_bytes = generate_pdf(data)
+        elif is_online_signed and app.uploaded_file:
+            # Resend: reuse the stored signed PDF so the attachment still carries the signature.
+            signed_path = UPLOAD_DIR / app.uploaded_file
+            pdf_bytes = signed_path.read_bytes() if signed_path.exists() else generate_pdf(data)
+        else:
+            pdf_bytes = generate_pdf(data)
+
+        success = await send_application_email(
+            smtp_host=settings.smtp_host,
+            smtp_port=settings.smtp_port,
+            smtp_user=settings.smtp_user,
+            smtp_password=settings.smtp_password,
+            smtp_from=settings.smtp_from,
+            smtp_use_tls=settings.smtp_use_tls,
+            notification_email=settings.notification_email,
+            applicant_email=app.email,
+            application_data=data,
+            pdf_bytes=pdf_bytes,
+        )
+
+        if success:
+            app.email_sent = True
+            db.commit()
+    except Exception as e:
+        logger.error(f"Email task error: {e}")
+    finally:
+        db.close()
+
+
+@router.post("/apply", response_model=ApplicationSubmitResponse)
+async def submit_application(
+    data: ApplicationCreate,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+):
+    """Submit a new membership application."""
+    # Calculate fee
+    fee_amount, fee_label = calculate_fee(
+        data.mitgliedschaft_typ, data.elternteil_mitglied
+    )
+
+    # Create application
+    application = MembershipApplication(
+        antragstyp=data.antragstyp,
+        geschlecht=data.geschlecht,
+        vorname=data.vorname,
+        nachname=data.nachname,
+        geburtsdatum=data.geburtsdatum,
+        strasse=data.strasse,
+        plz=data.plz,
+        ort=data.ort,
+        telefon=data.telefon,
+        email=data.email,
+        erziehungsberechtigter_vorname=data.erziehungsberechtigter_vorname,
+        erziehungsberechtigter_nachname=data.erziehungsberechtigter_nachname,
+        partner_vorname=data.partner_vorname,
+        partner_nachname=data.partner_nachname,
+        partner_geburtsdatum=data.partner_geburtsdatum,
+        partner_abteilungen=json.dumps(data.partner_abteilungen) if data.partner_abteilungen else None,
+        kinder=json.dumps([k.model_dump(mode="json") for k in data.kinder]) if data.kinder else None,
+        abteilungen=json.dumps(data.abteilungen),
+        mitgliedschaft_typ=data.mitgliedschaft_typ,
+        elternteil_mitglied=data.elternteil_mitglied,
+        jahresbeitrag=fee_amount,
+        kontoinhaber=data.kontoinhaber,
+        iban=encrypt_iban(data.iban),
+        bic=data.bic,
+        kreditinstitut=data.kreditinstitut,
+        consent_at=datetime.utcnow(),
+    )
+
+    db.add(application)
+    db.flush()  # get the id
+
+    # Generate Antragsnummer: ANT-YYYY-XXXXXX (random, non-sequential)
+    import secrets
+    import string
+    year = date.today().year
+    _charset = string.ascii_uppercase + string.digits
+    _charset = _charset.replace("O", "").replace("I", "").replace("L", "").replace("0", "")  # remove ambiguous
+    for _attempt in range(20):
+        rand_part = "".join(secrets.choice(_charset) for _ in range(6))
+        candidate = f"ANT-{year}-{rand_part}"
+        exists = db.query(MembershipApplication.id).filter(
+            MembershipApplication.antragsnummer == candidate
+        ).first()
+        if not exists:
+            application.antragsnummer = candidate
+            break
+    else:
+        # Fallback: use uuid hex
+        application.antragsnummer = f"ANT-{year}-{uuid.uuid4().hex[:8].upper()}"
+
+    # Generate upload token
+    application.upload_token = str(uuid.uuid4())
+
+    # Generate Mandatsreferenz: SVU1945-YYYY-XXXXX
+    year = date.today().year
+    max_seq = (
+        db.query(func.max(MembershipApplication.id))
+        .filter(MembershipApplication.mandatsreferenz.like(f"SVU1945-{year}-%"))
+        .scalar()
+    )
+    # Count existing mandates for this year
+    count = (
+        db.query(func.count(MembershipApplication.id))
+        .filter(MembershipApplication.mandatsreferenz.like(f"SVU1945-{year}-%"))
+        .scalar()
+    ) or 0
+    seq = count + 1
+    application.mandatsreferenz = f"SVU1945-{year}-{seq:05d}"
+
+    db.commit()
+    db.refresh(application)
+
+    # Option B: inline signature provided → generate signed PDF, store it,
+    # and advance status to "dokument_hochgeladen" immediately.
+    if data.unterschrift_base64:
+        try:
+            app_data = _build_application_data(application)
+            app_data["unterschrift_base64"] = data.unterschrift_base64
+            pdf_bytes = generate_pdf(app_data)
+
+            UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+            signed_filename = f"{application.antragsnummer}_signed.pdf"
+            (UPLOAD_DIR / signed_filename).write_bytes(pdf_bytes)
+
+            application.uploaded_file = signed_filename
+            application.uploaded_at = datetime.utcnow()
+            application.status = "dokument_hochgeladen"
+            db.commit()
+            db.refresh(application)
+            logger.info(f"Inline-signed PDF saved for {application.antragsnummer}")
+        except Exception as exc:
+            logger.error(f"Failed to generate inline-signed PDF: {exc}")
+            # Non-fatal: continue without embedding; status stays "neu"
+
+    # Send email in background (signature forwarded so PDF in email also carries it)
+    from app.config import get_settings
+    settings = get_settings()
+    background_tasks.add_task(
+        _send_email_task,
+        application.id,
+        settings.database_url,
+        data.unterschrift_base64,
+    )
+
+    return ApplicationSubmitResponse(
+        id=application.id,
+        antragsnummer=application.antragsnummer,
+        mandatsreferenz=application.mandatsreferenz,
+        upload_url=f"https://svums.sv-untereuerheim.de/upload/{application.upload_token}",
+        message="Ihre Beitrittserklärung wurde erfolgreich eingereicht.",
+    )
+
+
+@router.get("/fees/calculate", response_model=FeeCalculationResponse)
+async def calculate_membership_fee(
+    geburtsdatum: date,
+    mitgliedschaft_typ: str,
+    elternteil_mitglied: bool | None = None,
+):
+    """Calculate the annual membership fee."""
+    try:
+        fee_amount, fee_label = calculate_fee(mitgliedschaft_typ, elternteil_mitglied)
+        return FeeCalculationResponse(
+            jahresbeitrag=fee_amount,
+            mitgliedschaft_typ=mitgliedschaft_typ,
+            label=fee_label,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.get("/iban/lookup")
+async def lookup_iban(iban: str):
+    """Validate IBAN and look up BIC + bank name."""
+    cleaned = iban.replace(" ", "").upper()
+    result = {"valid": False, "iban": cleaned, "bic": None, "bank_name": None}
+    try:
+        from schwifty import IBAN as SchwiftyIBAN
+        iban_obj = SchwiftyIBAN(cleaned)
+        result["valid"] = True
+        result["country"] = iban_obj.country_code
+        try:
+            bic_obj = iban_obj.bic
+            result["bic"] = bic_obj.compact
+            try:
+                names = bic_obj.bank_names
+                if isinstance(names, list) and names:
+                    result["bank_name"] = names[0]
+                elif isinstance(names, dict) and names:
+                    result["bank_name"] = list(names.values())[0]
+                elif names:
+                    result["bank_name"] = str(names)
+            except Exception:
+                pass
+        except Exception:
+            pass
+    except Exception:
+        pass
+    return result
+
+
+@router.get("/health")
+async def health_check():
+    return {"status": "ok"}
+
+
+@router.get("/check-duplicate")
+async def check_duplicate(
+    vorname: str,
+    nachname: str,
+    geburtsdatum: date,
+    db: Session = Depends(get_db),
+):
+    """Check if an application with the same name and DOB already exists."""
+    existing = (
+        db.query(MembershipApplication.id, MembershipApplication.antragsnummer, MembershipApplication.status)
+        .filter(
+            func.lower(MembershipApplication.vorname) == vorname.strip().lower(),
+            func.lower(MembershipApplication.nachname) == nachname.strip().lower(),
+            MembershipApplication.geburtsdatum == geburtsdatum,
+        )
+        .first()
+    )
+    if existing:
+        return {
+            "duplicate": True,
+            "antragsnummer": existing.antragsnummer,
+            "status": existing.status,
+        }
+    return {"duplicate": False}
+
+
+# --- Upload signed document ---
+
+UPLOAD_DIR = Path("/app/data/uploads")
+ALLOWED_EXTENSIONS = {".pdf", ".jpg", ".jpeg", ".png", ".heic", ".heif"}
+MAX_FILE_SIZE = 20 * 1024 * 1024  # 20 MB
+
+
+@router.get("/upload/{token}")
+async def get_upload_info(token: str, db: Session = Depends(get_db)):
+    """Get application info for an upload token (used by the upload page)."""
+    app = db.query(MembershipApplication).filter(
+        MembershipApplication.upload_token == token
+    ).first()
+    if not app:
+        raise HTTPException(status_code=404, detail="Ungültiger Upload-Link")
+
+    # Check 30-day expiry
+    if app.created_at:
+        days_since = (datetime.utcnow() - app.created_at).days
+        if days_since > 30:
+            raise HTTPException(
+                status_code=410,
+                detail="Der Upload-Link ist abgelaufen (30 Tage). Bitte kontaktieren Sie den Verein."
+            )
+
+    return {
+        "antragsnummer": app.antragsnummer,
+        "vorname": app.vorname,
+        "nachname": app.nachname,
+        "antragstyp": app.antragstyp,
+        "already_uploaded": app.uploaded_file is not None,
+        "uploaded_at": app.uploaded_at.isoformat() if app.uploaded_at else None,
+    }
+
+
+@router.post("/upload/{token}")
+async def upload_signed_document(
+    token: str,
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+):
+    """Upload a signed membership application document."""
+    app = db.query(MembershipApplication).filter(
+        MembershipApplication.upload_token == token
+    ).first()
+    if not app:
+        raise HTTPException(status_code=404, detail="Ungültiger Upload-Link")
+
+    # Check 30-day expiry
+    if app.created_at:
+        days_since = (datetime.utcnow() - app.created_at).days
+        if days_since > 30:
+            raise HTTPException(
+                status_code=410,
+                detail="Der Upload-Link ist abgelaufen (30 Tage). Bitte kontaktieren Sie den Verein."
+            )
+
+    # Validate file extension
+    ext = Path(file.filename).suffix.lower() if file.filename else ""
+    if ext not in ALLOWED_EXTENSIONS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Nicht erlaubtes Dateiformat. Erlaubt: {', '.join(ALLOWED_EXTENSIONS)}"
+        )
+
+    # Read and validate size
+    contents = await file.read()
+    if len(contents) > MAX_FILE_SIZE:
+        raise HTTPException(status_code=400, detail="Datei zu groß (max. 20 MB)")
+    if len(contents) == 0:
+        raise HTTPException(status_code=400, detail="Leere Datei")
+
+    # Save file
+    UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+    filename = f"{app.antragsnummer}_{uuid.uuid4().hex[:8]}{ext}"
+    filepath = UPLOAD_DIR / filename
+    filepath.write_bytes(contents)
+
+    # Update application
+    # If there was a previous upload, delete it
+    if app.uploaded_file:
+        old_path = UPLOAD_DIR / app.uploaded_file
+        if old_path.exists():
+            old_path.unlink()
+
+    app.uploaded_file = filename
+    app.uploaded_at = datetime.utcnow()
+    # Auto-advance status
+    if app.status == "neu":
+        app.status = "dokument_hochgeladen"
+    db.commit()
+
+    logger.info(f"Upload received for {app.antragsnummer}: {filename} ({len(contents)} bytes)")
+
+    # Send notifications
+    try:
+        settings = db.query(AppSettings).filter(AppSettings.id == 1).first()
+        if settings and settings.smtp_host:
+            import asyncio
+            # Notify admin
+            asyncio.ensure_future(
+                send_upload_notification(
+                    smtp_host=settings.smtp_host,
+                    smtp_port=settings.smtp_port,
+                    smtp_user=settings.smtp_user,
+                    smtp_password=settings.smtp_password,
+                    smtp_from=settings.smtp_from,
+                    smtp_use_tls=settings.smtp_use_tls,
+                    notification_email=settings.notification_email,
+                    antragsnummer=app.antragsnummer,
+                    vorname=app.vorname,
+                    nachname=app.nachname,
+                    filename=filename,
+                )
+            )
+            # Confirm upload to applicant
+            from app.services.email import send_status_email
+            asyncio.ensure_future(
+                send_status_email(
+                    smtp_host=settings.smtp_host,
+                    smtp_port=settings.smtp_port,
+                    smtp_user=settings.smtp_user,
+                    smtp_password=settings.smtp_password,
+                    smtp_from=settings.smtp_from,
+                    smtp_use_tls=settings.smtp_use_tls,
+                    applicant_email=app.email,
+                    vorname=app.vorname,
+                    nachname=app.nachname,
+                    antragsnummer=app.antragsnummer,
+                    status="dokument_hochgeladen",
+                    anrede=_compute_anrede(app),
+                )
+            )
+    except Exception as e:
+        logger.error(f"Failed to send upload notification: {e}")
+
+    return {
+        "message": "Dokument erfolgreich hochgeladen",
+        "filename": filename,
+        "antragsnummer": app.antragsnummer,
+    }
+
+
+# --- Status lookup ---
+
+STATUS_LABELS = {
+    "neu": "Eingegangen",
+    "dokument_hochgeladen": "Dokument hochgeladen",
+    "in_bearbeitung": "In Bearbeitung",
+    "genehmigt": "Genehmigt",
+    "abgelehnt": "Abgelehnt",
+}
+
+STATUS_ORDER = ["neu", "dokument_hochgeladen", "in_bearbeitung", "genehmigt"]
+
+
+@router.get("/status/{antragsnummer}")
+async def lookup_status(antragsnummer: str, db: Session = Depends(get_db)):
+    """Public status lookup by Antragsnummer."""
+    app = db.query(MembershipApplication).filter(
+        MembershipApplication.antragsnummer == antragsnummer.strip().upper()
+    ).first()
+    if not app:
+        raise HTTPException(status_code=404, detail="Antragsnummer nicht gefunden")
+
+    return {
+        "antragsnummer": app.antragsnummer,
+        "vorname": app.vorname,
+        "nachname": app.nachname,
+        "status": app.status,
+        "status_label": STATUS_LABELS.get(app.status, app.status),
+        "created_at": app.created_at.isoformat() if app.created_at else None,
+        "uploaded_at": app.uploaded_at.isoformat() if app.uploaded_at else None,
+        "has_upload": app.uploaded_file is not None,
+    }

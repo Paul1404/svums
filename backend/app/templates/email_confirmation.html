@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="de" xmlns="http://www.w3.org/1999/xhtml" xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<!--[if mso]>
+<noscript>
+<xml>
+<o:OfficeDocumentSettings>
+<o:AllowPNG/>
+<o:PixelsPerInch>96</o:PixelsPerInch>
+</o:OfficeDocumentSettings>
+</xml>
+</noscript>
+<![endif]-->
+<style>
+  body, .body-table { margin: 0; padding: 0; width: 100% !important; -webkit-font-smoothing: antialiased; }
+  body { font-family: 'Segoe UI', Arial, Helvetica, sans-serif; color: #1f2937; line-height: 1.6; background-color: #f3f4f6; }
+  table { border-spacing: 0; border-collapse: collapse; }
+  td { padding: 0; }
+  img { border: 0; display: block; outline: none; text-decoration: none; }
+  a { color: #b91c1c; text-decoration: none; }
+  .data-label { font-weight: 600; color: #6b7280; font-size: 13px; padding: 8px 12px 8px 0; vertical-align: top; border-bottom: 1px solid #f3f4f6; }
+  .data-value { color: #1f2937; font-size: 14px; padding: 8px 0; vertical-align: top; border-bottom: 1px solid #f3f4f6; }
+  @media only screen and (max-width: 620px) {
+    .wrapper-table { width: 100% !important; }
+    .content-cell { padding: 20px 16px !important; }
+    .data-label { display: block; padding: 8px 0 2px 0; }
+    .data-value { display: block; padding: 2px 0 8px 0; }
+  }
+</style>
+</head>
+<body style="margin: 0; padding: 0; background-color: #f3f4f6;">
+<!-- Outer wrapper -->
+<table role="presentation" class="body-table" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color: #f3f4f6;">
+<tr>
+<td align="center" style="padding: 24px 16px;">
+
+<!-- Main card -->
+<table role="presentation" class="wrapper-table" width="600" cellpadding="0" cellspacing="0" border="0" style="background-color: #ffffff; border: 1px solid #e5e7eb;">
+  <!-- Header -->
+  <tr>
+    <td align="center" style="background-color: #b91c1c; padding: 28px 24px;">
+      <img src="https://svums.sv-untereuerheim.de/logo_svu-241x300.png" alt="SVU Logo" width="45" height="56" style="width: 45px; height: 56px; margin-bottom: 10px;">
+      <table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr><td style="font-family: 'Segoe UI', Arial, sans-serif; font-size: 20px; font-weight: 700; color: #ffffff; text-align: center;">Sportverein 1945 Untereuerheim e.V.</td></tr></table>
+      <table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr><td style="font-family: 'Segoe UI', Arial, sans-serif; font-size: 13px; color: #fecaca; text-align: center; padding-top: 4px;">{% if signed_online %}Online-Unterschrift bestätigt{% else %}Bestätigung Ihrer Beitrittserklärung{% endif %}</td></tr></table>
+      <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin-top: 10px;"><tr><td style="font-family: 'Consolas', 'Courier New', monospace; font-size: 12px; color: #ffffff; background-color: #991b1b; padding: 4px 14px; text-align: center;">{{ antragsnummer }}</td></tr></table>
+    </td>
+  </tr>
+
+  <!-- Content -->
+  <tr>
+    <td class="content-cell" style="padding: 28px 24px;">
+
+      <!-- Greeting -->
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom: 20px;">
+        <tr><td style="font-family: 'Segoe UI', Arial, sans-serif; font-size: 16px; color: #1f2937; padding-bottom: 8px;"><strong>{{ anrede }},</strong></td></tr>
+        <tr><td style="font-family: 'Segoe UI', Arial, sans-serif; font-size: 14px; color: #4b5563;">{% if signed_online %}vielen Dank für Ihre Beitrittserklärung zum Sportverein 1945 Untereuerheim e.V.! Da Sie die Erklärung online unterschrieben haben, ist Ihr Antrag bereits vollständig eingereicht.{% else %}vielen Dank für Ihre Beitrittserklärung zum Sportverein 1945 Untereuerheim e.V.! Wir haben Ihren Antrag erhalten und werden ihn zeitnah bearbeiten.{% endif %}</td></tr>
+      </table>
+
+      {% set antragstyp = antragstyp or 'einzel' %}
+
+      <!-- Section: Überblick -->
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom: 24px;">
+        <tr><td style="font-family: 'Segoe UI', Arial, sans-serif; font-size: 13px; font-weight: 700; color: #991b1b; text-transform: uppercase; letter-spacing: 0.8px; padding-bottom: 8px; border-bottom: 2px solid #fecaca;">Ihre Angaben im Überblick</td></tr>
+        <tr><td style="padding-top: 12px;">
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+            {% if antragstyp == 'kind' %}
+            <tr><td class="data-label" width="170">Kind</td><td class="data-value">{{ vorname }} {{ nachname }}</td></tr>
+            <tr><td class="data-label">Abteilung(en)</td><td class="data-value">{{ abteilungen_display }}</td></tr>
+            <tr><td class="data-label">Kategorie</td><td class="data-value">{{ fee_label }}</td></tr>
+            {% elif antragstyp == 'familie' %}
+            <tr><td class="data-label" width="170">Antragsteller</td><td class="data-value">{{ vorname }} {{ nachname }}</td></tr>
+            <tr><td class="data-label">Abteilung(en)</td><td class="data-value">{{ abteilungen_display }}</td></tr>
+            {% if kinder %}
+            <tr><td class="data-label">Kinder</td><td class="data-value">{{ kinder | length }} Kind(er)</td></tr>
+            {% endif %}
+            <tr><td class="data-label">Kategorie</td><td class="data-value">{{ fee_label }}</td></tr>
+            {% else %}
+            <tr><td class="data-label" width="170">Abteilung(en)</td><td class="data-value">{{ abteilungen_display }}</td></tr>
+            <tr><td class="data-label">Kategorie</td><td class="data-value">{{ fee_label }}</td></tr>
+            {% endif %}
+          </table>
+        </td></tr>
+      </table>
+
+      <!-- Fee card -->
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin: 20px 0;">
+        <tr><td align="center" style="background-color: #fef2f2; border: 2px solid #fca5a5; padding: 18px;">
+          <span style="font-family: 'Segoe UI', Arial, sans-serif; font-size: 30px; font-weight: 800; color: #991b1b;">{{ jahresbeitrag }},– €</span>
+          <span style="font-family: 'Segoe UI', Arial, sans-serif; font-size: 15px; color: #991b1b;"> / Jahr</span><br>
+          <span style="font-family: 'Segoe UI', Arial, sans-serif; font-size: 13px; color: #6b7280;">{{ fee_label }}</span>
+        </td></tr>
+      </table>
+
+      <!-- Mandatsreferenz -->
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom: 24px;">
+        <tr><td class="data-label" width="170">Mandatsreferenz</td><td class="data-value"><code style="font-family: 'Consolas', 'Courier New', monospace; font-size: 13px; font-weight: 700; background-color: #f3f4f6; padding: 2px 6px;">{{ mandatsreferenz }}</code></td></tr>
+        <tr><td class="data-label">Gläubiger-ID</td><td class="data-value"><code style="font-family: 'Consolas', 'Courier New', monospace; font-size: 13px; background-color: #f3f4f6; padding: 2px 6px;">{{ glaeubiger_id }}</code></td></tr>
+      </table>
+
+      {% if signed_online %}
+      <!-- Option B: application already complete -->
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin: 24px 0;">
+        <tr><td style="background-color: #f0fdf4; border: 2px solid #86efac; padding: 24px;">
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+            <tr><td style="font-family: 'Segoe UI', Arial, sans-serif; font-size: 15px; font-weight: 700; color: #15803d; padding-bottom: 16px;">&#10003; Ihr Antrag ist vollständig!</td></tr>
+            <!-- Signed PDF -->
+            <tr>
+              <td style="padding-bottom: 14px;">
+                <table role="presentation" cellpadding="0" cellspacing="0" border="0">
+                  <tr>
+                    <td valign="top" width="36" style="padding-right: 10px;">
+                      <table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr><td align="center" style="width: 26px; height: 26px; background-color: #16a34a; color: #ffffff; font-family: 'Segoe UI', Arial, sans-serif; font-size: 13px; font-weight: 700; line-height: 26px;">1</td></tr></table>
+                    </td>
+                    <td valign="top" style="font-family: 'Segoe UI', Arial, sans-serif; font-size: 14px; color: #374151;">Die unterschriebene Beitrittserklärung als PDF finden Sie im <strong>Anhang</strong> dieser E-Mail.</td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+            <!-- What happens next -->
+            <tr>
+              <td style="padding-bottom: 0;">
+                <table role="presentation" cellpadding="0" cellspacing="0" border="0">
+                  <tr>
+                    <td valign="top" width="36" style="padding-right: 10px;">
+                      <table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr><td align="center" style="width: 26px; height: 26px; background-color: #16a34a; color: #ffffff; font-family: 'Segoe UI', Arial, sans-serif; font-size: 13px; font-weight: 700; line-height: 26px;">2</td></tr></table>
+                    </td>
+                    <td valign="top" style="font-family: 'Segoe UI', Arial, sans-serif; font-size: 14px; color: #374151;">Ihr Antrag wurde als <strong>vollständig</strong> markiert und wird nun von uns geprüft. Sie erhalten eine weitere Nachricht, sobald Ihre Mitgliedschaft bestätigt wurde.</td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+          </table>
+        </td></tr>
+      </table>
+      {% else %}
+      <!-- Option A: print, sign, upload -->
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin: 24px 0;">
+        <tr><td style="background-color: #fef2f2; border: 2px solid #fca5a5; padding: 24px;">
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+            <tr><td style="font-family: 'Segoe UI', Arial, sans-serif; font-size: 15px; font-weight: 700; color: #991b1b; padding-bottom: 16px;">So geht es weiter</td></tr>
+            <!-- Step 1 -->
+            <tr>
+              <td style="padding-bottom: 14px;">
+                <table role="presentation" cellpadding="0" cellspacing="0" border="0">
+                  <tr>
+                    <td valign="top" width="36" style="padding-right: 10px;">
+                      <table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr><td align="center" style="width: 26px; height: 26px; background-color: #b91c1c; color: #ffffff; font-family: 'Segoe UI', Arial, sans-serif; font-size: 13px; font-weight: 700; line-height: 26px;">1</td></tr></table>
+                    </td>
+                    <td valign="top" style="font-family: 'Segoe UI', Arial, sans-serif; font-size: 14px; color: #374151;">Ihre Beitrittserklärung als PDF finden Sie im <strong>Anhang</strong> dieser E-Mail.</td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+            <!-- Step 2 -->
+            <tr>
+              <td style="padding-bottom: 14px;">
+                <table role="presentation" cellpadding="0" cellspacing="0" border="0">
+                  <tr>
+                    <td valign="top" width="36" style="padding-right: 10px;">
+                      <table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr><td align="center" style="width: 26px; height: 26px; background-color: #b91c1c; color: #ffffff; font-family: 'Segoe UI', Arial, sans-serif; font-size: 13px; font-weight: 700; line-height: 26px;">2</td></tr></table>
+                    </td>
+                    <td valign="top" style="font-family: 'Segoe UI', Arial, sans-serif; font-size: 14px; color: #374151;">Bitte <strong>drucken</strong> Sie das PDF aus und <strong>unterschreiben</strong> Sie es (bei Minderjährigen: Erziehungsberechtigte/r).</td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+            <!-- Step 3 -->
+            <tr>
+              <td style="padding-bottom: 16px;">
+                <table role="presentation" cellpadding="0" cellspacing="0" border="0">
+                  <tr>
+                    <td valign="top" width="36" style="padding-right: 10px;">
+                      <table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr><td align="center" style="width: 26px; height: 26px; background-color: #b91c1c; color: #ffffff; font-family: 'Segoe UI', Arial, sans-serif; font-size: 13px; font-weight: 700; line-height: 26px;">3</td></tr></table>
+                    </td>
+                    <td valign="top" style="font-family: 'Segoe UI', Arial, sans-serif; font-size: 14px; color: #374151;">Laden Sie das unterschriebene Dokument als Scan oder Foto hoch:</td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+            <!-- Upload button -->
+            <tr>
+              <td align="center" style="padding-bottom: 10px;">
+                <!--[if mso]>
+                <v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w="urn:schemas-microsoft-com:office:word" href="{{ upload_url }}" style="height:44px;v-text-anchor:middle;width:220px;" arcsize="10%" strokecolor="#991b1b" fillcolor="#b91c1c">
+                <w:anchorlock/>
+                <center style="color:#ffffff;font-family:'Segoe UI',Arial,sans-serif;font-size:15px;font-weight:bold;">Dokument hochladen</center>
+                </v:roundrect>
+                <![endif]-->
+                <!--[if !mso]><!-->
+                <a href="{{ upload_url }}" style="display: inline-block; background-color: #b91c1c; color: #ffffff; padding: 12px 32px; font-family: 'Segoe UI', Arial, sans-serif; font-size: 15px; font-weight: 700; text-decoration: none; text-align: center;">Dokument hochladen</a>
+                <!--<![endif]-->
+              </td>
+            </tr>
+            <tr><td align="center" style="font-family: 'Segoe UI', Arial, sans-serif; font-size: 12px; color: #6b7280;">Oder alternativ per E-Mail an <strong>mitgliedschaft@sv-untereuerheim.de</strong></td></tr>
+          </table>
+        </td></tr>
+      </table>
+      {% endif %}
+
+      <!-- Info box -->
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin: 20px 0;">
+        <tr><td style="background-color: #fffbeb; border: 1px solid #fcd34d; padding: 16px; font-family: 'Segoe UI', Arial, sans-serif; font-size: 13px; color: #92400e; line-height: 1.7;">
+          <strong style="color: #78350f;">Allgemeine Hinweise:</strong><br>
+          &bull; Die Mitgliedsbeiträge werden einmal jährlich per SEPA-Lastschrift eingezogen.<br>
+          &bull; Ein Austritt ist nur zum Schluss eines Kalenderjahres unter Einhaltung einer Frist von sechs Wochen zulässig.
+        </td></tr>
+      </table>
+
+      <!-- Status check link -->
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin: 20px 0;">
+        <tr><td align="center" style="background-color: #f3f4f6; border: 1px solid #e5e7eb; padding: 16px;">
+          <span style="font-family: 'Segoe UI', Arial, sans-serif; font-size: 13px; color: #6b7280;">Sie können den Bearbeitungsstand jederzeit online prüfen:</span><br>
+          <a href="https://svums.sv-untereuerheim.de/status?nr={{ antragsnummer }}" style="font-family: 'Segoe UI', Arial, sans-serif; font-size: 14px; color: #b91c1c; font-weight: 700; text-decoration: none;">Status prüfen &rarr;</a>
+        </td></tr>
+      </table>
+
+      <!-- Help -->
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+        <tr><td align="center" style="font-family: 'Segoe UI', Arial, sans-serif; font-size: 13px; color: #6b7280; padding-top: 4px;">
+          Fragen? Schreiben Sie uns an <a href="mailto:mitgliedschaft@sv-untereuerheim.de" style="color: #b91c1c; font-weight: 600; text-decoration: none;">mitgliedschaft@sv-untereuerheim.de</a>
+        </td></tr>
+      </table>
+
+    </td>
+  </tr>
+
+  <!-- Footer -->
+  <tr>
+    <td align="center" style="background-color: #1f2937; padding: 24px; font-family: 'Segoe UI', Arial, sans-serif; font-size: 12px; color: #9ca3af; line-height: 1.8;">
+      <span style="color: #e5e7eb; font-weight: 700;">Sportverein 1945 Untereuerheim e.V.</span><br>
+      Triebweg 9 · 97508 Grettstadt/Untereuerheim<br>
+      1. Vorstand: Alexander Eckert · Tel: 09729/432<br>
+      <a href="mailto:info@sv-untereuerheim.de" style="color: #fca5a5; text-decoration: none;">info@sv-untereuerheim.de</a><br>
+      Registergericht: Schweinfurt · Steuer-ID: 249/111/20506<br>
+      <br><span style="font-size: 11px; color: #6b7280;">Diese E-Mail wurde automatisch generiert.</span>
+    </td>
+  </tr>
+</table>
+
+</td>
+</tr>
+</table>
+</body>
+</html>

@@ -1,0 +1,505 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<style>
+  @page {
+    size: A4;
+    margin: 15mm 20mm;
+  }
+  body {
+    font-family: 'Helvetica', 'Arial', sans-serif;
+    font-size: 11pt;
+    line-height: 1.4;
+    color: #1a1a1a;
+    margin: 0;
+    padding: 0;
+  }
+  .header {
+    text-align: center;
+    margin-bottom: 20px;
+    padding-bottom: 10px;
+    border-bottom: 2px solid #b91c1c;
+  }
+  .header img {
+    height: 60px;
+    width: auto;
+    margin-bottom: 6px;
+  }
+  .header h1 {
+    font-size: 16pt;
+    color: #b91c1c;
+    margin: 0 0 5px 0;
+  }
+  .header h2 {
+    font-size: 13pt;
+    color: #333;
+    margin: 0;
+    font-weight: normal;
+  }
+  .section {
+    margin-bottom: 18px;
+  }
+  .section-title {
+    font-size: 12pt;
+    font-weight: bold;
+    color: #b91c1c;
+    border-bottom: 1px solid #b91c1c;
+    padding-bottom: 3px;
+    margin-bottom: 10px;
+  }
+  .field-row {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 6px;
+  }
+  .field-label {
+    width: 200px;
+    font-weight: bold;
+    flex-shrink: 0;
+  }
+  .field-value {
+    flex: 1;
+    border-bottom: 1px dotted #999;
+    padding-bottom: 1px;
+  }
+  .fee-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 10px 0;
+    font-size: 10pt;
+  }
+  .fee-table th {
+    background-color: #b91c1c;
+    color: white;
+    padding: 6px 10px;
+    text-align: left;
+  }
+  .fee-table td {
+    padding: 5px 10px;
+    border-bottom: 1px solid #ddd;
+  }
+  .fee-table tr.active {
+    background-color: #fee2e2;
+    font-weight: bold;
+  }
+  .sepa-box {
+    border: 1px solid #333;
+    padding: 12px;
+    margin: 10px 0;
+  }
+  .sepa-box .title {
+    font-weight: bold;
+    font-size: 11pt;
+    margin-bottom: 8px;
+  }
+  .legal-text {
+    font-size: 9pt;
+    color: #555;
+    line-height: 1.3;
+    margin: 10px 0;
+  }
+  .signature-area {
+    margin-top: 40px;
+    display: flex;
+    justify-content: space-between;
+  }
+  .signature-line {
+    width: 45%;
+    border-top: 1px solid #333;
+    padding-top: 4px;
+    font-size: 9pt;
+    text-align: center;
+  }
+  .iban-display {
+    font-family: 'Courier New', monospace;
+    font-size: 12pt;
+    letter-spacing: 2px;
+  }
+  .child-block {
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    padding: 10px;
+    margin-bottom: 8px;
+    background: #fafafa;
+  }
+  .child-block .child-title {
+    font-weight: bold;
+    font-size: 10pt;
+    color: #b91c1c;
+    margin-bottom: 6px;
+  }
+  .type-badge {
+    display: inline-block;
+    background: #fee2e2;
+    color: #b91c1c;
+    padding: 3px 10px;
+    border-radius: 10px;
+    font-size: 10pt;
+    font-weight: bold;
+    margin-bottom: 10px;
+  }
+  .sig-img-line {
+    width: 45%;
+    padding-top: 4px;
+    font-size: 9pt;
+    text-align: center;
+  }
+  .sig-img-line img {
+    max-height: 55px;
+    max-width: 180px;
+    display: block;
+    margin: 0 auto 4px auto;
+  }
+  .sig-img-line .sig-label {
+    border-top: 1px solid #333;
+    padding-top: 3px;
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <img src="logo_svu.png" alt="SVU Logo">
+  <h1>Sportverein 1945 Untereuerheim e.V.</h1>
+  <h2>Beitrittserklärung</h2>
+  <p style="font-size: 10pt; color: #888; margin-top: 4px;">Antragsnummer: <strong style="color: #333; font-family: monospace;">{{ antragsnummer }}</strong></p>
+</div>
+
+{% set antragstyp = antragstyp or 'einzel' %}
+
+{% if antragstyp == 'kind' %}
+{# ===== KIND / JUGENDLICHE ===== #}
+<div class="type-badge">Kind / Jugendliche – Einzelmitgliedschaft</div>
+
+<div class="section">
+  <div class="section-title">Daten des Kindes / Jugendlichen</div>
+  <div class="field-row">
+    <span class="field-label">Name, Vorname:</span>
+    <span class="field-value">{{ nachname }}, {{ vorname }}</span>
+  </div>
+  <div class="field-row">
+    <span class="field-label">Geboren am:</span>
+    <span class="field-value">{{ geburtsdatum_formatted }}</span>
+  </div>
+  <div class="field-row">
+    <span class="field-label">Abteilung(en):</span>
+    <span class="field-value">{{ abteilungen_display }}</span>
+  </div>
+</div>
+
+<div class="section">
+  <div class="section-title">Erziehungsberechtigte/r (Zahlungspflichtig)</div>
+  {% if geschlecht %}
+  <div class="field-row">
+    <span class="field-label">Anrede:</span>
+    <span class="field-value">{{ geschlecht }}</span>
+  </div>
+  {% endif %}
+  <div class="field-row">
+    <span class="field-label">Name, Vorname:</span>
+    <span class="field-value">{{ erziehungsberechtigter_nachname }}, {{ erziehungsberechtigter_vorname }}</span>
+  </div>
+  <div class="field-row">
+    <span class="field-label">Straße und Hausnummer:</span>
+    <span class="field-value">{{ strasse }}</span>
+  </div>
+  <div class="field-row">
+    <span class="field-label">PLZ und Ort:</span>
+    <span class="field-value">{{ plz }} {{ ort }}</span>
+  </div>
+  <div class="field-row">
+    <span class="field-label">Telefon:</span>
+    <span class="field-value">{{ telefon or '–' }}</span>
+  </div>
+  <div class="field-row">
+    <span class="field-label">E-Mail:</span>
+    <span class="field-value">{{ email }}</span>
+  </div>
+  <div class="field-row">
+    <span class="field-label">Elternteil Mitglied:</span>
+    <span class="field-value">{{ 'Ja' if elternteil_mitglied else 'Nein' }}</span>
+  </div>
+</div>
+
+{% elif antragstyp == 'familie' %}
+{# ===== FAMILIE ===== #}
+<div class="type-badge">Familienmitgliedschaft</div>
+
+<div class="section">
+  <div class="section-title">Daten des Antragstellers (Elternteil)</div>
+  {% if geschlecht %}
+  <div class="field-row">
+    <span class="field-label">Anrede:</span>
+    <span class="field-value">{{ geschlecht }}</span>
+  </div>
+  {% endif %}
+  <div class="field-row">
+    <span class="field-label">Name, Vorname:</span>
+    <span class="field-value">{{ nachname }}, {{ vorname }}</span>
+  </div>
+  <div class="field-row">
+    <span class="field-label">Geboren am:</span>
+    <span class="field-value">{{ geburtsdatum_formatted }}</span>
+  </div>
+  <div class="field-row">
+    <span class="field-label">Straße und Hausnummer:</span>
+    <span class="field-value">{{ strasse }}</span>
+  </div>
+  <div class="field-row">
+    <span class="field-label">PLZ und Ort:</span>
+    <span class="field-value">{{ plz }} {{ ort }}</span>
+  </div>
+  <div class="field-row">
+    <span class="field-label">Telefon:</span>
+    <span class="field-value">{{ telefon or '–' }}</span>
+  </div>
+  <div class="field-row">
+    <span class="field-label">E-Mail:</span>
+    <span class="field-value">{{ email }}</span>
+  </div>
+  <div class="field-row">
+    <span class="field-label">Abteilung(en):</span>
+    <span class="field-value">{{ abteilungen_display }}</span>
+  </div>
+</div>
+
+{% if partner_vorname and partner_nachname %}
+<div class="section">
+  <div class="section-title">Partner / 2. Elternteil</div>
+  <div class="field-row">
+    <span class="field-label">Name, Vorname:</span>
+    <span class="field-value">{{ partner_nachname }}, {{ partner_vorname }}</span>
+  </div>
+  {% if partner_geburtsdatum_formatted %}
+  <div class="field-row">
+    <span class="field-label">Geboren am:</span>
+    <span class="field-value">{{ partner_geburtsdatum_formatted }}</span>
+  </div>
+  {% endif %}
+  {% if partner_abteilungen_display %}
+  <div class="field-row">
+    <span class="field-label">Abteilung(en):</span>
+    <span class="field-value">{{ partner_abteilungen_display }}</span>
+  </div>
+  {% endif %}
+</div>
+{% endif %}
+
+{% if kinder %}
+<div class="section">
+  <div class="section-title">Kinder</div>
+  {% for kind in kinder %}
+  <div class="child-block">
+    <div class="child-title">Kind {{ loop.index }}</div>
+    <div class="field-row">
+      <span class="field-label">Name, Vorname:</span>
+      <span class="field-value">{{ kind.nachname }}, {{ kind.vorname }}</span>
+    </div>
+    <div class="field-row">
+      <span class="field-label">Geboren am:</span>
+      <span class="field-value">{{ kind.geburtsdatum_formatted or kind.geburtsdatum }}</span>
+    </div>
+    <div class="field-row">
+      <span class="field-label">Abteilung(en):</span>
+      <span class="field-value">{{ kind.abteilungen_display or (kind.abteilungen | join(', ')) }}</span>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
+{% else %}
+{# ===== EINZEL ===== #}
+<div class="section">
+  <div class="section-title">Persönliche Daten</div>
+  {% if geschlecht %}
+  <div class="field-row">
+    <span class="field-label">Anrede:</span>
+    <span class="field-value">{{ geschlecht }}</span>
+  </div>
+  {% endif %}
+  <div class="field-row">
+    <span class="field-label">Name, Vorname:</span>
+    <span class="field-value">{{ nachname }}, {{ vorname }}</span>
+  </div>
+  <div class="field-row">
+    <span class="field-label">Geboren am:</span>
+    <span class="field-value">{{ geburtsdatum_formatted }}</span>
+  </div>
+  <div class="field-row">
+    <span class="field-label">Straße und Hausnummer:</span>
+    <span class="field-value">{{ strasse }}</span>
+  </div>
+  <div class="field-row">
+    <span class="field-label">PLZ und Ort:</span>
+    <span class="field-value">{{ plz }} {{ ort }}</span>
+  </div>
+  <div class="field-row">
+    <span class="field-label">Telefon:</span>
+    <span class="field-value">{{ telefon or '–' }}</span>
+  </div>
+  <div class="field-row">
+    <span class="field-label">E-Mail:</span>
+    <span class="field-value">{{ email }}</span>
+  </div>
+  <div class="field-row">
+    <span class="field-label">Abteilung(en):</span>
+    <span class="field-value">{{ abteilungen_display }}</span>
+  </div>
+</div>
+{% endif %}
+
+<div class="legal-text">
+  Mit Unterzeichnung stimmt das Mitglied zu, dass die erhobenen Daten vom SVU im
+  Rahmen der Mitgliederverwaltung gespeichert und verarbeitet werden dürfen.<br>
+  Ein Austritt ist nur zum Schluss eines Kalenderjahres unter Einhaltung einer Frist von
+  sechs Wochen zulässig.
+</div>
+
+<div class="signature-area">
+  <div class="signature-line">Datum: {{ datum }}</div>
+  {% if unterschrift_base64 %}
+  <div class="sig-img-line">
+    <img src="{{ unterschrift_base64 }}" alt="Unterschrift">
+    <div class="sig-label">Unterschrift (digital erfasst)</div>
+  </div>
+  {% else %}
+  <div class="signature-line">Unterschrift bzw. Unterschrift<br>des Erziehungsberechtigten</div>
+  {% endif %}
+</div>
+
+<div style="page-break-before: always;"></div>
+
+<div class="header">
+  <img src="logo_svu.png" alt="SVU Logo">
+  <h1>Sportverein 1945 Untereuerheim e.V.</h1>
+  <h2>SEPA-Lastschriftmandat</h2>
+  <p style="font-size: 10pt; color: #888; margin-top: 4px;">Antragsnummer: <strong style="color: #333; font-family: monospace;">{{ antragsnummer }}</strong></p>
+</div>
+
+<div class="sepa-box">
+  <div class="field-row">
+    <span class="field-label">Gläubiger-ID:</span>
+    <span class="field-value" style="font-family: monospace;">{{ glaeubiger_id }}</span>
+  </div>
+  <div class="field-row">
+    <span class="field-label">Mandatsreferenz:</span>
+    <span class="field-value" style="font-family: monospace; font-weight: bold;">{{ mandatsreferenz }}</span>
+  </div>
+
+  <div class="legal-text" style="margin: 12px 0;">
+    Ich ermächtige den Zahlungsempfänger Sportverein 1945 Untereuerheim e.V. widerruflich, die von mir zu
+    entrichtenden Zahlungen von meinem Konto mittels Lastschrift einzuziehen. Zugleich weise ich mein
+    Kreditinstitut an, die vom Zahlungsempfänger Sportverein 1945 Untereuerheim e.V. auf mein Konto gezogenen
+    Lastschriften einzulösen.<br><br>
+    <strong>Hinweis:</strong> Ich kann innerhalb von acht Wochen, beginnend mit dem Belastungsdatum, die Erstattung des
+    belasteten Betrages verlangen. Es gelten dabei die mit meinem Kreditinstitut vereinbarten Bedingungen.
+  </div>
+
+  {% if antragstyp == 'kind' %}
+  <div class="field-row">
+    <span class="field-label">Kontoinhaber:</span>
+    <span class="field-value">{{ kontoinhaber or (erziehungsberechtigter_nachname + ', ' + erziehungsberechtigter_vorname) }}</span>
+  </div>
+  {% else %}
+  <div class="field-row">
+    <span class="field-label">Kontoinhaber:</span>
+    <span class="field-value">{{ kontoinhaber or (nachname + ', ' + vorname) }}</span>
+  </div>
+  {% endif %}
+  <div class="field-row">
+    <span class="field-label">IBAN:</span>
+    <span class="field-value iban-display">{{ iban_formatted }}</span>
+  </div>
+  <div class="field-row">
+    <span class="field-label">BIC:</span>
+    <span class="field-value">{{ bic or '–' }}</span>
+  </div>
+  <div class="field-row">
+    <span class="field-label">Kreditinstitut:</span>
+    <span class="field-value">{{ kreditinstitut or '–' }}</span>
+  </div>
+</div>
+
+<div class="signature-area">
+  <div class="signature-line">Ort und Datum: {{ ort }}, {{ datum }}</div>
+  {% if unterschrift_base64 %}
+  <div class="sig-img-line">
+    <img src="{{ unterschrift_base64 }}" alt="Unterschrift">
+    <div class="sig-label">Unterschrift Kontoinhaber (digital)</div>
+  </div>
+  {% else %}
+  <div class="signature-line">Unterschrift Kontoinhaber</div>
+  {% endif %}
+</div>
+
+<div class="section" style="margin-top: 30px;">
+  <div class="section-title">Mitgliedsbeiträge – gültig ab 01.01.2021</div>
+  <table class="fee-table">
+    <thead>
+      <tr><th>Kategorie</th><th>Jahresbeitrag</th></tr>
+    </thead>
+    <tbody>
+      <tr class="{{ 'active' if mitgliedschaft_typ == 'kind' and elternteil_mitglied else '' }}">
+        <td>Kinder (bis 14 Jahre) – 1 Elternteil Mitglied</td><td>12,– €</td>
+      </tr>
+      <tr class="{{ 'active' if mitgliedschaft_typ == 'kind' and not elternteil_mitglied else '' }}">
+        <td>Kinder (bis 14 Jahre) – kein Elternteil Mitglied</td><td>24,– €</td>
+      </tr>
+      <tr class="{{ 'active' if mitgliedschaft_typ == 'jugendlich' and elternteil_mitglied else '' }}">
+        <td>Jugendliche (bis 18 Jahre) – 1 Elternteil Mitglied</td><td>24,– €</td>
+      </tr>
+      <tr class="{{ 'active' if mitgliedschaft_typ == 'jugendlich' and not elternteil_mitglied else '' }}">
+        <td>Jugendliche (bis 18 Jahre) – kein Elternteil Mitglied</td><td>36,– €</td>
+      </tr>
+      <tr class="{{ 'active' if mitgliedschaft_typ == 'junger_erwachsener' else '' }}">
+        <td>Junge Leute (bis 25 Jahre)</td><td>42,– €</td>
+      </tr>
+      <tr class="{{ 'active' if mitgliedschaft_typ == 'erwachsener' else '' }}">
+        <td>Erwachsene</td><td>54,– €</td>
+      </tr>
+      <tr class="{{ 'active' if mitgliedschaft_typ == 'familie' else '' }}">
+        <td>Familie (2 Erwachsene + Kinder bis 18 Jahre)</td><td>96,– €</td>
+      </tr>
+    </tbody>
+  </table>
+  <div class="legal-text">
+    Die Mitgliedsbeiträge werden einmal jährlich für das laufende Jahr eingezogen.
+  </div>
+</div>
+
+{% if unterschrift_base64 %}
+<div style="margin-top: 25px; border: 2px solid #16a34a; border-radius: 4px; padding: 12px; background: #f0fdf4;">
+  <p style="font-size: 10pt; font-weight: bold; color: #16a34a; margin: 0 0 6px 0;">✓ Antrag digital unterzeichnet</p>
+  <p style="font-size: 9pt; color: #333; margin: 0; line-height: 1.5;">
+    Ihr Antrag wurde mit digitaler Unterschrift eingereicht und wird zeitnah bearbeitet.
+    Sie erhalten eine Bestätigung per E-Mail. Es sind keine weiteren Schritte erforderlich.
+  </p>
+</div>
+{% else %}
+<div style="margin-top: 25px; border: 2px solid #b91c1c; border-radius: 4px; padding: 12px; background: #fef2f2;">
+  <p style="font-size: 10pt; font-weight: bold; color: #b91c1c; margin: 0 0 6px 0;">Wichtig – Nächste Schritte:</p>
+  <ol style="font-size: 9pt; color: #333; margin: 0; padding-left: 18px; line-height: 1.5;">
+    <li>Bitte drucken Sie dieses Dokument aus.</li>
+    <li>Unterschreiben Sie an den vorgesehenen Stellen (bei Minderjährigen: Erziehungsberechtigte/r).</li>
+    <li>Senden Sie das unterschriebene Dokument per Post oder als Scan/Foto per E-Mail an:<br>
+        <strong>mitgliedschaft@sv-untereuerheim.de</strong></li>
+  </ol>
+</div>
+{% endif %}
+
+<div class="legal-text" style="margin-top: 12px; text-align: center;">
+  Dieses Dokument wurde elektronisch erstellt am {{ datum }} über svums.sv-untereuerheim.de
+</div>
+
+<div style="margin-top: 20px; padding-top: 10px; border-top: 1px solid #ccc; text-align: center; font-size: 8pt; color: #888; line-height: 1.6;">
+  <strong>Sportverein 1945 Untereuerheim e.V.</strong><br>
+  Triebweg 9 · 97508 Grettstadt/Untereuerheim<br>
+  1. Vorstand: Alexander Eckert · Tel: 09729/432<br>
+  E-Mail: info@sv-untereuerheim.de<br>
+  Registergericht: Schweinfurt · Steuer-ID: 249/111/20506
+</div>
+
+</body>
+</html>
