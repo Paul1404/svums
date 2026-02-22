@@ -1,7 +1,8 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { Link } from "react-router-dom";
 import { toast } from "sonner";
-import { ArrowLeft, Download, FileText, Loader2 } from "lucide-react";
+import { ArrowLeft, Download, FileText, Loader2, PenLine, Trash2 } from "lucide-react";
+import SignatureCanvas from "react-signature-canvas";
 import { extractApiError } from "../services/api";
 
 interface CancellationForm {
@@ -34,6 +35,8 @@ export default function AdminCancellation() {
   const [form, setForm] = useState<CancellationForm>({ ...EMPTY_FORM });
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<Partial<Record<keyof CancellationForm, string>>>({});
+  const sigCanvasRef = useRef<SignatureCanvas | null>(null);
+  const [sigEmpty, setSigEmpty] = useState(true);
 
   const set = (field: keyof CancellationForm, value: string) => {
     setForm((prev) => ({ ...prev, [field]: value }));
@@ -63,6 +66,11 @@ export default function AdminCancellation() {
   const handleGenerate = async () => {
     if (!validate()) return;
 
+    const unterschrift_base64 =
+      !sigEmpty && sigCanvasRef.current && !sigCanvasRef.current.isEmpty()
+        ? sigCanvasRef.current.getTrimmedCanvas().toDataURL("image/png")
+        : null;
+
     setLoading(true);
     try {
       const response = await fetch("/api/admin/cancellation-pdf", {
@@ -73,6 +81,7 @@ export default function AdminCancellation() {
           ...form,
           mitgliedsnummer: form.mitgliedsnummer || null,
           abteilung: form.abteilung || null,
+          unterschrift_base64,
         }),
       });
 
@@ -102,6 +111,8 @@ export default function AdminCancellation() {
   const handleReset = () => {
     setForm({ ...EMPTY_FORM });
     setErrors({});
+    sigCanvasRef.current?.clear();
+    setSigEmpty(true);
   };
 
   return (
@@ -246,8 +257,46 @@ export default function AdminCancellation() {
             </div>
           </div>
 
+          {/* Signature */}
+          <div className="mt-6 pt-6 border-t">
+            <div className="flex items-center justify-between mb-2">
+              <label className="flex items-center gap-2 text-sm font-medium text-gray-700">
+                <PenLine className="w-4 h-4 text-svu-600" />
+                Unterschrift (optional)
+              </label>
+              {!sigEmpty && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    sigCanvasRef.current?.clear();
+                    setSigEmpty(true);
+                  }}
+                  className="flex items-center gap-1 text-xs text-gray-500 hover:text-red-600 transition-colors"
+                >
+                  <Trash2 className="w-3 h-3" /> Löschen
+                </button>
+              )}
+            </div>
+            <div className="relative rounded-lg border border-gray-300 bg-white overflow-hidden">
+              {/* Baseline */}
+              <div className="absolute bottom-8 left-4 right-4 border-b border-dashed border-gray-300 pointer-events-none" />
+              <SignatureCanvas
+                ref={sigCanvasRef}
+                penColor="#1a1a1a"
+                canvasProps={{
+                  className: "w-full",
+                  style: { height: 120, display: "block" },
+                }}
+                onEnd={() => setSigEmpty(false)}
+              />
+            </div>
+            <p className="text-xs text-gray-400 mt-1">
+              Hier unterschreiben — wird im PDF über der Namenszeile eingebettet
+            </p>
+          </div>
+
           {/* Actions */}
-          <div className="flex flex-col sm:flex-row gap-3 mt-8 pt-6 border-t">
+          <div className="flex flex-col sm:flex-row gap-3 mt-6 pt-6 border-t">
             <button
               onClick={handleGenerate}
               disabled={loading}

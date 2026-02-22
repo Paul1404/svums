@@ -571,7 +571,7 @@ async def test_smtp(
 # --- Cancellation PDF ---
 
 class CancellationRequest(BaseModel):
-    anrede: str  # "Herr" or "Frau"
+    anrede: str  # "Herr", "Frau", or "keine Angabe"
     vorname: str
     nachname: str
     strasse: str
@@ -581,6 +581,7 @@ class CancellationRequest(BaseModel):
     mitgliedsnummer: str | None = None
     abteilung: str | None = None
     austritt_datum: str
+    unterschrift_base64: str | None = None  # data-URL from signature canvas
 
 
 @router.post("/cancellation-pdf")
@@ -613,6 +614,7 @@ async def cancellation_pdf(
         "abteilung": data.abteilung or "",
         "austritt_datum": data.austritt_datum,
         "datum": datetime.now().strftime("%d.%m.%Y"),
+        "unterschrift_base64": data.unterschrift_base64,
     }
 
     pdf_bytes = generate_cancellation_pdf(pdf_data)

@@ -91,6 +91,12 @@
   .signature-area {
     margin-top: 60px;
   }
+  .signature-img {
+    height: 55px;
+    width: auto;
+    display: block;
+    margin-bottom: 2px;
+  }
   .signature-line {
     width: 250px;
     border-top: 1px solid #333;
@@ -184,6 +190,9 @@
 </div>
 
 <div class="signature-area">
+  {% if unterschrift_base64 %}
+  <img class="signature-img" src="{{ unterschrift_base64 }}" alt="Unterschrift">
+  {% endif %}
   <div class="signature-line">
     Mitgliedsverwaltung, Sportverein 1945 Untereuerheim e.V.
   </div>
