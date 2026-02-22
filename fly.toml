@@ -35,3 +35,8 @@ swap_size_mb = 512
   memory = "1gb"
   cpu_kind = "shared"
   cpus = 1
+
+[[mounts]]
+  source = "svums_uploads"
+  destination = "/app/data/uploads"
+  initial_size = "1gb"

@@ -39,6 +39,14 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/admin", tags=["admin"])
 
 
+def _make_engine(db_url: str):
+    """Create a short-lived SQLAlchemy engine appropriate for the given URL."""
+    from sqlalchemy import create_engine as _ce
+    if db_url.startswith("sqlite"):
+        return _ce(db_url, connect_args={"check_same_thread": False})
+    return _ce(db_url, pool_pre_ping=True, pool_size=1, max_overflow=0)
+
+
 def _log_email(
     db: Session,
     email_type: str,
@@ -233,9 +241,8 @@ async def update_application(
                 _snap_db_url = _get_cfg().database_url
 
                 async def _send_status_and_log():
-                    from sqlalchemy import create_engine
                     from sqlalchemy.orm import sessionmaker as _sm
-                    _eng = create_engine(_snap_db_url)
+                    _eng = _make_engine(_snap_db_url)
                     _log_db = _sm(bind=_eng)()
                     _subject = (
                         "Ihre Mitgliedschaft wurde genehmigt"
@@ -266,6 +273,7 @@ async def update_application(
                         _log_email(_log_db, "status_update", _snap_email, _subject, _ok, _err,
                                    _snap_antragsnummer, _snap_vorname, _snap_nachname)
                         _log_db.close()
+                        _eng.dispose()
 
                 asyncio.ensure_future(_send_status_and_log())
         except Exception as e:
