@@ -178,18 +178,37 @@ async def _send_email_task(application_id: int, db_url: str, unterschrift_base64
         else:
             pdf_bytes = generate_pdf(data)
 
-        success = await send_application_email(
-            smtp_host=settings.smtp_host,
-            smtp_port=settings.smtp_port,
-            smtp_user=settings.smtp_user,
-            smtp_password=settings.smtp_password,
-            smtp_from=settings.smtp_from,
-            smtp_use_tls=settings.smtp_use_tls,
-            notification_email=settings.notification_email,
-            applicant_email=app.email,
-            application_data=data,
-            pdf_bytes=pdf_bytes,
+        from app.routers.admin import _log_email
+
+        club_subject = (
+            f"Neue Beitrittserklärung: {app.nachname}, {app.vorname}"
         )
+        applicant_subject = "Ihre Beitrittserklärung – Sportverein 1945 Untereuerheim e.V."
+        send_error: Exception | None = None
+        success = False
+        try:
+            success = await send_application_email(
+                smtp_host=settings.smtp_host,
+                smtp_port=settings.smtp_port,
+                smtp_user=settings.smtp_user,
+                smtp_password=settings.smtp_password,
+                smtp_from=settings.smtp_from,
+                smtp_use_tls=settings.smtp_use_tls,
+                notification_email=settings.notification_email,
+                applicant_email=app.email,
+                application_data=data,
+                pdf_bytes=pdf_bytes,
+            )
+        except Exception as e:
+            send_error = e
+            success = False
+
+        _log_email(db, "application_club", settings.notification_email,
+                   club_subject, success, send_error,
+                   app.antragsnummer, app.vorname, app.nachname)
+        _log_email(db, "application_applicant", app.email,
+                   applicant_subject, success, send_error,
+                   app.antragsnummer, app.vorname, app.nachname)
 
         if success:
             app.email_sent = True
@@ -505,40 +524,81 @@ async def upload_signed_document(
         settings = db.query(AppSettings).filter(AppSettings.id == 1).first()
         if settings and settings.smtp_host:
             import asyncio
-            # Notify admin
-            asyncio.ensure_future(
-                send_upload_notification(
-                    smtp_host=settings.smtp_host,
-                    smtp_port=settings.smtp_port,
-                    smtp_user=settings.smtp_user,
-                    smtp_password=settings.smtp_password,
-                    smtp_from=settings.smtp_from,
-                    smtp_use_tls=settings.smtp_use_tls,
-                    notification_email=settings.notification_email,
-                    antragsnummer=app.antragsnummer,
-                    vorname=app.vorname,
-                    nachname=app.nachname,
-                    filename=filename,
-                )
-            )
-            # Confirm upload to applicant
-            from app.services.email import send_status_email
-            asyncio.ensure_future(
-                send_status_email(
-                    smtp_host=settings.smtp_host,
-                    smtp_port=settings.smtp_port,
-                    smtp_user=settings.smtp_user,
-                    smtp_password=settings.smtp_password,
-                    smtp_from=settings.smtp_from,
-                    smtp_use_tls=settings.smtp_use_tls,
-                    applicant_email=app.email,
-                    vorname=app.vorname,
-                    nachname=app.nachname,
-                    antragsnummer=app.antragsnummer,
-                    status="dokument_hochgeladen",
-                    anrede=_compute_anrede(app),
-                )
-            )
+            from app.config import get_settings as _get_cfg_upload
+            from app.routers.admin import _log_email as _log
+
+            _u_db_url = _get_cfg_upload().database_url
+            _u_smtp = settings
+            _u_antragsnummer = app.antragsnummer
+            _u_vorname = app.vorname
+            _u_nachname = app.nachname
+            _u_filename = filename
+            _u_notification_email = settings.notification_email
+            _u_applicant_email = app.email
+            _u_anrede = _compute_anrede(app)
+
+            async def _notify_admin_and_log():
+                from sqlalchemy import create_engine
+                from sqlalchemy.orm import sessionmaker as _sm2
+                _eng2 = create_engine(_u_db_url)
+                _ldb2 = _sm2(bind=_eng2)()
+                _subject2 = f"Dokument hochgeladen: {_u_antragsnummer}"
+                _ok2, _err2 = False, None
+                try:
+                    await send_upload_notification(
+                        smtp_host=_u_smtp.smtp_host,
+                        smtp_port=_u_smtp.smtp_port,
+                        smtp_user=_u_smtp.smtp_user,
+                        smtp_password=_u_smtp.smtp_password,
+                        smtp_from=_u_smtp.smtp_from,
+                        smtp_use_tls=_u_smtp.smtp_use_tls,
+                        notification_email=_u_notification_email,
+                        antragsnummer=_u_antragsnummer,
+                        vorname=_u_vorname,
+                        nachname=_u_nachname,
+                        filename=_u_filename,
+                    )
+                    _ok2 = True
+                except Exception as _e2:
+                    _err2 = _e2
+                finally:
+                    _log(_ldb2, "upload_notification", _u_notification_email, _subject2,
+                         _ok2, _err2, _u_antragsnummer, _u_vorname, _u_nachname)
+                    _ldb2.close()
+
+            async def _confirm_upload_and_log():
+                from sqlalchemy import create_engine
+                from sqlalchemy.orm import sessionmaker as _sm3
+                from app.services.email import send_status_email as _sse
+                _eng3 = create_engine(_u_db_url)
+                _ldb3 = _sm3(bind=_eng3)()
+                _subject3 = "Ihr Dokument wurde empfangen"
+                _ok3, _err3 = False, None
+                try:
+                    await _sse(
+                        smtp_host=_u_smtp.smtp_host,
+                        smtp_port=_u_smtp.smtp_port,
+                        smtp_user=_u_smtp.smtp_user,
+                        smtp_password=_u_smtp.smtp_password,
+                        smtp_from=_u_smtp.smtp_from,
+                        smtp_use_tls=_u_smtp.smtp_use_tls,
+                        applicant_email=_u_applicant_email,
+                        vorname=_u_vorname,
+                        nachname=_u_nachname,
+                        antragsnummer=_u_antragsnummer,
+                        status="dokument_hochgeladen",
+                        anrede=_u_anrede,
+                    )
+                    _ok3 = True
+                except Exception as _e3:
+                    _err3 = _e3
+                finally:
+                    _log(_ldb3, "upload_notification", _u_applicant_email, _subject3,
+                         _ok3, _err3, _u_antragsnummer, _u_vorname, _u_nachname)
+                    _ldb3.close()
+
+            asyncio.ensure_future(_notify_admin_and_log())
+            asyncio.ensure_future(_confirm_upload_and_log())
     except Exception as e:
         logger.error(f"Failed to send upload notification: {e}")
 

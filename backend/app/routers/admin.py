@@ -15,6 +15,7 @@ from app.config import get_settings, Settings
 from app.database import get_db
 from app.models.application import MembershipApplication
 from app.models.settings import AppSettings
+from app.models.email_log import EmailLog
 from app.schemas.application import (
     ApplicationResponse,
     ApplicationListResponse,
@@ -36,6 +37,35 @@ from app.routers.public import _build_application_data, _compute_anrede, _format
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
+
+
+def _log_email(
+    db: Session,
+    email_type: str,
+    recipient: str,
+    subject: str | None,
+    success: bool,
+    error: Exception | None = None,
+    antragsnummer: str | None = None,
+    vorname: str | None = None,
+    nachname: str | None = None,
+) -> None:
+    """Persist one outgoing email attempt to the email_logs table."""
+    try:
+        entry = EmailLog(
+            email_type=email_type,
+            recipient=recipient,
+            subject=subject,
+            status="success" if success else "failed",
+            error_message=str(error) if error else None,
+            antragsnummer=antragsnummer,
+            vorname=vorname,
+            nachname=nachname,
+        )
+        db.add(entry)
+        db.commit()
+    except Exception as log_err:
+        logger.error(f"Failed to write email log: {log_err}")
 
 
 def get_serializer(settings: Settings = None) -> URLSafeTimedSerializer:
@@ -192,22 +222,52 @@ async def update_application(
             settings_obj = _get_or_create_settings(db)
             if settings_obj.smtp_host:
                 import asyncio
-                asyncio.ensure_future(
-                    send_status_email(
-                        smtp_host=settings_obj.smtp_host,
-                        smtp_port=settings_obj.smtp_port,
-                        smtp_user=settings_obj.smtp_user,
-                        smtp_password=settings_obj.smtp_password,
-                        smtp_from=settings_obj.smtp_from,
-                        smtp_use_tls=settings_obj.smtp_use_tls,
-                        applicant_email=app.email,
-                        vorname=app.vorname,
-                        nachname=app.nachname,
-                        antragsnummer=app.antragsnummer,
-                        status=new_status,
-                        anrede=_compute_anrede(app),
+                from app.config import get_settings as _get_cfg
+
+                _snap_email = app.email
+                _snap_vorname = app.vorname
+                _snap_nachname = app.nachname
+                _snap_antragsnummer = app.antragsnummer
+                _snap_anrede = _compute_anrede(app)
+                _snap_status = new_status
+                _snap_db_url = _get_cfg().database_url
+
+                async def _send_status_and_log():
+                    from sqlalchemy import create_engine
+                    from sqlalchemy.orm import sessionmaker as _sm
+                    _eng = create_engine(_snap_db_url)
+                    _log_db = _sm(bind=_eng)()
+                    _subject = (
+                        "Ihre Mitgliedschaft wurde genehmigt"
+                        if _snap_status == "genehmigt"
+                        else "Ihre Mitgliedschaft wurde abgelehnt"
                     )
-                )
+                    _err = None
+                    _ok = False
+                    try:
+                        await send_status_email(
+                            smtp_host=settings_obj.smtp_host,
+                            smtp_port=settings_obj.smtp_port,
+                            smtp_user=settings_obj.smtp_user,
+                            smtp_password=settings_obj.smtp_password,
+                            smtp_from=settings_obj.smtp_from,
+                            smtp_use_tls=settings_obj.smtp_use_tls,
+                            applicant_email=_snap_email,
+                            vorname=_snap_vorname,
+                            nachname=_snap_nachname,
+                            antragsnummer=_snap_antragsnummer,
+                            status=_snap_status,
+                            anrede=_snap_anrede,
+                        )
+                        _ok = True
+                    except Exception as _exc:
+                        _err = _exc
+                    finally:
+                        _log_email(_log_db, "status_update", _snap_email, _subject, _ok, _err,
+                                   _snap_antragsnummer, _snap_vorname, _snap_nachname)
+                        _log_db.close()
+
+                asyncio.ensure_future(_send_status_and_log())
         except Exception as e:
             logger.error(f"Failed to send status email: {e}")
 
@@ -425,6 +485,7 @@ async def test_smtp(
     if not settings.smtp_host:
         raise HTTPException(status_code=400, detail="SMTP ist nicht konfiguriert")
 
+    _test_err = None
     try:
         await send_test_email(
             smtp_host=settings.smtp_host,
@@ -435,8 +496,11 @@ async def test_smtp(
             smtp_use_tls=settings.smtp_use_tls,
             recipient=data.recipient,
         )
+        _log_email(db, "test", data.recipient, "Test-E-Mail", True)
         return {"message": "Test-E-Mail wurde erfolgreich gesendet"}
     except Exception as e:
+        _test_err = e
+        _log_email(db, "test", data.recipient, "Test-E-Mail", False, _test_err)
         raise HTTPException(status_code=500, detail=f"SMTP-Fehler: {str(e)}")
 
 
@@ -495,3 +559,38 @@ async def cancellation_pdf(
         media_type="application/pdf",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
+
+
+# --- Email Log ---
+
+class EmailLogResponse(BaseModel):
+    id: int
+    timestamp: datetime
+    email_type: str
+    recipient: str
+    subject: str | None
+    status: str
+    error_message: str | None
+    antragsnummer: str | None
+    vorname: str | None
+    nachname: str | None
+
+    class Config:
+        from_attributes = True
+
+
+@router.get("/email-logs", response_model=list[EmailLogResponse])
+def get_email_logs(
+    is_admin: bool = Depends(require_admin),
+    db: Session = Depends(get_db),
+    status: str | None = None,
+    email_type: str | None = None,
+    limit: int = 500,
+):
+    """Return up to `limit` email log entries, newest first."""
+    q = db.query(EmailLog).order_by(EmailLog.timestamp.desc())
+    if status:
+        q = q.filter(EmailLog.status == status)
+    if email_type:
+        q = q.filter(EmailLog.email_type == email_type)
+    return q.limit(limit).all()

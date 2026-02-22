@@ -372,3 +372,27 @@ export async function testSmtp(
     body: JSON.stringify({ recipient }),
   });
 }
+
+export interface EmailLogEntry {
+  id: number;
+  timestamp: string;
+  email_type: string;
+  recipient: string;
+  subject: string | null;
+  status: "success" | "failed";
+  error_message: string | null;
+  antragsnummer: string | null;
+  vorname: string | null;
+  nachname: string | null;
+}
+
+export async function getEmailLogs(params?: {
+  status?: string;
+  email_type?: string;
+}): Promise<EmailLogEntry[]> {
+  const qs = new URLSearchParams();
+  if (params?.status) qs.set("status", params.status);
+  if (params?.email_type) qs.set("email_type", params.email_type);
+  const query = qs.toString() ? `?${qs}` : "";
+  return apiRequest(`/api/admin/email-logs${query}`);
+}

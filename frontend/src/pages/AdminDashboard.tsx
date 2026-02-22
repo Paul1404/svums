@@ -89,6 +89,13 @@ export default function AdminDashboard() {
           </div>
           <div className="flex items-center gap-2">
             <Link
+              to="/admin/email-log"
+              className="flex items-center gap-1.5 px-3 py-2 text-sm text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-colors"
+              title="E-Mail-Log anzeigen"
+            >
+              <Mail className="w-4 h-4" /> E-Mail-Log
+            </Link>
+            <Link
               to="/admin/cancellation"
               className="flex items-center gap-1.5 px-3 py-2 text-sm text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-colors"
               title="Kündigungsbestätigung erstellen"
