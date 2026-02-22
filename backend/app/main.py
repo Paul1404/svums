@@ -54,6 +54,20 @@ async def lifespan(app: FastAPI):
         except Exception as e:
             logger.warning(f"Migration check: {e}")
 
+    # PostgreSQL: widen columns that were created too narrow in earlier deployments
+    if not _get_cfg().database_url.startswith("sqlite"):
+        try:
+            with engine.connect() as conn:
+                conn.execute(__import__("sqlalchemy").text(
+                    "ALTER TABLE membership_applications "
+                    "ALTER COLUMN iban TYPE VARCHAR(500)"
+                ))
+                conn.commit()
+            logger.info("Widened iban column to VARCHAR(500)")
+        except Exception as e:
+            # Will fail with a benign error once the column is already wide enough
+            logger.debug(f"iban column migration (expected after first run): {e}")
+
     # Encrypt any plaintext IBANs
     try:
         from app.services.crypto import encrypt_iban
