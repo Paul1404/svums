@@ -50,7 +50,7 @@ class MembershipApplication(Base):
 
     # SEPA
     kontoinhaber = Column(String(200), nullable=True)
-    iban = Column(String(34), nullable=False)
+    iban = Column(String(500), nullable=False)  # stored encrypted, so much longer than raw IBAN
     bic = Column(String(11), nullable=True)
     kreditinstitut = Column(String(200), nullable=True)
     mandatsreferenz = Column(String(30), nullable=True, unique=True)

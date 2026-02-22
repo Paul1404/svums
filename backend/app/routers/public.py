@@ -539,9 +539,9 @@ async def upload_signed_document(
             _u_anrede = _compute_anrede(app)
 
             async def _notify_admin_and_log():
-                from sqlalchemy import create_engine
                 from sqlalchemy.orm import sessionmaker as _sm2
-                _eng2 = create_engine(_u_db_url)
+                from app.routers.admin import _make_engine
+                _eng2 = _make_engine(_u_db_url)
                 _ldb2 = _sm2(bind=_eng2)()
                 _subject2 = f"Dokument hochgeladen: {_u_antragsnummer}"
                 _ok2, _err2 = False, None
@@ -566,12 +566,13 @@ async def upload_signed_document(
                     _log(_ldb2, "upload_notification", _u_notification_email, _subject2,
                          _ok2, _err2, _u_antragsnummer, _u_vorname, _u_nachname)
                     _ldb2.close()
+                    _eng2.dispose()
 
             async def _confirm_upload_and_log():
-                from sqlalchemy import create_engine
                 from sqlalchemy.orm import sessionmaker as _sm3
                 from app.services.email import send_status_email as _sse
-                _eng3 = create_engine(_u_db_url)
+                from app.routers.admin import _make_engine
+                _eng3 = _make_engine(_u_db_url)
                 _ldb3 = _sm3(bind=_eng3)()
                 _subject3 = "Ihr Dokument wurde empfangen"
                 _ok3, _err3 = False, None
@@ -597,6 +598,7 @@ async def upload_signed_document(
                     _log(_ldb3, "upload_notification", _u_applicant_email, _subject3,
                          _ok3, _err3, _u_antragsnummer, _u_vorname, _u_nachname)
                     _ldb3.close()
+                    _eng3.dispose()
 
             asyncio.ensure_future(_notify_admin_and_log())
             asyncio.ensure_future(_confirm_upload_and_log())
