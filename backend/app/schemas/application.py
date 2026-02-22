@@ -64,7 +64,7 @@ class ChildData(BaseModel):
         return v
 
 
-VALID_GESCHLECHT = ["Herr", "Frau"]
+VALID_GESCHLECHT = ["Herr", "Frau", "keine Angabe"]
 
 
 class ApplicationCreate(BaseModel):
@@ -118,7 +118,7 @@ class ApplicationCreate(BaseModel):
     @classmethod
     def validate_geschlecht(cls, v):
         if v is not None and v not in VALID_GESCHLECHT:
-            raise ValueError(f"Ungültige Anrede: {v}. Erlaubt: Herr, Frau")
+            raise ValueError(f"Ungültige Anrede: {v}. Erlaubt: Herr, Frau, keine Angabe")
         return v
 
     @field_validator("abteilungen")

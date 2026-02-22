@@ -21,7 +21,6 @@ from app.services.fees import calculate_fee, determine_mitgliedschaft_typ, calcu
 from app.services.pdf import generate_pdf
 from app.services.email import send_application_email, send_upload_notification
 from app.services.crypto import encrypt_iban, decrypt_iban
-from app.services import storage
 
 logger = logging.getLogger(__name__)
 
@@ -43,9 +42,14 @@ def _compute_anrede(app: MembershipApplication) -> str:
     elif geschlecht == "Frau":
         prefix = "Sehr geehrte Frau"
     else:
-        # Fallback: informal greeting with full name
-        name = app.vorname if antragstyp != "kind" else (app.erziehungsberechtigter_vorname or app.vorname)
-        return f"Hallo {name}"
+        # Keine Angabe / divers: address with full name, no gendered title
+        if antragstyp == "kind":
+            first = app.erziehungsberechtigter_vorname or app.vorname
+            last = app.erziehungsberechtigter_nachname or app.nachname
+        else:
+            first = app.vorname
+            last = app.nachname
+        return f"Guten Tag {first} {last}"
     last_name = (
         app.erziehungsberechtigter_nachname or app.nachname
         if antragstyp == "kind"
@@ -169,8 +173,8 @@ async def _send_email_task(application_id: int, db_url: str, unterschrift_base64
             pdf_bytes = generate_pdf(data)
         elif is_online_signed and app.uploaded_file:
             # Resend: reuse the stored signed PDF so the attachment still carries the signature.
-            stored = storage.download_file(app.uploaded_file)
-            pdf_bytes = stored if stored is not None else generate_pdf(data)
+            signed_path = UPLOAD_DIR / app.uploaded_file
+            pdf_bytes = signed_path.read_bytes() if signed_path.exists() else generate_pdf(data)
         else:
             pdf_bytes = generate_pdf(data)
 
@@ -290,8 +294,9 @@ async def submit_application(
             app_data["unterschrift_base64"] = data.unterschrift_base64
             pdf_bytes = generate_pdf(app_data)
 
+            UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
             signed_filename = f"{application.antragsnummer}_signed.pdf"
-            storage.upload_file(signed_filename, pdf_bytes, content_type="application/pdf")
+            (UPLOAD_DIR / signed_filename).write_bytes(pdf_bytes)
 
             application.uploaded_file = signed_filename
             application.uploaded_at = datetime.utcnow()
@@ -403,6 +408,7 @@ async def check_duplicate(
 
 # --- Upload signed document ---
 
+UPLOAD_DIR = Path("/app/data/uploads")
 ALLOWED_EXTENSIONS = {".pdf", ".jpg", ".jpeg", ".png", ".heic", ".heif"}
 MAX_FILE_SIZE = 20 * 1024 * 1024  # 20 MB
 
@@ -472,21 +478,18 @@ async def upload_signed_document(
     if len(contents) == 0:
         raise HTTPException(status_code=400, detail="Leere Datei")
 
-    # Save file to object storage
+    # Save file
+    UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
     filename = f"{app.antragsnummer}_{uuid.uuid4().hex[:8]}{ext}"
-    content_type_map = {
-        ".pdf": "application/pdf",
-        ".jpg": "image/jpeg",
-        ".jpeg": "image/jpeg",
-        ".png": "image/png",
-        ".heic": "image/heic",
-        ".heif": "image/heif",
-    }
-    storage.upload_file(filename, contents, content_type=content_type_map.get(ext, "application/octet-stream"))
+    filepath = UPLOAD_DIR / filename
+    filepath.write_bytes(contents)
 
-    # Update application — delete previous upload if any
+    # Update application
+    # If there was a previous upload, delete it
     if app.uploaded_file:
-        storage.delete_file(app.uploaded_file)
+        old_path = UPLOAD_DIR / app.uploaded_file
+        if old_path.exists():
+            old_path.unlink()
 
     app.uploaded_file = filename
     app.uploaded_at = datetime.utcnow()

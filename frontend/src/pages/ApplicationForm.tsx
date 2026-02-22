@@ -224,7 +224,7 @@ export default function ApplicationForm() {
   }, [fullscreenContainerRef.current]);
 
   // ---- Gender / salutation (contact person: applicant for Einzel/Familie, guardian for Kind)
-  const [geschlecht, setGeschlecht] = useState<"Herr" | "Frau" | null>(_d?.geschlecht ?? null);
+  const [geschlecht, setGeschlecht] = useState<"Herr" | "Frau" | "keine Angabe" | null>(_d?.geschlecht ?? null);
 
   // ---- Person data (applicant for Einzel, child for Kind, parent for Familie)
   const [vorname, setVorname] = useState(_d?.vorname ?? "");
@@ -1738,16 +1738,16 @@ function GeschlechtPicker({
   error,
   onChange,
 }: {
-  value: "Herr" | "Frau" | null;
+  value: "Herr" | "Frau" | "keine Angabe" | null;
   error?: string;
-  onChange: (v: "Herr" | "Frau") => void;
+  onChange: (v: "Herr" | "Frau" | "keine Angabe") => void;
 }) {
   return (
     <div className="mb-4">
       <label className="block text-sm font-medium text-gray-700 mb-1">
         Anrede *
       </label>
-      <div className="flex gap-3">
+      <div className="flex flex-wrap gap-3">
         {(["Herr", "Frau"] as const).map((opt) => (
           <button
             key={opt}
@@ -1762,6 +1762,17 @@ function GeschlechtPicker({
             {opt}
           </button>
         ))}
+        <button
+          type="button"
+          onClick={() => onChange("keine Angabe")}
+          className={`px-4 py-2 rounded-lg border text-sm font-medium transition-colors ${
+            value === "keine Angabe"
+              ? "border-svu-500 bg-svu-50 text-svu-700"
+              : "border-gray-200 hover:border-gray-300 text-gray-600"
+          }`}
+        >
+          Keine Angabe
+        </button>
       </div>
       {error && <p className="text-red-600 text-sm mt-1">{error}</p>}
     </div>

@@ -19,7 +19,7 @@ class MembershipApplication(Base):
     antragstyp = Column(String(20), nullable=False, default="einzel")
 
     # Personal data (applicant / parent for Familie / child for Kind)
-    geschlecht = Column(String(10), nullable=True)  # "Herr" or "Frau"
+    geschlecht = Column(String(20), nullable=True)  # "Herr", "Frau", or "keine Angabe"
     vorname = Column(String(100), nullable=False)
     nachname = Column(String(100), nullable=False)
     geburtsdatum = Column(Date, nullable=False)
@@ -50,7 +50,7 @@ class MembershipApplication(Base):
 
     # SEPA
     kontoinhaber = Column(String(200), nullable=True)
-    iban = Column(String(500), nullable=False)
+    iban = Column(String(34), nullable=False)
     bic = Column(String(11), nullable=True)
     kreditinstitut = Column(String(200), nullable=True)
     mandatsreferenz = Column(String(30), nullable=True, unique=True)

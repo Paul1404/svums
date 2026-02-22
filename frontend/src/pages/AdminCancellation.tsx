@@ -18,7 +18,7 @@ interface CancellationForm {
 }
 
 const EMPTY_FORM: CancellationForm = {
-  anrede: "Herr",
+  anrede: "",
   vorname: "",
   nachname: "",
   strasse: "",
@@ -48,6 +48,7 @@ export default function AdminCancellation() {
 
   const validate = (): boolean => {
     const errs: Partial<Record<keyof CancellationForm, string>> = {};
+    if (!form.anrede) errs.anrede = "Pflichtfeld";
     if (!form.vorname.trim()) errs.vorname = "Pflichtfeld";
     if (!form.nachname.trim()) errs.nachname = "Pflichtfeld";
     if (!form.strasse.trim()) errs.strasse = "Pflichtfeld";
@@ -146,7 +147,7 @@ export default function AdminCancellation() {
                 Anrede <span className="text-red-500">*</span>
               </label>
               <div className="flex gap-4">
-                {["Herr", "Frau"].map((a) => (
+                {["Herr", "Frau", "keine Angabe"].map((a) => (
                   <label key={a} className="flex items-center gap-2 cursor-pointer">
                     <input
                       type="radio"
