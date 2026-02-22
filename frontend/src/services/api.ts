@@ -9,7 +9,7 @@ export interface ChildData {
 
 export interface ApplicationData {
   antragstyp: "einzel" | "kind" | "familie";
-  geschlecht: "Herr" | "Frau" | null;
+  geschlecht: "Herr" | "Frau" | "keine Angabe" | null;
   vorname: string;
   nachname: string;
   geburtsdatum: string;
