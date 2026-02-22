@@ -73,12 +73,12 @@ export default function AdminEmailLog() {
   const [typeFilter, setTypeFilter] = useState("");
   const [expandedId, setExpandedId] = useState<number | null>(null);
 
-  const fetchLogs = useCallback(async () => {
+  const fetchLogs = useCallback(async (status: string, emailType: string) => {
     setLoading(true);
     try {
       const data = await getEmailLogs({
-        status: statusFilter || undefined,
-        email_type: typeFilter || undefined,
+        status: status || undefined,
+        email_type: emailType || undefined,
       });
       setLogs(data);
     } catch {
@@ -86,11 +86,11 @@ export default function AdminEmailLog() {
     } finally {
       setLoading(false);
     }
-  }, [statusFilter, typeFilter]);
+  }, []);
 
   useEffect(() => {
-    if (isAuthenticated) fetchLogs();
-  }, [isAuthenticated, fetchLogs]);
+    if (isAuthenticated) fetchLogs(statusFilter, typeFilter);
+  }, [isAuthenticated, statusFilter, typeFilter, fetchLogs]);
 
   const toggleRow = (id: number) =>
     setExpandedId((prev) => (prev === id ? null : id));
@@ -112,7 +112,7 @@ export default function AdminEmailLog() {
           </div>
         </div>
         <button
-          onClick={fetchLogs}
+          onClick={() => fetchLogs(statusFilter, typeFilter)}
           disabled={loading}
           className="flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md border border-gray-200 hover:bg-gray-100 disabled:opacity-50"
         >

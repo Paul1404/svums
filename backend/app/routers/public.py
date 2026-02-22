@@ -141,7 +141,8 @@ async def _send_email_task(application_id: int, db_url: str, unterschrift_base64
     from sqlalchemy import create_engine
     from sqlalchemy.orm import sessionmaker
 
-    eng = create_engine(db_url, connect_args={"check_same_thread": False})
+    _kwargs = {"connect_args": {"check_same_thread": False}} if db_url.startswith("sqlite") else {}
+    eng = create_engine(db_url, **_kwargs)
     SessionLocal = sessionmaker(bind=eng)
     db = SessionLocal()
 
