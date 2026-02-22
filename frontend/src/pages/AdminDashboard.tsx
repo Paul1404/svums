@@ -89,6 +89,13 @@ export default function AdminDashboard() {
           </div>
           <div className="flex items-center gap-2">
             <Link
+              to="/admin/documents"
+              className="flex items-center gap-1.5 px-3 py-2 text-sm text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-colors"
+              title="Dokumente verwalten"
+            >
+              <FileText className="w-4 h-4" /> Dokumente
+            </Link>
+            <Link
               to="/admin/email-log"
               className="flex items-center gap-1.5 px-3 py-2 text-sm text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-colors"
               title="E-Mail-Log anzeigen"

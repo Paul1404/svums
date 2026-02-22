@@ -169,12 +169,17 @@ async function apiRequest<T>(
   url: string,
   options: RequestInit = {}
 ): Promise<T> {
-  const { headers: extraHeaders, ...rest } = options;
+  const { headers: extraHeaders, body, ...rest } = options;
+  // Don't set Content-Type for FormData — the browser adds it with the correct boundary
+  const contentTypeHeader = body instanceof FormData
+    ? {}
+    : { "Content-Type": "application/json" };
   const response = await fetch(url, {
     credentials: "include",
+    body,
     ...rest,
     headers: {
-      "Content-Type": "application/json",
+      ...contentTypeHeader,
       ...(extraHeaders as Record<string, string>),
     },
   });
@@ -384,6 +389,18 @@ export interface EmailLogEntry {
   antragsnummer: string | null;
   vorname: string | null;
   nachname: string | null;
+}
+
+export async function adminUploadDocument(
+  id: number,
+  file: File
+): Promise<ApplicationResponse> {
+  const form = new FormData();
+  form.append("file", file);
+  return apiRequest(`/api/admin/applications/${id}/admin-upload`, {
+    method: "POST",
+    body: form,
+  });
 }
 
 export async function getEmailLogs(params?: {

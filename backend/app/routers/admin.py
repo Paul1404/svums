@@ -4,7 +4,7 @@ import json
 import logging
 from datetime import date, datetime
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, Response
+from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, Request, Response, UploadFile
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from sqlalchemy import or_
@@ -403,6 +403,62 @@ async def download_upload(
             "Content-Disposition": f'inline; filename="{filename}"',
         },
     )
+
+
+@router.post("/applications/{application_id}/admin-upload")
+async def admin_upload_document(
+    application_id: int,
+    file: UploadFile = File(...),
+    is_admin: bool = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    """Admin-initiated upload of a signed document for an application."""
+    from pathlib import Path
+    import uuid as _uuid
+
+    app = db.query(MembershipApplication).filter(
+        MembershipApplication.id == application_id
+    ).first()
+    if not app:
+        raise HTTPException(status_code=404, detail="Antrag nicht gefunden")
+
+    ALLOWED_EXTENSIONS = {".pdf", ".jpg", ".jpeg", ".png", ".heic", ".heif"}
+    MAX_FILE_SIZE = 20 * 1024 * 1024  # 20 MB
+    UPLOAD_DIR = Path("/app/data/uploads")
+
+    ext = Path(file.filename).suffix.lower() if file.filename else ""
+    if ext not in ALLOWED_EXTENSIONS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Nicht erlaubtes Dateiformat. Erlaubt: {', '.join(ALLOWED_EXTENSIONS)}"
+        )
+
+    contents = await file.read()
+    if len(contents) > MAX_FILE_SIZE:
+        raise HTTPException(status_code=400, detail="Datei zu groß (max. 20 MB)")
+    if len(contents) == 0:
+        raise HTTPException(status_code=400, detail="Leere Datei")
+
+    UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+
+    # Remove previous upload if it exists
+    if app.uploaded_file:
+        old_path = UPLOAD_DIR / app.uploaded_file
+        if old_path.exists():
+            old_path.unlink()
+
+    filename = f"{app.antragsnummer}_admin_{_uuid.uuid4().hex[:8]}{ext}"
+    (UPLOAD_DIR / filename).write_bytes(contents)
+
+    app.uploaded_file = filename
+    app.uploaded_at = datetime.utcnow()
+    if app.status == "neu":
+        app.status = "dokument_hochgeladen"
+
+    db.commit()
+    db.refresh(app)
+
+    return ApplicationResponse.model_validate(app)
 
 
 @router.get("/export")

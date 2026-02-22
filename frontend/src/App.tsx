@@ -10,6 +10,7 @@ import AdminApplicationDetail from "./pages/AdminApplicationDetail";
 import AdminSettings from "./pages/AdminSettings";
 import AdminCancellation from "./pages/AdminCancellation";
 import AdminEmailLog from "./pages/AdminEmailLog";
+import AdminDocuments from "./pages/AdminDocuments";
 import { AdminProvider, useAdmin } from "./context/AdminContext";
 
 function AdminRoute({ children }: { children: React.ReactNode }) {
@@ -72,6 +73,14 @@ function AdminRoutes() {
           element={
             <AdminRoute>
               <AdminEmailLog />
+            </AdminRoute>
+          }
+        />
+        <Route
+          path="documents"
+          element={
+            <AdminRoute>
+              <AdminDocuments />
             </AdminRoute>
           }
         />
