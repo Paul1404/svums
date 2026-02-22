@@ -66,7 +66,7 @@ function StatusBadge({ status }: { status: "success" | "failed" }) {
 }
 
 export default function AdminEmailLog() {
-  const { isAdmin } = useAdmin();
+  const { isAuthenticated } = useAdmin();
   const [logs, setLogs] = useState<EmailLogEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState("");
@@ -89,8 +89,8 @@ export default function AdminEmailLog() {
   }, [statusFilter, typeFilter]);
 
   useEffect(() => {
-    if (isAdmin) fetchLogs();
-  }, [isAdmin, fetchLogs]);
+    if (isAuthenticated) fetchLogs();
+  }, [isAuthenticated, fetchLogs]);
 
   const toggleRow = (id: number) =>
     setExpandedId((prev) => (prev === id ? null : id));
