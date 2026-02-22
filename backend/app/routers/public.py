@@ -3,7 +3,6 @@ import logging
 import os
 import uuid
 from datetime import date, datetime
-from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, Request, UploadFile, File
 from sqlalchemy import func
@@ -21,6 +20,7 @@ from app.services.fees import calculate_fee, determine_mitgliedschaft_typ, calcu
 from app.services.pdf import generate_pdf
 from app.services.email import send_application_email, send_upload_notification
 from app.services.crypto import encrypt_iban, decrypt_iban
+from app.services import storage
 
 logger = logging.getLogger(__name__)
 
@@ -168,8 +168,8 @@ async def _send_email_task(application_id: int, db_url: str, unterschrift_base64
             pdf_bytes = generate_pdf(data)
         elif is_online_signed and app.uploaded_file:
             # Resend: reuse the stored signed PDF so the attachment still carries the signature.
-            signed_path = UPLOAD_DIR / app.uploaded_file
-            pdf_bytes = signed_path.read_bytes() if signed_path.exists() else generate_pdf(data)
+            stored = storage.download_file(app.uploaded_file)
+            pdf_bytes = stored if stored is not None else generate_pdf(data)
         else:
             pdf_bytes = generate_pdf(data)
 
@@ -289,9 +289,8 @@ async def submit_application(
             app_data["unterschrift_base64"] = data.unterschrift_base64
             pdf_bytes = generate_pdf(app_data)
 
-            UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
             signed_filename = f"{application.antragsnummer}_signed.pdf"
-            (UPLOAD_DIR / signed_filename).write_bytes(pdf_bytes)
+            storage.upload_file(signed_filename, pdf_bytes, content_type="application/pdf")
 
             application.uploaded_file = signed_filename
             application.uploaded_at = datetime.utcnow()
@@ -403,7 +402,6 @@ async def check_duplicate(
 
 # --- Upload signed document ---
 
-UPLOAD_DIR = Path("/app/data/uploads")
 ALLOWED_EXTENSIONS = {".pdf", ".jpg", ".jpeg", ".png", ".heic", ".heif"}
 MAX_FILE_SIZE = 20 * 1024 * 1024  # 20 MB
 
@@ -473,18 +471,21 @@ async def upload_signed_document(
     if len(contents) == 0:
         raise HTTPException(status_code=400, detail="Leere Datei")
 
-    # Save file
-    UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+    # Save file to object storage
     filename = f"{app.antragsnummer}_{uuid.uuid4().hex[:8]}{ext}"
-    filepath = UPLOAD_DIR / filename
-    filepath.write_bytes(contents)
+    content_type_map = {
+        ".pdf": "application/pdf",
+        ".jpg": "image/jpeg",
+        ".jpeg": "image/jpeg",
+        ".png": "image/png",
+        ".heic": "image/heic",
+        ".heif": "image/heif",
+    }
+    storage.upload_file(filename, contents, content_type=content_type_map.get(ext, "application/octet-stream"))
 
-    # Update application
-    # If there was a previous upload, delete it
+    # Update application — delete previous upload if any
     if app.uploaded_file:
-        old_path = UPLOAD_DIR / app.uploaded_file
-        if old_path.exists():
-            old_path.unlink()
+        storage.delete_file(app.uploaded_file)
 
     app.uploaded_file = filename
     app.uploaded_at = datetime.utcnow()

@@ -15,6 +15,7 @@ from app.config import get_settings, Settings
 from app.database import get_db
 from app.models.application import MembershipApplication
 from app.models.settings import AppSettings
+from app.services import storage
 from app.schemas.application import (
     ApplicationResponse,
     ApplicationListResponse,
@@ -268,19 +269,13 @@ async def download_pdf(
     if not app:
         raise HTTPException(status_code=404, detail="Antrag nicht gefunden")
 
-    from pathlib import Path
-
     data = _build_application_data(app)
 
     # For online-signed applications, reuse the stored signed PDF (which contains
     # the embedded signature) instead of regenerating an unsigned blank form.
-    UPLOAD_DIR = Path("/app/data/uploads")
     if app.uploaded_file and app.uploaded_file.endswith("_signed.pdf"):
-        signed_path = UPLOAD_DIR / app.uploaded_file
-        if signed_path.exists():
-            pdf_bytes = signed_path.read_bytes()
-        else:
-            pdf_bytes = generate_pdf(data)
+        stored = storage.download_file(app.uploaded_file)
+        pdf_bytes = stored if stored is not None else generate_pdf(data)
     else:
         pdf_bytes = generate_pdf(data)
 
@@ -310,12 +305,11 @@ async def download_upload(
     if not app.uploaded_file:
         raise HTTPException(status_code=404, detail="Kein Dokument hochgeladen")
 
-    upload_dir = Path("/app/data/uploads")
-    filepath = upload_dir / app.uploaded_file
-    if not filepath.exists():
+    content = storage.download_file(app.uploaded_file)
+    if content is None:
         raise HTTPException(status_code=404, detail="Datei nicht gefunden")
 
-    ext = filepath.suffix.lower()
+    ext = Path(app.uploaded_file).suffix.lower()
     media_types = {
         ".pdf": "application/pdf",
         ".jpg": "image/jpeg",
@@ -326,7 +320,6 @@ async def download_upload(
     }
     media_type = media_types.get(ext, "application/octet-stream")
 
-    content = filepath.read_bytes()
     filename = f"Upload_{app.nachname}_{app.vorname}{ext}"
     return Response(
         content=content,
