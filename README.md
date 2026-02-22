@@ -65,16 +65,18 @@ built-in admin panel.
 
 ## Tech Stack
 
-| Layer     | Technology                                                  |
-|-----------|-------------------------------------------------------------|
-| Backend   | Python 3.12, FastAPI 0.115, SQLAlchemy 2.0, SQLite (WAL)   |
-| Frontend  | React 18, TypeScript, Vite 6, Tailwind CSS 3.4             |
-| Signature | react-signature-canvas 1.0.1 (inline digital signing)      |
-| PDF       | WeasyPrint 63.1                                             |
-| Email     | aiosmtplib (async SMTP), Jinja2 HTML templates              |
-| Auth      | itsdangerous (signed session cookie)                        |
-| Crypto    | cryptography (Fernet for IBAN encryption)                   |
-| Container | Docker multi-stage build, Traefik reverse proxy             |
+| Layer     | Technology                                                       |
+|-----------|------------------------------------------------------------------|
+| Backend   | Python 3.13, FastAPI 0.129, SQLAlchemy 2.0                      |
+| Database  | Neon (serverless PostgreSQL)                                     |
+| Storage   | Tigris object storage (S3-compatible) for uploaded/signed PDFs  |
+| Frontend  | React 18, TypeScript, Vite 7, Tailwind CSS 3.4                  |
+| Signature | react-signature-canvas (inline digital signing)                  |
+| PDF       | WeasyPrint 68                                                    |
+| Email     | aiosmtplib (async SMTP), Jinja2 HTML templates                   |
+| Auth      | itsdangerous (signed session cookie)                             |
+| Crypto    | cryptography (Fernet for IBAN encryption)                        |
+| Hosting   | Fly.io (Frankfurt region), Docker multi-stage build              |
 
 
 ## Project Structure
@@ -82,8 +84,7 @@ built-in admin panel.
 ```
 svums/
   Dockerfile              Multi-stage build (Node frontend + Python backend)
-  docker-compose.yml      Service definition with Traefik labels
-  .env                    ADMIN_PASSWORD and COOKIE_SECRET
+  fly.toml                Fly.io deployment configuration
   backend/
     app/
       main.py             FastAPI app, middlewares, startup migrations
@@ -100,12 +101,12 @@ svums/
         fees.py           Fee calculation logic
         pdf.py            PDF generation with WeasyPrint
         crypto.py         IBAN encrypt/decrypt (Fernet)
+        storage.py        Tigris/S3 object storage (upload, download, delete)
       templates/
         beitrittserklaerung.html  PDF template (signature-aware)
         email.html                Admin notification email
         email_confirmation.html   Applicant confirmation (flow-aware)
         email_status.html         Status update emails
-        kuendigungsbestaetigung.html  Cancellation PDF
   frontend/
     src/
       App.tsx             Routes
@@ -125,19 +126,28 @@ svums/
 
 ## Deployment
 
-### Requirements
+The app is hosted on [Fly.io](https://fly.io) in the Frankfurt (`fra`) region.
 
-- Docker and Docker Compose
-- Traefik reverse proxy on the `traefik` network (handles TLS)
-- DNS record pointing to the server for `svums.sv-untereuerheim.de`
+### Prerequisites
 
-### Environment Variables
+- [flyctl](https://fly.io/docs/hands-on/install-flyctl/) installed and authenticated
+- A [Neon](https://neon.tech) PostgreSQL database
+- Fly.io account
 
-Create a `.env` file in the project root:
+### Initial Setup (one-time)
 
-```env
-ADMIN_PASSWORD=your-secure-admin-password
-COOKIE_SECRET=your-random-secret-key-min-32-chars
+```bash
+# Create the Fly app
+flyctl apps create svums --org personal
+
+# Set required secrets
+flyctl secrets set \
+  DATABASE_URL="postgresql://..." \
+  ADMIN_PASSWORD="your-secure-password" \
+  COOKIE_SECRET="your-random-secret-min-32-chars"
+
+# Provision Tigris object storage (sets S3 secrets automatically)
+flyctl storage create -a svums
 ```
 
 Generate a secure cookie secret:
@@ -146,28 +156,43 @@ Generate a secure cookie secret:
 python3 -c "import secrets; print(secrets.token_urlsafe(48))"
 ```
 
-### Start
+### Deploy
 
 ```bash
-docker compose up -d --build
+flyctl deploy
 ```
-
-The app will be available at `https://svums.sv-untereuerheim.de` once Traefik
-picks up the container.
 
 ### Data Persistence
 
-All data is stored in the `svums_data` Docker volume, mounted at `/app/data`
-inside the container:
+| Data | Where |
+|------|-------|
+| Applications, settings | Neon PostgreSQL (external, always persistent) |
+| Uploaded signed documents | Tigris object storage (S3-compatible, always persistent) |
+| Online-signed PDFs | Tigris object storage, key: `{antragsnummer}_signed.pdf` |
 
-- `svums.db` - SQLite database with all applications and settings
-- `uploads/` - Uploaded signed documents and online-signed PDFs
-  (online-signed files follow the naming convention `{antragsnummer}_signed.pdf`)
+SMTP settings are stored in the `app_settings` table in Neon and survive
+restarts and redeployments.
+
+### Environment Variables / Secrets
+
+| Name | How set | Description |
+|------|---------|-------------|
+| `DATABASE_URL` | `flyctl secrets set` | Neon connection string |
+| `ADMIN_PASSWORD` | `flyctl secrets set` | Admin panel password |
+| `COOKIE_SECRET` | `flyctl secrets set` | Session signing key (min 32 chars) |
+| `AWS_ACCESS_KEY_ID` | auto (Tigris) | Set by `flyctl storage create` |
+| `AWS_SECRET_ACCESS_KEY` | auto (Tigris) | Set by `flyctl storage create` |
+| `AWS_ENDPOINT_URL_S3` | auto (Tigris) | Set by `flyctl storage create` |
+| `AWS_REGION` | auto (Tigris) | Set by `flyctl storage create` |
+| `BUCKET_NAME` | auto (Tigris) | Set by `flyctl storage create` |
+| `CORS_ORIGINS` | `fly.toml [env]` | Allowed CORS origins |
+| `COOKIE_SECURE` | `fly.toml [env]` | Set to `true` in production |
+| `COOKIE_NAME` | `fly.toml [env]` | Session cookie name |
 
 ### First-Time Setup
 
-1. Deploy the container
-2. Go to `https://svums.sv-untereuerheim.de/admin`
+1. Run `flyctl deploy`
+2. Go to `https://svums.fly.dev/admin` (or your custom domain)
 3. Log in with the password from `ADMIN_PASSWORD`
 4. Navigate to Settings and configure SMTP (required for email delivery)
 
@@ -356,15 +381,17 @@ alternative to the print/sign/upload flow. Key implementation details:
 
 **Backend (`public.py`, `admin.py`)**
 - `ApplicationCreate` schema accepts `unterschrift_base64: Optional[str] = None`.
-- On submission with a signature: a signed PDF is generated, written to
-  `uploads/{antragsnummer}_signed.pdf`, and the application status is set to
-  `dokument_hochgeladen` immediately.
+- On submission with a signature: a signed PDF is generated, uploaded to Tigris
+  under the key `{antragsnummer}_signed.pdf`, and the application status is set
+  to `dokument_hochgeladen` immediately.
 - The `_signed.pdf` filename suffix is used as the persistent signal that an
   application was signed online. This allows the email resend and admin PDF
   download endpoints to detect the signed status without storing the base64
   in the database.
-- The resend-email and download-PDF endpoints re-use the stored signed PDF
-  (read from disk) rather than regenerating an unsigned blank form.
+- The resend-email and download-PDF endpoints retrieve the stored signed PDF
+  from Tigris rather than regenerating an unsigned blank form.
+- All file I/O (upload, download, delete) goes through `services/storage.py`,
+  which wraps the Tigris S3-compatible API via boto3.
 
 **Email templates**
 - All templates receive a `signed_online` boolean.
