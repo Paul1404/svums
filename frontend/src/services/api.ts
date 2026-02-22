@@ -171,7 +171,7 @@ async function apiRequest<T>(
 ): Promise<T> {
   const { headers: extraHeaders, body, ...rest } = options;
   // Don't set Content-Type for FormData — the browser adds it with the correct boundary
-  const contentTypeHeader = body instanceof FormData
+  const baseHeaders: Record<string, string> = body instanceof FormData
     ? {}
     : { "Content-Type": "application/json" };
   const response = await fetch(url, {
@@ -179,7 +179,7 @@ async function apiRequest<T>(
     body,
     ...rest,
     headers: {
-      ...contentTypeHeader,
+      ...baseHeaders,
       ...(extraHeaders as Record<string, string>),
     },
   });

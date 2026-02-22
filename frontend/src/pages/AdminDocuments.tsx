@@ -103,7 +103,7 @@ export default function AdminDocuments() {
     setLoading(true);
     try {
       // Load up to 500 applications
-      const data = await getApplications({ page: 1, perPage: 500 });
+      const data = await getApplications(1, 500);
       setApps(data.items);
     } catch {
       toast.error("Anträge konnten nicht geladen werden");
