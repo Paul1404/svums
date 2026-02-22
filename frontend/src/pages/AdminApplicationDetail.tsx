@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { toast } from "sonner";
 import {
@@ -6,6 +6,7 @@ import {
   updateApplication,
   deleteApplication,
   resendEmail,
+  adminUploadDocument,
   formatFee,
   type ApplicationResponse,
 } from "../services/api";
@@ -20,6 +21,7 @@ import {
   FileCheck,
   Eye,
   RefreshCw,
+  Upload,
 } from "lucide-react";
 
 const STATUS_OPTIONS = [
@@ -63,6 +65,24 @@ export default function AdminApplicationDetail() {
   const [notes, setNotes] = useState("");
   const [saving, setSaving] = useState(false);
   const [resending, setResending] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [uploadDragging, setUploadDragging] = useState(false);
+  const uploadInputRef = useRef<HTMLInputElement>(null);
+
+  const handleAdminUpload = async (file: File) => {
+    if (!app) return;
+    setUploading(true);
+    try {
+      const updated = await adminUploadDocument(app.id, file);
+      setApp(updated);
+      setStatus(updated.status);
+      toast.success("Dokument hochgeladen");
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : "Upload fehlgeschlagen");
+    } finally {
+      setUploading(false);
+    }
+  };
 
   useEffect(() => {
     if (!id) return;
@@ -382,7 +402,7 @@ export default function AdminApplicationDetail() {
                     </span>
                   </div>
                 )}
-                {app.uploaded_file && (
+                {app.uploaded_file ? (
                   <div className="pt-2 flex gap-2">
                     <a
                       href={`/api/admin/applications/${app.id}/upload`}
@@ -399,7 +419,70 @@ export default function AdminApplicationDetail() {
                     >
                       <Download className="w-4 h-4" />
                     </a>
+                    <button
+                      onClick={() => uploadInputRef.current?.click()}
+                      title="Dokument ersetzen"
+                      className="flex items-center justify-center gap-1.5 px-3 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+                    >
+                      <Upload className="w-4 h-4" />
+                    </button>
                   </div>
+                ) : (
+                  <div className="pt-2">
+                    <input
+                      ref={uploadInputRef}
+                      type="file"
+                      className="hidden"
+                      accept=".pdf,.jpg,.jpeg,.png,.heic,.heif"
+                      onChange={(e) => {
+                        const f = e.target.files?.[0];
+                        if (f) handleAdminUpload(f);
+                        e.target.value = "";
+                      }}
+                    />
+                    <div
+                      className={`flex flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed p-4 text-center cursor-pointer transition-colors ${
+                        uploadDragging
+                          ? "border-svu-500 bg-svu-50"
+                          : "border-gray-300 hover:border-svu-400 hover:bg-gray-50"
+                      }`}
+                      onDragOver={(e) => { e.preventDefault(); setUploadDragging(true); }}
+                      onDragLeave={() => setUploadDragging(false)}
+                      onDrop={(e) => {
+                        e.preventDefault();
+                        setUploadDragging(false);
+                        const f = e.dataTransfer.files[0];
+                        if (f) handleAdminUpload(f);
+                      }}
+                      onClick={() => !uploading && uploadInputRef.current?.click()}
+                    >
+                      {uploading ? (
+                        <Loader2 className="w-5 h-5 animate-spin text-svu-600" />
+                      ) : (
+                        <>
+                          <Upload className="w-5 h-5 text-gray-400" />
+                          <p className="text-xs text-gray-500">
+                            Dokument hochladen<br />
+                            <span className="text-gray-400">PDF, JPG, PNG, HEIC</span>
+                          </p>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                )}
+                {/* Hidden input for replace button */}
+                {app.uploaded_file && (
+                  <input
+                    ref={uploadInputRef}
+                    type="file"
+                    className="hidden"
+                    accept=".pdf,.jpg,.jpeg,.png,.heic,.heif"
+                    onChange={(e) => {
+                      const f = e.target.files?.[0];
+                      if (f) handleAdminUpload(f);
+                      e.target.value = "";
+                    }}
+                  />
                 )}
               </div>
             </div>
