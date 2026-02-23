@@ -44,4 +44,13 @@ def get_settings() -> Settings:
             "Bitte sichere Umgebungsvariablen setzen oder ALLOW_INSECURE_DEFAULTS=true "
             "nur für lokale Entwicklung verwenden."
         )
+    if (
+        not settings.allow_insecure_defaults
+        and settings.database_url.startswith("sqlite")
+    ):
+        raise ValueError(
+            "Unsichere Datenbankkonfiguration erkannt. "
+            "Setze DATABASE_URL auf eine persistente Produktionsdatenbank "
+            "oder ALLOW_INSECURE_DEFAULTS=true nur lokal."
+        )
     return settings

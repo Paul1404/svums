@@ -8,6 +8,7 @@ from pathlib import Path
 from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, Request, UploadFile, File
 from sqlalchemy import func
 from sqlalchemy.orm import Session
+from sqlalchemy.exc import IntegrityError
 
 from app.database import get_db
 from app.models.application import MembershipApplication
@@ -287,23 +288,18 @@ async def submit_application(
     # Generate upload token
     application.upload_token = str(uuid.uuid4())
 
-    # Generate Mandatsreferenz: SVU1945-YYYY-XXXXX
+    # Generate Mandatsreferenz using the DB row id to avoid concurrency races.
     year = date.today().year
-    max_seq = (
-        db.query(func.max(MembershipApplication.id))
-        .filter(MembershipApplication.mandatsreferenz.like(f"SVU1945-{year}-%"))
-        .scalar()
-    )
-    # Count existing mandates for this year
-    count = (
-        db.query(func.count(MembershipApplication.id))
-        .filter(MembershipApplication.mandatsreferenz.like(f"SVU1945-{year}-%"))
-        .scalar()
-    ) or 0
-    seq = count + 1
-    application.mandatsreferenz = f"SVU1945-{year}-{seq:05d}"
+    application.mandatsreferenz = f"SVU1945-{year}-{application.id:05d}"
 
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(
+            status_code=500,
+            detail="Antrag konnte wegen einer Kollision nicht gespeichert werden. Bitte erneut versuchen.",
+        )
     db.refresh(application)
 
     # Option B: inline signature provided → generate signed PDF, store it,
@@ -321,7 +317,14 @@ async def submit_application(
             application.uploaded_file = signed_filename
             application.uploaded_at = datetime.utcnow()
             application.status = "dokument_hochgeladen"
-            db.commit()
+            try:
+                db.commit()
+            except Exception:
+                db.rollback()
+                signed_path = UPLOAD_DIR / signed_filename
+                if signed_path.exists():
+                    signed_path.unlink()
+                raise
             db.refresh(application)
             logger.info(f"Inline-signed PDF saved for {application.antragsnummer}")
         except Exception as exc:
@@ -505,18 +508,26 @@ async def upload_signed_document(
     filepath.write_bytes(contents)
 
     # Update application
-    # If there was a previous upload, delete it
-    if app.uploaded_file:
-        old_path = UPLOAD_DIR / app.uploaded_file
-        if old_path.exists():
-            old_path.unlink()
+    old_filename = app.uploaded_file
 
     app.uploaded_file = filename
     app.uploaded_at = datetime.utcnow()
     # Auto-advance status
     if app.status == "neu":
         app.status = "dokument_hochgeladen"
-    db.commit()
+    try:
+        db.commit()
+    except Exception:
+        db.rollback()
+        if filepath.exists():
+            filepath.unlink()
+        raise
+
+    # Delete previous upload only after new DB state has been committed.
+    if old_filename:
+        old_path = UPLOAD_DIR / old_filename
+        if old_path.exists():
+            old_path.unlink()
 
     logger.info(f"Upload received for {app.antragsnummer}: {filename} ({len(contents)} bytes)")
 

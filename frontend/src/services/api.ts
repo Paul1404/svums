@@ -207,7 +207,26 @@ async function apiRequest<T>(
     throw new Error(extractApiError(errorData, `Fehler: ${response.status}`));
   }
 
-  return response.json();
+  if (response.status === 204) {
+    return undefined as T;
+  }
+
+  const contentType = response.headers.get("content-type") || "";
+  if (contentType.includes("application/json")) {
+    return response.json() as Promise<T>;
+  }
+
+  const rawBody = await response.text();
+  if (!rawBody.trim()) {
+    return undefined as T;
+  }
+
+  try {
+    return JSON.parse(rawBody) as T;
+  } catch {
+    // Be defensive: some endpoints can return plain text/html from proxies.
+    return rawBody as T;
+  }
 }
 
 // ---- CSRF ----
