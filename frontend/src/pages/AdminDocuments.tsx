@@ -5,7 +5,9 @@ import { useAdmin } from "../context/AdminContext";
 import {
   getApplications,
   adminUploadDocument,
+  getCancellationDocuments,
   type ApplicationResponse,
+  type CancellationLetterResponse,
 } from "../services/api";
 import {
   ArrowLeft,
@@ -96,17 +98,21 @@ function UploadCell({ app, onDone }: { app: ApplicationResponse; onDone: (update
 export default function AdminDocuments() {
   const { isAuthenticated } = useAdmin();
   const [apps, setApps] = useState<ApplicationResponse[]>([]);
+  const [cancellations, setCancellations] = useState<CancellationLetterResponse[]>([]);
   const [loading, setLoading] = useState(true);
   const [docFilter, setDocFilter] = useState<"all" | "with" | "without">("all");
 
   const fetchAll = useCallback(async () => {
     setLoading(true);
     try {
-      // Load up to 500 applications
-      const data = await getApplications(1, 500);
-      setApps(data.items);
+      const [appData, cancellationData] = await Promise.all([
+        getApplications(1, 500),
+        getCancellationDocuments(500),
+      ]);
+      setApps(appData.items);
+      setCancellations(cancellationData);
     } catch {
-      toast.error("Anträge konnten nicht geladen werden");
+      toast.error("Dokumentdaten konnten nicht geladen werden");
     } finally {
       setLoading(false);
     }
@@ -125,6 +131,12 @@ export default function AdminDocuments() {
     if (docFilter === "without") return !a.uploaded_file;
     return true;
   });
+
+  const signatureSourceLabel = (source: string) => {
+    if (source === "request") return "Manuell (Zeichnen/Bild)";
+    if (source === "admin_saved") return "Gespeicherte Admin-Signatur";
+    return "Keine";
+  };
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -172,7 +184,7 @@ export default function AdminDocuments() {
         </span>
       </div>
 
-      {/* Table */}
+      {/* Membership documents table */}
       <div className="p-4">
         {loading ? (
           <div className="flex justify-center py-16 text-gray-400">
@@ -284,6 +296,76 @@ export default function AdminDocuments() {
             </table>
           </div>
         )}
+      </div>
+
+      {/* Cancellation letters table */}
+      <div className="px-4 pb-6">
+        <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+          <div className="px-4 py-3 border-b border-gray-200 bg-gray-50 flex items-center justify-between">
+            <h2 className="text-sm font-semibold text-gray-800">Kündigungsbestätigungen</h2>
+            <span className="text-xs text-gray-500">{cancellations.length} Einträge</span>
+          </div>
+          {loading ? (
+            <div className="flex justify-center py-10 text-gray-400">
+              <RefreshCw className="h-5 w-5 animate-spin" />
+            </div>
+          ) : cancellations.length === 0 ? (
+            <div className="text-center py-10 text-gray-400 text-sm">
+              Noch keine gespeicherten Kündigungsbestätigungen.
+            </div>
+          ) : (
+            <table className="w-full text-sm">
+              <thead className="bg-gray-50 border-b border-gray-200">
+                <tr>
+                  <th className="text-left px-4 py-2.5 font-medium text-gray-600">Name</th>
+                  <th className="text-left px-4 py-2.5 font-medium text-gray-600 hidden md:table-cell">Austritt</th>
+                  <th className="text-left px-4 py-2.5 font-medium text-gray-600 hidden lg:table-cell">Signatur</th>
+                  <th className="text-left px-4 py-2.5 font-medium text-gray-600">Erstellt am</th>
+                  <th className="text-left px-4 py-2.5 font-medium text-gray-600">Aktionen</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {cancellations.map((doc) => (
+                  <tr key={doc.id} className="hover:bg-gray-50">
+                    <td className="px-4 py-3 text-gray-900 font-medium">
+                      {doc.nachname}, {doc.vorname}
+                    </td>
+                    <td className="px-4 py-3 text-gray-500 hidden md:table-cell whitespace-nowrap">
+                      {doc.austritt_datum}
+                    </td>
+                    <td className="px-4 py-3 text-gray-500 hidden lg:table-cell">
+                      {signatureSourceLabel(doc.signature_source)}
+                    </td>
+                    <td className="px-4 py-3 text-gray-500 whitespace-nowrap">
+                      {formatDate(doc.created_at)}
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-1.5">
+                        <a
+                          href={`/api/admin/cancellation-documents/${doc.id}/download`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          title="Anzeigen"
+                          className="p-1.5 rounded-md text-svu-600 hover:bg-svu-50 transition-colors"
+                        >
+                          <Eye className="h-4 w-4" />
+                        </a>
+                        <a
+                          href={`/api/admin/cancellation-documents/${doc.id}/download`}
+                          download
+                          title="Herunterladen"
+                          className="p-1.5 rounded-md text-gray-600 hover:bg-gray-100 transition-colors"
+                        >
+                          <Download className="h-4 w-4" />
+                        </a>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
       </div>
     </div>
   );

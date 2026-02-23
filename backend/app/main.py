@@ -49,6 +49,11 @@ async def lifespan(app: FastAPI):
                 if col_name not in columns:
                     cursor.execute(f"ALTER TABLE membership_applications ADD COLUMN {col_name} {col_type}")
                     logger.info(f"Added {col_name} column")
+            cursor.execute("PRAGMA table_info(app_settings)")
+            settings_columns = {row[1] for row in cursor.fetchall()}
+            if "admin_signature_base64" not in settings_columns:
+                cursor.execute("ALTER TABLE app_settings ADD COLUMN admin_signature_base64 TEXT")
+                logger.info("Added admin_signature_base64 column")
             conn.commit()
             conn.close()
         except Exception as e:
@@ -61,6 +66,10 @@ async def lifespan(app: FastAPI):
                 conn.execute(__import__("sqlalchemy").text(
                     "ALTER TABLE membership_applications "
                     "ALTER COLUMN iban TYPE VARCHAR(500)"
+                ))
+                conn.execute(__import__("sqlalchemy").text(
+                    "ALTER TABLE app_settings "
+                    "ADD COLUMN IF NOT EXISTS admin_signature_base64 TEXT"
                 ))
                 conn.commit()
             logger.info("Widened iban column to VARCHAR(500)")

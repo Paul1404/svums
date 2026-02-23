@@ -14,6 +14,8 @@ import {
   Loader2,
   Eye,
   EyeOff,
+  Upload,
+  Trash2,
 } from "lucide-react";
 
 export default function AdminSettings() {
@@ -23,6 +25,7 @@ export default function AdminSettings() {
   const [testing, setTesting] = useState(false);
   const [testEmail, setTestEmail] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [sigUploading, setSigUploading] = useState(false);
 
   useEffect(() => {
     getSettings()
@@ -66,6 +69,32 @@ export default function AdminSettings() {
 
   const update = (field: keyof SettingsData, value: any) => {
     setSettings((prev) => (prev ? { ...prev, [field]: value } : prev));
+  };
+
+  const handleSignatureUpload = (file: File) => {
+    if (!settings) return;
+    if (!file.type.startsWith("image/")) {
+      toast.error("Bitte ein Bild (PNG/JPG) auswählen");
+      return;
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      toast.error("Datei zu groß (max. 10 MB)");
+      return;
+    }
+    setSigUploading(true);
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = reader.result;
+      if (typeof result === "string") {
+        update("admin_signature_base64", result);
+      }
+      setSigUploading(false);
+    };
+    reader.onerror = () => {
+      toast.error("Signatur konnte nicht gelesen werden");
+      setSigUploading(false);
+    };
+    reader.readAsDataURL(file);
   };
 
   if (loading) {
@@ -210,6 +239,53 @@ export default function AdminSettings() {
               Neue Beitrittserklärungen werden an diese Adresse gesendet.
             </p>
           </div>
+        </div>
+
+        {/* Reusable admin signature */}
+        <div className="bg-white rounded-xl shadow-sm border p-6">
+          <h2 className="text-lg font-semibold text-gray-900 mb-4">
+            Wiederverwendbare Unterschrift
+          </h2>
+          <p className="text-xs text-gray-500 mb-3">
+            Diese Signatur kann bei Kündigungsbestätigungen automatisch verwendet werden.
+          </p>
+          <div className="flex flex-wrap items-center gap-2">
+            <label className="inline-flex items-center gap-2 px-3 py-2 text-xs font-medium text-gray-700 border border-gray-300 rounded-lg cursor-pointer hover:bg-gray-50">
+              <Upload className="w-3.5 h-3.5" />
+              {sigUploading ? "Wird geladen..." : "Signaturbild hochladen"}
+              <input
+                type="file"
+                accept=".png,.jpg,.jpeg,.webp"
+                className="hidden"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) handleSignatureUpload(file);
+                  e.target.value = "";
+                }}
+              />
+            </label>
+            {settings.admin_signature_base64 && (
+              <button
+                type="button"
+                onClick={() => update("admin_signature_base64", null)}
+                className="inline-flex items-center gap-1 px-3 py-2 text-xs text-red-600 border border-red-200 rounded-lg hover:bg-red-50"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                Entfernen
+              </button>
+            )}
+          </div>
+          {settings.admin_signature_base64 ? (
+            <div className="mt-3 rounded-lg border border-gray-200 bg-gray-50 p-2">
+              <img
+                src={settings.admin_signature_base64}
+                alt="Admin-Signatur"
+                className="max-h-24 object-contain"
+              />
+            </div>
+          ) : (
+            <p className="text-xs text-gray-400 mt-3">Keine gespeicherte Signatur vorhanden.</p>
+          )}
         </div>
 
         {/* Actions */}

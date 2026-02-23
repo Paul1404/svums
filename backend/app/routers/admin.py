@@ -2,7 +2,9 @@ import csv
 import io
 import json
 import logging
+import uuid
 from datetime import date, datetime
+from pathlib import Path
 
 from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, Request, Response, UploadFile
 from fastapi.responses import StreamingResponse
@@ -14,6 +16,7 @@ from itsdangerous import URLSafeTimedSerializer, BadSignature, SignatureExpired
 from app.config import get_settings, Settings
 from app.database import get_db
 from app.models.application import MembershipApplication
+from app.models.cancellation_letter import CancellationLetter
 from app.models.settings import AppSettings
 from app.models.email_log import EmailLog
 from app.schemas.application import (
@@ -27,6 +30,7 @@ from app.schemas.settings import (
     SettingsUpdate,
     TestSmtpRequest,
 )
+from app.schemas.cancellation import CancellationLetterResponse
 from app.services.email import send_test_email
 from app.services.fees import calculate_fee
 from app.services.pdf import generate_pdf, generate_cancellation_pdf
@@ -37,6 +41,7 @@ from app.routers.public import _build_application_data, _compute_anrede, _format
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
+UPLOAD_DIR = Path("/app/data/uploads")
 
 
 def _make_engine(db_url: str):
@@ -582,14 +587,25 @@ class CancellationRequest(BaseModel):
     abteilung: str | None = None
     austritt_datum: str
     unterschrift_base64: str | None = None  # data-URL from signature canvas
+    use_saved_admin_signature: bool = True
 
 
 @router.post("/cancellation-pdf")
 async def cancellation_pdf(
     data: CancellationRequest,
     is_admin: bool = Depends(require_admin),
+    db: Session = Depends(get_db),
 ):
     """Generate a cancellation confirmation PDF."""
+    settings = _get_or_create_settings(db)
+    effective_signature = data.unterschrift_base64
+    signature_source = "none"
+    if effective_signature:
+        signature_source = "request"
+    elif data.use_saved_admin_signature and settings.admin_signature_base64:
+        effective_signature = settings.admin_signature_base64
+        signature_source = "admin_saved"
+
     if data.anrede == "keine Angabe":
         anrede_full = f"Guten Tag {data.vorname} {data.nachname}"
         anrede_text = ""
@@ -614,16 +630,80 @@ async def cancellation_pdf(
         "abteilung": data.abteilung or "",
         "austritt_datum": data.austritt_datum,
         "datum": datetime.now().strftime("%d.%m.%Y"),
-        "unterschrift_base64": data.unterschrift_base64,
+        "unterschrift_base64": effective_signature,
     }
 
     pdf_bytes = generate_cancellation_pdf(pdf_data)
+
+    UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+    stored_filename = (
+        f"kuendigung_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4().hex[:8]}.pdf"
+    )
+    (UPLOAD_DIR / stored_filename).write_bytes(pdf_bytes)
+
+    letter = CancellationLetter(
+        anrede=data.anrede,
+        vorname=data.vorname,
+        nachname=data.nachname,
+        strasse=data.strasse,
+        plz=data.plz,
+        ort=data.ort,
+        geburtsdatum=data.geburtsdatum,
+        mitgliedsnummer=data.mitgliedsnummer,
+        abteilung=data.abteilung,
+        austritt_datum=data.austritt_datum,
+        signature_source=signature_source,
+        filename=stored_filename,
+        display_name=f"{data.nachname}, {data.vorname}",
+    )
+    db.add(letter)
+    db.commit()
 
     filename = f"Kuendigungsbestaetigung_{data.nachname}_{data.vorname}.pdf"
     return Response(
         content=pdf_bytes,
         media_type="application/pdf",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@router.get("/cancellation-documents", response_model=list[CancellationLetterResponse])
+def list_cancellation_documents(
+    is_admin: bool = Depends(require_admin),
+    db: Session = Depends(get_db),
+    limit: int = 500,
+):
+    """List stored cancellation letters, newest first."""
+    safe_limit = max(1, min(limit, 1000))
+    rows = (
+        db.query(CancellationLetter)
+        .order_by(CancellationLetter.created_at.desc(), CancellationLetter.id.desc())
+        .limit(safe_limit)
+        .all()
+    )
+    return [CancellationLetterResponse.model_validate(r) for r in rows]
+
+
+@router.get("/cancellation-documents/{document_id}/download")
+def download_cancellation_document(
+    document_id: int,
+    is_admin: bool = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    doc = db.query(CancellationLetter).filter(CancellationLetter.id == document_id).first()
+    if not doc:
+        raise HTTPException(status_code=404, detail="Kündigungsdokument nicht gefunden")
+
+    path = UPLOAD_DIR / doc.filename
+    if not path.exists():
+        raise HTTPException(status_code=404, detail="Datei nicht gefunden")
+
+    content = path.read_bytes()
+    download_name = f"Kuendigungsbestaetigung_{doc.nachname}_{doc.vorname}.pdf"
+    return Response(
+        content=content,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'inline; filename="{download_name}"'},
     )
 
 

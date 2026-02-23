@@ -114,6 +114,24 @@ export interface SettingsData {
   smtp_from: string;
   smtp_use_tls: boolean;
   notification_email: string;
+  admin_signature_base64: string | null;
+}
+
+export interface CancellationLetterResponse {
+  id: number;
+  anrede: string;
+  vorname: string;
+  nachname: string;
+  strasse: string;
+  plz: string;
+  ort: string;
+  geburtsdatum: string;
+  mitgliedsnummer: string | null;
+  abteilung: string | null;
+  austritt_datum: string;
+  signature_source: "none" | "request" | "admin_saved" | string;
+  filename: string;
+  created_at: string;
 }
 
 // ---- Formatting helpers ----
@@ -412,4 +430,10 @@ export async function getEmailLogs(params?: {
   if (params?.email_type) qs.set("email_type", params.email_type);
   const query = qs.toString() ? `?${qs}` : "";
   return apiRequest(`/api/admin/email-logs${query}`);
+}
+
+export async function getCancellationDocuments(
+  limit = 500
+): Promise<CancellationLetterResponse[]> {
+  return apiRequest(`/api/admin/cancellation-documents?limit=${limit}`);
 }

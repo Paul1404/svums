@@ -10,6 +10,7 @@ class SettingsResponse(BaseModel):
     smtp_from: Optional[str] = ""
     smtp_use_tls: bool = True
     notification_email: str = "mitgliedschaft@sv-untereuerheim.de"
+    admin_signature_base64: Optional[str] = None
 
     model_config = {"from_attributes": True}
 
@@ -22,6 +23,7 @@ class SettingsUpdate(BaseModel):
     smtp_from: Optional[str] = None
     smtp_use_tls: Optional[bool] = None
     notification_email: Optional[str] = None
+    admin_signature_base64: Optional[str] = None
 
 
 class AdminLoginRequest(BaseModel):
