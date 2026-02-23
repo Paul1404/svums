@@ -462,22 +462,31 @@ async def admin_upload_document(
 
     UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
-    # Remove previous upload if it exists
-    if app.uploaded_file:
-        old_path = UPLOAD_DIR / app.uploaded_file
-        if old_path.exists():
-            old_path.unlink()
+    old_filename = app.uploaded_file
 
     filename = f"{app.antragsnummer}_admin_{_uuid.uuid4().hex[:8]}{ext}"
-    (UPLOAD_DIR / filename).write_bytes(contents)
+    new_path = UPLOAD_DIR / filename
+    new_path.write_bytes(contents)
 
     app.uploaded_file = filename
     app.uploaded_at = datetime.utcnow()
     if app.status == "neu":
         app.status = "dokument_hochgeladen"
 
-    db.commit()
+    try:
+        db.commit()
+    except Exception:
+        db.rollback()
+        if new_path.exists():
+            new_path.unlink()
+        raise
     db.refresh(app)
+
+    # Remove previous upload only after the new DB state was committed.
+    if old_filename:
+        old_path = UPLOAD_DIR / old_filename
+        if old_path.exists():
+            old_path.unlink()
 
     return ApplicationResponse.model_validate(app)
 
@@ -655,7 +664,8 @@ async def cancellation_pdf(
     stored_filename = (
         f"kuendigung_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4().hex[:8]}.pdf"
     )
-    (UPLOAD_DIR / stored_filename).write_bytes(pdf_bytes)
+    stored_path = UPLOAD_DIR / stored_filename
+    stored_path.write_bytes(pdf_bytes)
 
     letter = CancellationLetter(
         anrede=data.anrede,
@@ -673,7 +683,13 @@ async def cancellation_pdf(
         display_name=f"{data.nachname}, {data.vorname}",
     )
     db.add(letter)
-    db.commit()
+    try:
+        db.commit()
+    except Exception:
+        db.rollback()
+        if stored_path.exists():
+            stored_path.unlink()
+        raise
 
     filename = f"Kuendigungsbestaetigung_{data.nachname}_{data.vorname}.pdf"
     return Response(
