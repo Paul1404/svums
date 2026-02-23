@@ -17,10 +17,31 @@ class Settings(BaseSettings):
     cookie_secure: bool = True
     cookie_name: str = "svums_admin_session"
     session_max_age: int = 86400  # 24 hours
+    allow_insecure_defaults: bool = False
 
     model_config = {"env_prefix": "", "case_sensitive": False}
 
 
 @lru_cache()
 def get_settings() -> Settings:
-    return Settings()
+    settings = Settings()
+    insecure_defaults = {
+        "change-me-in-production",
+        "admin",
+        "password",
+        "secret",
+    }
+    if (
+        not settings.allow_insecure_defaults
+        and (
+            settings.admin_password in insecure_defaults
+            or settings.cookie_secret in insecure_defaults
+            or len(settings.cookie_secret) < 24
+        )
+    ):
+        raise ValueError(
+            "Unsichere Standardwerte für ADMIN_PASSWORD/COOKIE_SECRET erkannt. "
+            "Bitte sichere Umgebungsvariablen setzen oder ALLOW_INSECURE_DEFAULTS=true "
+            "nur für lokale Entwicklung verwenden."
+        )
+    return settings

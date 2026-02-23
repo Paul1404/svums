@@ -62,7 +62,7 @@ async def lifespan(app: FastAPI):
     # PostgreSQL: widen columns that were created too narrow in earlier deployments
     if not _get_cfg().database_url.startswith("sqlite"):
         try:
-            with engine.connect() as conn:
+            with engine.begin() as conn:
                 conn.execute(__import__("sqlalchemy").text(
                     "ALTER TABLE membership_applications "
                     "ALTER COLUMN iban TYPE VARCHAR(500)"
@@ -71,7 +71,6 @@ async def lifespan(app: FastAPI):
                     "ALTER TABLE app_settings "
                     "ADD COLUMN IF NOT EXISTS admin_signature_base64 TEXT"
                 ))
-                conn.commit()
             logger.info("Widened iban column to VARCHAR(500)")
         except Exception as e:
             # Will fail with a benign error once the column is already wide enough
@@ -217,8 +216,14 @@ if static_dir.exists():
     async def serve_spa(full_path: str):
         """Serve the SPA for any non-API route."""
         # Try to serve the exact file first
-        file_path = static_dir / full_path
+        file_path = (static_dir / full_path).resolve()
+        static_root = static_dir.resolve()
+        try:
+            file_path.relative_to(static_root)
+        except ValueError:
+            logger.warning(f"Blocked path traversal attempt: {full_path}")
+            return FileResponse(str(static_root / "index.html"))
         if full_path and file_path.exists() and file_path.is_file():
             return FileResponse(str(file_path))
         # Fall back to index.html for SPA routing
-        return FileResponse(str(static_dir / "index.html"))
+        return FileResponse(str(static_root / "index.html"))

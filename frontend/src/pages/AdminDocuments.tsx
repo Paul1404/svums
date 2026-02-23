@@ -104,18 +104,26 @@ export default function AdminDocuments() {
 
   const fetchAll = useCallback(async () => {
     setLoading(true);
-    try {
-      const [appData, cancellationData] = await Promise.all([
-        getApplications(1, 500),
-        getCancellationDocuments(500),
-      ]);
-      setApps(appData.items);
-      setCancellations(cancellationData);
-    } catch {
-      toast.error("Dokumentdaten konnten nicht geladen werden");
-    } finally {
-      setLoading(false);
+    const [appsResult, cancellationsResult] = await Promise.allSettled([
+      getApplications(1, 500),
+      getCancellationDocuments(500),
+    ]);
+
+    if (appsResult.status === "fulfilled") {
+      setApps(appsResult.value.items);
+    } else {
+      setApps([]);
+      toast.error("Antragsdokumente konnten nicht geladen werden");
     }
+
+    if (cancellationsResult.status === "fulfilled") {
+      setCancellations(cancellationsResult.value);
+    } else {
+      setCancellations([]);
+      toast.error("Kündigungsdokumente konnten nicht geladen werden");
+    }
+
+    setLoading(false);
   }, []);
 
   useEffect(() => {

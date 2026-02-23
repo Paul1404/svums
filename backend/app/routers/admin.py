@@ -44,6 +44,20 @@ router = APIRouter(prefix="/api/admin", tags=["admin"])
 UPLOAD_DIR = Path("/app/data/uploads")
 
 
+def _resolve_upload_path(filename: str) -> Path:
+    """Resolve a filename into the uploads directory and block traversal."""
+    if not filename or filename.strip() == "":
+        raise HTTPException(status_code=400, detail="Ungültiger Dateiname")
+    root = UPLOAD_DIR.resolve()
+    path = (UPLOAD_DIR / filename).resolve()
+    try:
+        path.relative_to(root)
+    except ValueError:
+        logger.warning(f"Blocked invalid upload path reference: {filename}")
+        raise HTTPException(status_code=400, detail="Ungültiger Dateiname")
+    return path
+
+
 def _make_engine(db_url: str):
     """Create a short-lived SQLAlchemy engine appropriate for the given URL."""
     from sqlalchemy import create_engine as _ce
@@ -341,17 +355,18 @@ async def download_pdf(
     if not app:
         raise HTTPException(status_code=404, detail="Antrag nicht gefunden")
 
-    from pathlib import Path
-
     data = _build_application_data(app)
 
     # For online-signed applications, reuse the stored signed PDF (which contains
     # the embedded signature) instead of regenerating an unsigned blank form.
-    UPLOAD_DIR = Path("/app/data/uploads")
     if app.uploaded_file and app.uploaded_file.endswith("_signed.pdf"):
-        signed_path = UPLOAD_DIR / app.uploaded_file
+        signed_path = _resolve_upload_path(app.uploaded_file)
         if signed_path.exists():
-            pdf_bytes = signed_path.read_bytes()
+            try:
+                pdf_bytes = signed_path.read_bytes()
+            except OSError:
+                logger.exception(f"Could not read signed PDF: {signed_path}")
+                pdf_bytes = generate_pdf(data)
         else:
             pdf_bytes = generate_pdf(data)
     else:
@@ -372,8 +387,6 @@ async def download_upload(
     db: Session = Depends(get_db),
 ):
     """Download the uploaded signed document for an application."""
-    from pathlib import Path
-
     app = db.query(MembershipApplication).filter(
         MembershipApplication.id == application_id
     ).first()
@@ -383,8 +396,7 @@ async def download_upload(
     if not app.uploaded_file:
         raise HTTPException(status_code=404, detail="Kein Dokument hochgeladen")
 
-    upload_dir = Path("/app/data/uploads")
-    filepath = upload_dir / app.uploaded_file
+    filepath = _resolve_upload_path(app.uploaded_file)
     if not filepath.exists():
         raise HTTPException(status_code=404, detail="Datei nicht gefunden")
 
@@ -399,7 +411,11 @@ async def download_upload(
     }
     media_type = media_types.get(ext, "application/octet-stream")
 
-    content = filepath.read_bytes()
+    try:
+        content = filepath.read_bytes()
+    except OSError:
+        logger.exception(f"Could not read upload file: {filepath}")
+        raise HTTPException(status_code=500, detail="Datei konnte nicht gelesen werden")
     filename = f"Upload_{app.nachname}_{app.vorname}{ext}"
     return Response(
         content=content,
@@ -694,11 +710,15 @@ def download_cancellation_document(
     if not doc:
         raise HTTPException(status_code=404, detail="Kündigungsdokument nicht gefunden")
 
-    path = UPLOAD_DIR / doc.filename
+    path = _resolve_upload_path(doc.filename)
     if not path.exists():
         raise HTTPException(status_code=404, detail="Datei nicht gefunden")
 
-    content = path.read_bytes()
+    try:
+        content = path.read_bytes()
+    except OSError:
+        logger.exception(f"Could not read cancellation document: {path}")
+        raise HTTPException(status_code=500, detail="Datei konnte nicht gelesen werden")
     download_name = f"Kuendigungsbestaetigung_{doc.nachname}_{doc.vorname}.pdf"
     return Response(
         content=content,
