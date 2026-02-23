@@ -1,9 +1,9 @@
-import { useState, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { toast } from "sonner";
-import { ArrowLeft, Download, FileText, Loader2, PenLine, Trash2 } from "lucide-react";
+import { ArrowLeft, Download, FileText, Loader2, PenLine, Trash2, Upload } from "lucide-react";
 import SignatureCanvas from "react-signature-canvas";
-import { extractApiError } from "../services/api";
+import { extractApiError, getSettings } from "../services/api";
 
 interface CancellationForm {
   anrede: string;
@@ -37,6 +37,10 @@ export default function AdminCancellation() {
   const [errors, setErrors] = useState<Partial<Record<keyof CancellationForm, string>>>({});
   const sigCanvasRef = useRef<SignatureCanvas | null>(null);
   const [sigEmpty, setSigEmpty] = useState(true);
+  const [signatureInputMode, setSignatureInputMode] = useState<"draw" | "upload">("draw");
+  const [uploadedSigDataUrl, setUploadedSigDataUrl] = useState<string | null>(null);
+  const [hasSavedAdminSignature, setHasSavedAdminSignature] = useState(false);
+  const [useSavedAdminSignature, setUseSavedAdminSignature] = useState(true);
 
   const set = (field: keyof CancellationForm, value: string) => {
     setForm((prev) => ({ ...prev, [field]: value }));
@@ -47,6 +51,40 @@ export default function AdminCancellation() {
         return next;
       });
     }
+  };
+
+  useEffect(() => {
+    getSettings()
+      .then((settings) => {
+        const hasSaved = !!settings.admin_signature_base64;
+        setHasSavedAdminSignature(hasSaved);
+        setUseSavedAdminSignature(hasSaved);
+      })
+      .catch(() => {
+        setHasSavedAdminSignature(false);
+        setUseSavedAdminSignature(false);
+      });
+  }, []);
+
+  const handleSignatureUpload = (file: File) => {
+    if (!file.type.startsWith("image/")) {
+      toast.error("Bitte ein Bild (PNG/JPG) hochladen.");
+      return;
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      toast.error("Signaturbild ist zu groß (max. 10 MB).");
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = reader.result;
+      if (typeof result === "string") {
+        setUploadedSigDataUrl(result);
+        sigCanvasRef.current?.clear();
+        setSigEmpty(true);
+      }
+    };
+    reader.readAsDataURL(file);
   };
 
   const validate = (): boolean => {
@@ -67,9 +105,10 @@ export default function AdminCancellation() {
     if (!validate()) return;
 
     const unterschrift_base64 =
-      !sigEmpty && sigCanvasRef.current && !sigCanvasRef.current.isEmpty()
+      uploadedSigDataUrl ||
+      (!sigEmpty && sigCanvasRef.current && !sigCanvasRef.current.isEmpty()
         ? sigCanvasRef.current.getTrimmedCanvas().toDataURL("image/png")
-        : null;
+        : null);
 
     setLoading(true);
     try {
@@ -82,6 +121,7 @@ export default function AdminCancellation() {
           mitgliedsnummer: form.mitgliedsnummer || null,
           abteilung: form.abteilung || null,
           unterschrift_base64,
+          use_saved_admin_signature: useSavedAdminSignature,
         }),
       });
 
@@ -113,6 +153,8 @@ export default function AdminCancellation() {
     setErrors({});
     sigCanvasRef.current?.clear();
     setSigEmpty(true);
+    setUploadedSigDataUrl(null);
+    setSignatureInputMode("draw");
   };
 
   return (
@@ -264,12 +306,13 @@ export default function AdminCancellation() {
                 <PenLine className="w-4 h-4 text-svu-600" />
                 Unterschrift (optional)
               </label>
-              {!sigEmpty && (
+              {(!sigEmpty || uploadedSigDataUrl) && (
                 <button
                   type="button"
                   onClick={() => {
                     sigCanvasRef.current?.clear();
                     setSigEmpty(true);
+                    setUploadedSigDataUrl(null);
                   }}
                   className="flex items-center gap-1 text-xs text-gray-500 hover:text-red-600 transition-colors"
                 >
@@ -277,21 +320,88 @@ export default function AdminCancellation() {
                 </button>
               )}
             </div>
-            <div className="relative rounded-lg border border-gray-300 bg-white overflow-hidden">
-              {/* Baseline */}
-              <div className="absolute bottom-8 left-4 right-4 border-b border-dashed border-gray-300 pointer-events-none" />
-              <SignatureCanvas
-                ref={sigCanvasRef}
-                penColor="#1a1a1a"
-                canvasProps={{
-                  className: "w-full",
-                  style: { height: 120, display: "block" },
-                }}
-                onEnd={() => setSigEmpty(false)}
-              />
+            <div className="flex gap-2 mb-3">
+              <button
+                type="button"
+                onClick={() => setSignatureInputMode("draw")}
+                className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
+                  signatureInputMode === "draw"
+                    ? "bg-svu-50 border-svu-300 text-svu-700"
+                    : "bg-white border-gray-300 text-gray-600 hover:bg-gray-50"
+                }`}
+              >
+                Zeichnen
+              </button>
+              <button
+                type="button"
+                onClick={() => setSignatureInputMode("upload")}
+                className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
+                  signatureInputMode === "upload"
+                    ? "bg-svu-50 border-svu-300 text-svu-700"
+                    : "bg-white border-gray-300 text-gray-600 hover:bg-gray-50"
+                }`}
+              >
+                Bild hochladen
+              </button>
             </div>
+
+            {signatureInputMode === "draw" ? (
+              <div className="relative rounded-lg border border-gray-300 bg-white overflow-hidden">
+                <div className="absolute bottom-8 left-4 right-4 border-b border-dashed border-gray-300 pointer-events-none" />
+                <SignatureCanvas
+                  ref={sigCanvasRef}
+                  penColor="#1a1a1a"
+                  canvasProps={{
+                    className: "w-full",
+                    style: { height: 120, display: "block" },
+                  }}
+                  onBegin={() => setUploadedSigDataUrl(null)}
+                  onEnd={() => setSigEmpty(false)}
+                />
+              </div>
+            ) : (
+              <div className="rounded-lg border border-gray-300 bg-white p-3">
+                <label className="inline-flex items-center gap-2 px-3 py-2 text-xs font-medium text-gray-700 border border-gray-300 rounded-lg cursor-pointer hover:bg-gray-50">
+                  <Upload className="w-3.5 h-3.5" />
+                  Signaturbild auswählen
+                  <input
+                    type="file"
+                    accept=".png,.jpg,.jpeg,.webp"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) handleSignatureUpload(file);
+                      e.target.value = "";
+                    }}
+                  />
+                </label>
+                {uploadedSigDataUrl ? (
+                  <div className="mt-3 rounded-md border border-gray-200 p-2 bg-gray-50">
+                    <img
+                      src={uploadedSigDataUrl}
+                      alt="Signaturvorschau"
+                      className="max-h-24 object-contain"
+                    />
+                  </div>
+                ) : (
+                  <p className="text-xs text-gray-400 mt-2">Noch kein Signaturbild ausgewählt.</p>
+                )}
+              </div>
+            )}
+
+            {hasSavedAdminSignature && (
+              <label className="mt-3 flex items-start gap-2 text-xs text-gray-600">
+                <input
+                  type="checkbox"
+                  checked={useSavedAdminSignature}
+                  onChange={(e) => setUseSavedAdminSignature(e.target.checked)}
+                  className="mt-0.5"
+                />
+                Gespeicherte Admin-Unterschrift verwenden, wenn keine lokale Unterschrift eingegeben wurde.
+              </label>
+            )}
             <p className="text-xs text-gray-400 mt-1">
-              Hier unterschreiben — wird im PDF über der Namenszeile eingebettet
+              Unterschrift wird im PDF über der Namenszeile eingebettet.
             </p>
           </div>
 

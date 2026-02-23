@@ -19,6 +19,7 @@ import {
   RotateCcw,
   Send,
   Trash2,
+  Upload,
   User,
 } from "lucide-react";
 
@@ -197,6 +198,7 @@ export default function ApplicationForm() {
   const [fsCanvasHeight, setFsCanvasHeight] = useState(400);
   // Stores the data-URL captured from the fullscreen canvas after confirmation.
   const [capturedSigDataUrl, setCapturedSigDataUrl] = useState<string | null>(null);
+  const [uploadedSignatureDataUrl, setUploadedSignatureDataUrl] = useState<string | null>(null);
 
   // Track orientation changes so the overlay can prompt users to rotate.
   useEffect(() => {
@@ -633,6 +635,25 @@ export default function ApplicationForm() {
     goToStep(Math.max(step - 1, 0));
   };
 
+  const handleSignatureImageUpload = (file: File) => {
+    if (!file.type.startsWith("image/")) {
+      toast.error("Bitte ein Signaturbild (PNG/JPG) auswählen.");
+      return;
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      toast.error("Signaturbild ist zu groß (max. 10 MB).");
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = reader.result;
+      if (typeof result === "string") {
+        setUploadedSignatureDataUrl(result);
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
   const handleSubmit = async () => {
     if (!consent) {
       toast.error("Bitte stimmen Sie der Datenschutzerklärung zu.");
@@ -672,7 +693,7 @@ export default function ApplicationForm() {
       const unterschrift_base64 =
         signatureMode === "inline"
           ? (capturedSigDataUrl ?? (sigCanvasRef.current ? sigCanvasRef.current.getTrimmedCanvas().toDataURL("image/png") : null))
-          : null;
+          : uploadedSignatureDataUrl;
 
       const payload: ApplicationData = {
         antragstyp,
@@ -710,7 +731,7 @@ export default function ApplicationForm() {
           antragsnummer: result.antragsnummer,
           mandatsreferenz: result.mandatsreferenz,
           upload_url: result.upload_url,
-          signedOnline: signatureMode === "inline",
+          signedOnline: signatureMode === "inline" || !!uploadedSignatureDataUrl,
           form: {
             vorname: antragstyp === "kind" ? erzVorname : vorname,
             nachname: antragstyp === "kind" ? erzNachname : nachname,
@@ -1461,7 +1482,13 @@ export default function ApplicationForm() {
                   {/* Option B – inline */}
                   <button
                     type="button"
-                    onClick={() => { setSignatureMode("inline"); setSigEmpty(true); sigCanvasRef.current?.clear(); setCapturedSigDataUrl(null); }}
+                    onClick={() => {
+                      setSignatureMode("inline");
+                      setSigEmpty(true);
+                      sigCanvasRef.current?.clear();
+                      setCapturedSigDataUrl(null);
+                      setUploadedSignatureDataUrl(null);
+                    }}
                     className={`w-full text-left p-4 flex items-start gap-3 transition-colors ${
                       signatureMode === "inline"
                         ? "bg-green-50"
@@ -1485,6 +1512,46 @@ export default function ApplicationForm() {
                     </div>
                   </button>
                 </div>
+
+                {signatureMode === "upload" && (
+                  <div className="mt-4 p-4 bg-svu-50 border border-svu-200 rounded-xl">
+                    <p className="text-xs text-gray-600 mb-3">
+                      Optional: Sie können hier bereits ein Foto/Scan Ihrer Unterschrift hochladen. Dann wird Ihr Antrag direkt als unterschrieben gespeichert.
+                    </p>
+                    <label className="inline-flex items-center gap-2 px-3 py-2 text-xs font-medium text-gray-700 border border-gray-300 rounded-lg cursor-pointer hover:bg-white transition-colors">
+                      <Upload className="w-3.5 h-3.5" />
+                      Signaturbild auswählen
+                      <input
+                        type="file"
+                        accept=".png,.jpg,.jpeg,.webp"
+                        className="hidden"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) handleSignatureImageUpload(file);
+                          e.target.value = "";
+                        }}
+                      />
+                    </label>
+                    {uploadedSignatureDataUrl ? (
+                      <div className="mt-3 rounded-lg border border-svu-200 bg-white p-2">
+                        <img
+                          src={uploadedSignatureDataUrl}
+                          alt="Signaturvorschau"
+                          className="max-h-24 object-contain"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setUploadedSignatureDataUrl(null)}
+                          className="mt-2 text-xs text-gray-500 hover:text-gray-800 underline"
+                        >
+                          Entfernen
+                        </button>
+                      </div>
+                    ) : (
+                      <p className="text-xs text-gray-400 mt-2">Kein Signaturbild ausgewählt.</p>
+                    )}
+                  </div>
+                )}
 
                 {/* Inline signature panel (Option B) */}
                 {signatureMode === "inline" && (

@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Boolean
+from sqlalchemy import Boolean, Column, Integer, String, Text
 from app.database import Base
 
 
@@ -21,3 +21,5 @@ class AppSettings(Base):
         nullable=False,
         default="mitgliedschaft@sv-untereuerheim.de",
     )
+    # Reusable admin signature as PNG/JPEG data URL.
+    admin_signature_base64 = Column(Text, nullable=True, default=None)
