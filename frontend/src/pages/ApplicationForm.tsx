@@ -661,10 +661,12 @@ export default function ApplicationForm() {
     }
     if (!antragstyp) return;
 
-    // Option B: validate that a signature was drawn
+    // Option B: require either drawn or uploaded signature
     if (signatureMode === "inline") {
-      if (!capturedSigDataUrl && (!sigCanvasRef.current || sigCanvasRef.current.isEmpty())) {
-        toast.error("Bitte unterschreiben Sie im Unterschriftsfeld (Option B).");
+      const hasDrawn =
+        !!capturedSigDataUrl || (sigCanvasRef.current && !sigCanvasRef.current.isEmpty());
+      if (!hasDrawn && !uploadedSignatureDataUrl) {
+        toast.error("Bitte unterschreiben Sie im Unterschriftsfeld oder laden Sie ein Signaturbild hoch (Option B).");
         return;
       }
     }
@@ -689,11 +691,14 @@ export default function ApplicationForm() {
       }
     }
     try {
-      // Capture signature data-URL for Option B (prefer fullscreen capture if available)
+      // Option B: drawn (canvas/fullscreen) or uploaded image; Option A: no signature
+      const drawn =
+        capturedSigDataUrl ??
+        (sigCanvasRef.current && !sigCanvasRef.current.isEmpty()
+          ? sigCanvasRef.current.getTrimmedCanvas().toDataURL("image/png")
+          : null);
       const unterschrift_base64 =
-        signatureMode === "inline"
-          ? (capturedSigDataUrl ?? (sigCanvasRef.current ? sigCanvasRef.current.getTrimmedCanvas().toDataURL("image/png") : null))
-          : uploadedSignatureDataUrl;
+        signatureMode === "inline" ? (drawn ?? uploadedSignatureDataUrl) : null;
 
       const payload: ApplicationData = {
         antragstyp,
@@ -1452,7 +1457,10 @@ export default function ApplicationForm() {
                   {/* Option A – primary (default) */}
                   <button
                     type="button"
-                    onClick={() => setSignatureMode("upload")}
+                    onClick={() => {
+                      setSignatureMode("upload");
+                      setUploadedSignatureDataUrl(null);
+                    }}
                     className={`w-full text-left p-4 flex items-start gap-3 transition-colors ${
                       signatureMode === "upload"
                         ? "bg-svu-50"
@@ -1513,12 +1521,14 @@ export default function ApplicationForm() {
                   </button>
                 </div>
 
-                {signatureMode === "upload" && (
-                  <div className="mt-4 p-4 bg-svu-50 border border-svu-200 rounded-xl">
-                    <p className="text-xs text-gray-600 mb-3">
-                      Optional: Sie können hier bereits ein Foto/Scan Ihrer Unterschrift hochladen. Dann wird Ihr Antrag direkt als unterschrieben gespeichert.
+                {/* Inline signature panel (Option B) */}
+                {signatureMode === "inline" && (
+                  <div className="mt-4 p-4 bg-green-50 border border-green-200 rounded-xl">
+                    {/* Optional: upload signature image instead of drawing */}
+                    <p className="text-xs text-green-800 mb-3">
+                      Optional: Sie können hier ein Foto/Scan Ihrer Unterschrift hochladen oder unten zeichnen.
                     </p>
-                    <label className="inline-flex items-center gap-2 px-3 py-2 text-xs font-medium text-gray-700 border border-gray-300 rounded-lg cursor-pointer hover:bg-white transition-colors">
+                    <label className="inline-flex items-center gap-2 px-3 py-2 text-xs font-medium text-gray-700 border border-green-300 rounded-lg cursor-pointer hover:bg-green-100/50 transition-colors">
                       <Upload className="w-3.5 h-3.5" />
                       Signaturbild auswählen
                       <input
@@ -1533,7 +1543,7 @@ export default function ApplicationForm() {
                       />
                     </label>
                     {uploadedSignatureDataUrl ? (
-                      <div className="mt-3 rounded-lg border border-svu-200 bg-white p-2">
+                      <div className="mt-3 rounded-lg border border-green-300 bg-white p-2">
                         <img
                           src={uploadedSignatureDataUrl}
                           alt="Signaturvorschau"
@@ -1548,14 +1558,9 @@ export default function ApplicationForm() {
                         </button>
                       </div>
                     ) : (
-                      <p className="text-xs text-gray-400 mt-2">Kein Signaturbild ausgewählt.</p>
+                      <p className="text-xs text-gray-500 mt-2">Kein Signaturbild ausgewählt.</p>
                     )}
-                  </div>
-                )}
 
-                {/* Inline signature panel (Option B) */}
-                {signatureMode === "inline" && (
-                  <div className="mt-4 p-4 bg-green-50 border border-green-200 rounded-xl">
                     {/* Confirmation text – non-skippable, always shown */}
                     <p className="text-sm text-green-900 leading-relaxed mb-4 border-l-4 border-green-400 pl-3">
                       Mit meiner Unterschrift erkläre ich meinen Beitritt zum SV Untereuerheim e.V. und erteile das SEPA-Lastschriftmandat zur Einziehung des Mitgliedsbeitrags.
@@ -1620,12 +1625,12 @@ export default function ApplicationForm() {
                         </button>
                       </div>
                     </div>
-                    {sigEmpty && !capturedSigDataUrl && (
+                    {sigEmpty && !capturedSigDataUrl && !uploadedSignatureDataUrl && (
                       <p className="text-xs text-amber-700 mt-2">
-                        Das Unterschriftsfeld ist noch leer – bitte unterschreiben Sie vor dem Absenden.
+                        Das Unterschriftsfeld ist noch leer – bitte unterschreiben oder ein Signaturbild hochladen.
                       </p>
                     )}
-                    {capturedSigDataUrl && (
+                    {(capturedSigDataUrl || uploadedSignatureDataUrl) && (
                       <p className="text-xs text-green-700 mt-2 flex items-center gap-1">
                         <CheckCircle2 className="w-3 h-3" />
                         Unterschrift gespeichert – Sie können jetzt den Antrag absenden.
@@ -1663,7 +1668,7 @@ export default function ApplicationForm() {
               </button>
             ) : (
               <button type="button" onClick={handleSubmit}
-                disabled={submitting || !consent || (signatureMode === "inline" && sigEmpty && !capturedSigDataUrl)}
+                disabled={submitting || !consent || (signatureMode === "inline" && sigEmpty && !capturedSigDataUrl && !uploadedSignatureDataUrl)}
                 className="flex items-center gap-2 px-6 py-2.5 text-sm font-medium text-white bg-svu-600 rounded-lg hover:bg-svu-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
                 {submitting ? (

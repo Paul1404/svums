@@ -187,10 +187,10 @@ export default function StatusPage() {
                     Ihr Antrag wurde leider abgelehnt. Bei Fragen wenden Sie sich
                     bitte an{" "}
                     <a
-                      href="mailto:info@sv-untereuerheim.de"
+                      href="mailto:mitgliedschaft@sv-untereuerheim.de"
                       className="text-svu-600 hover:underline"
                     >
-                      info@sv-untereuerheim.de
+                      mitgliedschaft@sv-untereuerheim.de
                     </a>
                     .
                   </p>
