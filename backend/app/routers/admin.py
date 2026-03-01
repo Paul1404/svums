@@ -36,26 +36,21 @@ from app.services.fees import calculate_fee
 from app.services.pdf import generate_pdf, generate_cancellation_pdf
 from app.services.crypto import decrypt_iban
 from app.services.email import send_status_email
+from app.services import storage
 from app.routers.public import _build_application_data, _compute_anrede, _format_iban, _send_email_task
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
-UPLOAD_DIR = Path("/app/data/uploads")
 
 
-def _resolve_upload_path(filename: str) -> Path:
-    """Resolve a filename into the uploads directory and block traversal."""
+def _validate_filename(filename: str) -> None:
+    """Validate filename to prevent path traversal and invalid keys."""
     if not filename or filename.strip() == "":
         raise HTTPException(status_code=400, detail="Ungültiger Dateiname")
-    root = UPLOAD_DIR.resolve()
-    path = (UPLOAD_DIR / filename).resolve()
-    try:
-        path.relative_to(root)
-    except ValueError:
+    if ".." in filename or "/" in filename or "\\" in filename:
         logger.warning(f"Blocked invalid upload path reference: {filename}")
         raise HTTPException(status_code=400, detail="Ungültiger Dateiname")
-    return path
 
 
 def _make_engine(db_url: str):
@@ -360,14 +355,8 @@ async def download_pdf(
     # For online-signed applications, reuse the stored signed PDF (which contains
     # the embedded signature) instead of regenerating an unsigned blank form.
     if app.uploaded_file and app.uploaded_file.endswith("_signed.pdf"):
-        signed_path = _resolve_upload_path(app.uploaded_file)
-        if signed_path.exists():
-            try:
-                pdf_bytes = signed_path.read_bytes()
-            except OSError:
-                logger.exception(f"Could not read signed PDF: {signed_path}")
-                pdf_bytes = generate_pdf(data)
-        else:
+        pdf_bytes = storage.download_file(app.uploaded_file)
+        if pdf_bytes is None:
             pdf_bytes = generate_pdf(data)
     else:
         pdf_bytes = generate_pdf(data)
@@ -396,11 +385,12 @@ async def download_upload(
     if not app.uploaded_file:
         raise HTTPException(status_code=404, detail="Kein Dokument hochgeladen")
 
-    filepath = _resolve_upload_path(app.uploaded_file)
-    if not filepath.exists():
+    _validate_filename(app.uploaded_file)
+    content = storage.download_file(app.uploaded_file)
+    if content is None:
         raise HTTPException(status_code=404, detail="Datei nicht gefunden")
 
-    ext = filepath.suffix.lower()
+    ext = Path(app.uploaded_file).suffix.lower()
     media_types = {
         ".pdf": "application/pdf",
         ".jpg": "image/jpeg",
@@ -410,12 +400,6 @@ async def download_upload(
         ".heif": "image/heif",
     }
     media_type = media_types.get(ext, "application/octet-stream")
-
-    try:
-        content = filepath.read_bytes()
-    except OSError:
-        logger.exception(f"Could not read upload file: {filepath}")
-        raise HTTPException(status_code=500, detail="Datei konnte nicht gelesen werden")
     filename = f"Upload_{app.nachname}_{app.vorname}{ext}"
     return Response(
         content=content,
@@ -434,7 +418,6 @@ async def admin_upload_document(
     db: Session = Depends(get_db),
 ):
     """Admin-initiated upload of a signed document for an application."""
-    from pathlib import Path
     import uuid as _uuid
 
     app = db.query(MembershipApplication).filter(
@@ -445,7 +428,6 @@ async def admin_upload_document(
 
     ALLOWED_EXTENSIONS = {".pdf", ".jpg", ".jpeg", ".png", ".heic", ".heif"}
     MAX_FILE_SIZE = 20 * 1024 * 1024  # 20 MB
-    UPLOAD_DIR = Path("/app/data/uploads")
 
     ext = Path(file.filename).suffix.lower() if file.filename else ""
     if ext not in ALLOWED_EXTENSIONS:
@@ -460,13 +442,16 @@ async def admin_upload_document(
     if len(contents) == 0:
         raise HTTPException(status_code=400, detail="Leere Datei")
 
-    UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
-
     old_filename = app.uploaded_file
 
     filename = f"{app.antragsnummer}_admin_{_uuid.uuid4().hex[:8]}{ext}"
-    new_path = UPLOAD_DIR / filename
-    new_path.write_bytes(contents)
+    content_type = {
+        ".pdf": "application/pdf",
+        ".jpg": "image/jpeg", ".jpeg": "image/jpeg",
+        ".png": "image/png",
+        ".heic": "image/heic", ".heif": "image/heif",
+    }.get(ext, "application/octet-stream")
+    storage.upload_file(filename, contents, content_type=content_type)
 
     app.uploaded_file = filename
     app.uploaded_at = datetime.utcnow()
@@ -477,16 +462,13 @@ async def admin_upload_document(
         db.commit()
     except Exception:
         db.rollback()
-        if new_path.exists():
-            new_path.unlink()
+        storage.delete_file(filename)
         raise
     db.refresh(app)
 
     # Remove previous upload only after the new DB state was committed.
     if old_filename:
-        old_path = UPLOAD_DIR / old_filename
-        if old_path.exists():
-            old_path.unlink()
+        storage.delete_file(old_filename)
 
     return ApplicationResponse.model_validate(app)
 
@@ -660,12 +642,10 @@ async def cancellation_pdf(
 
     pdf_bytes = generate_cancellation_pdf(pdf_data)
 
-    UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
     stored_filename = (
         f"kuendigung_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4().hex[:8]}.pdf"
     )
-    stored_path = UPLOAD_DIR / stored_filename
-    stored_path.write_bytes(pdf_bytes)
+    storage.upload_file(stored_filename, pdf_bytes, content_type="application/pdf")
 
     letter = CancellationLetter(
         anrede=data.anrede,
@@ -687,8 +667,7 @@ async def cancellation_pdf(
         db.commit()
     except Exception:
         db.rollback()
-        if stored_path.exists():
-            stored_path.unlink()
+        storage.delete_file(stored_filename)
         raise
 
     filename = f"Kuendigungsbestaetigung_{data.nachname}_{data.vorname}.pdf"
@@ -726,15 +705,10 @@ def download_cancellation_document(
     if not doc:
         raise HTTPException(status_code=404, detail="Kündigungsdokument nicht gefunden")
 
-    path = _resolve_upload_path(doc.filename)
-    if not path.exists():
+    _validate_filename(doc.filename)
+    content = storage.download_file(doc.filename)
+    if content is None:
         raise HTTPException(status_code=404, detail="Datei nicht gefunden")
-
-    try:
-        content = path.read_bytes()
-    except OSError:
-        logger.exception(f"Could not read cancellation document: {path}")
-        raise HTTPException(status_code=500, detail="Datei konnte nicht gelesen werden")
     download_name = f"Kuendigungsbestaetigung_{doc.nachname}_{doc.vorname}.pdf"
     return Response(
         content=content,
