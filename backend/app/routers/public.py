@@ -6,6 +6,8 @@ from datetime import date, datetime
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, Request, UploadFile, File
+
+from app.services import storage
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
@@ -175,8 +177,7 @@ async def _send_email_task(application_id: int, db_url: str, unterschrift_base64
             pdf_bytes = generate_pdf(data)
         elif is_online_signed and app.uploaded_file:
             # Resend: reuse the stored signed PDF so the attachment still carries the signature.
-            signed_path = UPLOAD_DIR / app.uploaded_file
-            pdf_bytes = signed_path.read_bytes() if signed_path.exists() else generate_pdf(data)
+            pdf_bytes = storage.download_file(app.uploaded_file) or generate_pdf(data)
         else:
             pdf_bytes = generate_pdf(data)
 
@@ -310,9 +311,8 @@ async def submit_application(
             app_data["unterschrift_base64"] = data.unterschrift_base64
             pdf_bytes = generate_pdf(app_data)
 
-            UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
             signed_filename = f"{application.antragsnummer}_signed.pdf"
-            (UPLOAD_DIR / signed_filename).write_bytes(pdf_bytes)
+            storage.upload_file(signed_filename, pdf_bytes, content_type="application/pdf")
 
             application.uploaded_file = signed_filename
             application.uploaded_at = datetime.utcnow()
@@ -321,9 +321,7 @@ async def submit_application(
                 db.commit()
             except Exception:
                 db.rollback()
-                signed_path = UPLOAD_DIR / signed_filename
-                if signed_path.exists():
-                    signed_path.unlink()
+                storage.delete_file(signed_filename)
                 raise
             db.refresh(application)
             logger.info(f"Inline-signed PDF saved for {application.antragsnummer}")
@@ -431,7 +429,6 @@ async def check_duplicate(
 
 # --- Upload signed document ---
 
-UPLOAD_DIR = Path("/app/data/uploads")
 ALLOWED_EXTENSIONS = {".pdf", ".jpg", ".jpeg", ".png", ".heic", ".heif"}
 MAX_FILE_SIZE = 20 * 1024 * 1024  # 20 MB
 
@@ -501,11 +498,15 @@ async def upload_signed_document(
     if len(contents) == 0:
         raise HTTPException(status_code=400, detail="Leere Datei")
 
-    # Save file
-    UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+    # Save file to Tigris
     filename = f"{app.antragsnummer}_{uuid.uuid4().hex[:8]}{ext}"
-    filepath = UPLOAD_DIR / filename
-    filepath.write_bytes(contents)
+    content_type = {
+        ".pdf": "application/pdf",
+        ".jpg": "image/jpeg", ".jpeg": "image/jpeg",
+        ".png": "image/png",
+        ".heic": "image/heic", ".heif": "image/heif",
+    }.get(ext, "application/octet-stream")
+    storage.upload_file(filename, contents, content_type=content_type)
 
     # Update application
     old_filename = app.uploaded_file
@@ -519,15 +520,12 @@ async def upload_signed_document(
         db.commit()
     except Exception:
         db.rollback()
-        if filepath.exists():
-            filepath.unlink()
+        storage.delete_file(filename)
         raise
 
     # Delete previous upload only after new DB state has been committed.
     if old_filename:
-        old_path = UPLOAD_DIR / old_filename
-        if old_path.exists():
-            old_path.unlink()
+        storage.delete_file(old_filename)
 
     logger.info(f"Upload received for {app.antragsnummer}: {filename} ({len(contents)} bytes)")
 

@@ -37,8 +37,8 @@ COPY backend/ .
 # Copy built frontend to static directory
 COPY --from=frontend-builder /app/frontend/dist ./static
 
-# Create data directory
-RUN mkdir -p /app/data /app/data/uploads
+# Create data directory (for sqlite if used; uploads go to Tigris/S3)
+RUN mkdir -p /app/data
 
 # Create non-root user
 RUN useradd -m -u 1000 appuser && chown -R appuser:appuser /app
