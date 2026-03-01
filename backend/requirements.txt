@@ -13,4 +13,4 @@ itsdangerous==2.2.0
 schwifty==2026.1.0
 httpx==0.28.1
 cryptography>=42.0.0
-boto3==1.37.18
+boto3==1.42.59
