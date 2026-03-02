@@ -9,6 +9,7 @@ import {
   resendEmail,
   adminUploadDocument,
   getSettings,
+  updateSettings,
   formatFee,
   type ApplicationResponse,
 } from "../services/api";
@@ -80,6 +81,7 @@ export default function AdminApplicationDetail() {
   const [uploadedSigDataUrl, setUploadedSigDataUrl] = useState<string | null>(null);
   const [hasSavedAdminSignature, setHasSavedAdminSignature] = useState(false);
   const [useSavedAdminSignature, setUseSavedAdminSignature] = useState(true);
+  const [saveSignatureForFuture, setSaveSignatureForFuture] = useState(false);
 
   const handleAdminUpload = async (file: File) => {
     if (!app) return;
@@ -203,6 +205,17 @@ export default function AdminApplicationDetail() {
       admin_unterschrift_base64: unterschrift_base64 || undefined,
       use_saved_admin_signature: useSavedAdminSignature,
     });
+    if (saveSignatureForFuture && unterschrift_base64) {
+      try {
+        await updateSettings({ admin_signature_base64: unterschrift_base64 });
+        toast.success("Signatur wurde gespeichert");
+        setHasSavedAdminSignature(true);
+        setUseSavedAdminSignature(true);
+      } catch {
+        toast.error("Signatur konnte nicht gespeichert werden");
+      }
+    }
+    setSaveSignatureForFuture(false);
   };
 
   const handleConfirmDeny = async () => {
@@ -610,7 +623,10 @@ export default function AdminApplicationDetail() {
             <div className="p-5 border-b flex items-center justify-between">
               <h3 className="font-semibold text-gray-900">Genehmigung bestätigen</h3>
               <button
-                onClick={() => setShowApproveModal(false)}
+                onClick={() => {
+                  setShowApproveModal(false);
+                  setSaveSignatureForFuture(false);
+                }}
                 className="p-1 text-gray-400 hover:text-gray-600 rounded"
               >
                 <X className="w-5 h-5" />
@@ -697,10 +713,24 @@ export default function AdminApplicationDetail() {
                   Gespeicherte Admin-Signatur verwenden, wenn keine lokale Unterschrift eingegeben wurde.
                 </label>
               )}
+              {(uploadedSigDataUrl || !sigEmpty) && (
+                <label className="flex items-start gap-2 text-xs text-gray-600">
+                  <input
+                    type="checkbox"
+                    checked={saveSignatureForFuture}
+                    onChange={(e) => setSaveSignatureForFuture(e.target.checked)}
+                    className="mt-0.5"
+                  />
+                  Diese Signatur speichern und für zukünftige Verwendung sperren
+                </label>
+              )}
             </div>
             <div className="p-5 border-t flex gap-3">
               <button
-                onClick={() => setShowApproveModal(false)}
+                onClick={() => {
+                  setShowApproveModal(false);
+                  setSaveSignatureForFuture(false);
+                }}
                 className="flex-1 px-4 py-2.5 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200"
               >
                 Abbrechen

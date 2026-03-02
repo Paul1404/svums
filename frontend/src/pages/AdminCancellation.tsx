@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { toast } from "sonner";
 import { ArrowLeft, Download, FileText, Loader2, PenLine, Trash2, Upload } from "lucide-react";
 import SignatureCanvas from "react-signature-canvas";
-import { extractApiError, getSettings } from "../services/api";
+import { extractApiError, getSettings, updateSettings } from "../services/api";
 
 interface CancellationForm {
   anrede: string;
@@ -41,6 +41,7 @@ export default function AdminCancellation() {
   const [uploadedSigDataUrl, setUploadedSigDataUrl] = useState<string | null>(null);
   const [hasSavedAdminSignature, setHasSavedAdminSignature] = useState(false);
   const [useSavedAdminSignature, setUseSavedAdminSignature] = useState(true);
+  const [saveSignatureForFuture, setSaveSignatureForFuture] = useState(false);
 
   const set = (field: keyof CancellationForm, value: string) => {
     setForm((prev) => ({ ...prev, [field]: value }));
@@ -141,6 +142,17 @@ export default function AdminCancellation() {
       URL.revokeObjectURL(url);
 
       toast.success("PDF wurde erstellt und heruntergeladen.");
+      if (saveSignatureForFuture && unterschrift_base64) {
+        try {
+          await updateSettings({ admin_signature_base64: unterschrift_base64 });
+          toast.success("Signatur wurde gespeichert");
+          setHasSavedAdminSignature(true);
+          setUseSavedAdminSignature(true);
+        } catch {
+          toast.error("Signatur konnte nicht gespeichert werden");
+        }
+      }
+      setSaveSignatureForFuture(false);
     } catch (err: any) {
       toast.error(err.message || "PDF konnte nicht erstellt werden.");
     } finally {
@@ -155,6 +167,7 @@ export default function AdminCancellation() {
     setSigEmpty(true);
     setUploadedSigDataUrl(null);
     setSignatureInputMode("draw");
+    setSaveSignatureForFuture(false);
   };
 
   return (
@@ -398,6 +411,17 @@ export default function AdminCancellation() {
                   className="mt-0.5"
                 />
                 Gespeicherte Admin-Unterschrift verwenden, wenn keine lokale Unterschrift eingegeben wurde.
+              </label>
+            )}
+            {(uploadedSigDataUrl || !sigEmpty) && (
+              <label className="mt-3 flex items-start gap-2 text-xs text-gray-600">
+                <input
+                  type="checkbox"
+                  checked={saveSignatureForFuture}
+                  onChange={(e) => setSaveSignatureForFuture(e.target.checked)}
+                  className="mt-0.5"
+                />
+                Diese Signatur speichern und für zukünftige Verwendung sperren
               </label>
             )}
             <p className="text-xs text-gray-400 mt-1">
