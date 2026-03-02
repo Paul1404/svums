@@ -61,6 +61,8 @@ class MembershipApplication(Base):
     email_sent = Column(Boolean, nullable=False, default=False)
     uploaded_file = Column(String(500), nullable=True)  # path to uploaded signed document
     uploaded_at = Column(DateTime, nullable=True)
+    admin_decline_reason = Column(Text, nullable=True)  # reason when status is abgelehnt
+    admin_approved_file = Column(String(500), nullable=True)  # cross-signed PDF when genehmigt
     consent_at = Column(DateTime, nullable=True)  # GDPR consent timestamp
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
 

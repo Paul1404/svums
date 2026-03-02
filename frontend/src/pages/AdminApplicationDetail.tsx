@@ -1,12 +1,14 @@
 import { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { toast } from "sonner";
+import SignatureCanvas from "react-signature-canvas";
 import {
   getApplication,
   updateApplication,
   deleteApplication,
   resendEmail,
   adminUploadDocument,
+  getSettings,
   formatFee,
   type ApplicationResponse,
 } from "../services/api";
@@ -22,6 +24,7 @@ import {
   Eye,
   RefreshCw,
   Upload,
+  X,
 } from "lucide-react";
 
 const STATUS_OPTIONS = [
@@ -68,6 +71,15 @@ export default function AdminApplicationDetail() {
   const [uploading, setUploading] = useState(false);
   const [uploadDragging, setUploadDragging] = useState(false);
   const uploadInputRef = useRef<HTMLInputElement>(null);
+  const [showApproveModal, setShowApproveModal] = useState(false);
+  const [showDenyModal, setShowDenyModal] = useState(false);
+  const [adminDeclineReason, setAdminDeclineReason] = useState("");
+  const sigCanvasRef = useRef<SignatureCanvas | null>(null);
+  const [sigEmpty, setSigEmpty] = useState(true);
+  const [signatureInputMode, setSignatureInputMode] = useState<"draw" | "upload">("draw");
+  const [uploadedSigDataUrl, setUploadedSigDataUrl] = useState<string | null>(null);
+  const [hasSavedAdminSignature, setHasSavedAdminSignature] = useState(false);
+  const [useSavedAdminSignature, setUseSavedAdminSignature] = useState(true);
 
   const handleAdminUpload = async (file: File) => {
     if (!app) return;
@@ -92,6 +104,7 @@ export default function AdminApplicationDetail() {
         setApp(data);
         setStatus(data.status);
         setNotes(data.notes || "");
+        setAdminDeclineReason(data.admin_decline_reason || "");
       })
       .catch((err) => {
         toast.error(err.message);
@@ -100,18 +113,106 @@ export default function AdminApplicationDetail() {
       .finally(() => setLoading(false));
   }, [id, navigate]);
 
+  useEffect(() => {
+    getSettings()
+      .then((settings) => {
+        setHasSavedAdminSignature(!!settings.admin_signature_base64);
+        setUseSavedAdminSignature(!!settings.admin_signature_base64);
+      })
+      .catch(() => {
+        setHasSavedAdminSignature(false);
+        setUseSavedAdminSignature(false);
+      });
+  }, []);
+
+  const handleSignatureUpload = (file: File) => {
+    if (!file.type.startsWith("image/")) {
+      toast.error("Bitte ein Bild (PNG/JPG) hochladen.");
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = reader.result;
+      if (typeof result === "string") {
+        setUploadedSigDataUrl(result);
+        sigCanvasRef.current?.clear();
+        setSigEmpty(true);
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
   const handleSave = async () => {
+    if (!app) return;
+    const isChangingToApproved = status === "genehmigt" && app.status !== "genehmigt";
+    const isChangingToDenied = status === "abgelehnt" && app.status !== "abgelehnt";
+    if (isChangingToApproved) {
+      setShowApproveModal(true);
+      return;
+    }
+    if (isChangingToDenied) {
+      setShowDenyModal(true);
+      return;
+    }
+    await doSave({ status, notes });
+  };
+
+  const doSave = async (extra?: {
+    status?: string;
+    notes?: string;
+    admin_unterschrift_base64?: string | null;
+    use_saved_admin_signature?: boolean;
+    admin_decline_reason?: string | null;
+  }) => {
     if (!app) return;
     setSaving(true);
     try {
-      const updated = await updateApplication(app.id, { status, notes });
+      const payload: Parameters<typeof updateApplication>[1] = {
+        status: extra?.status ?? status,
+        notes: extra?.notes ?? notes,
+      };
+      if (extra?.admin_unterschrift_base64 !== undefined) payload.admin_unterschrift_base64 = extra.admin_unterschrift_base64;
+      if (extra?.use_saved_admin_signature !== undefined) payload.use_saved_admin_signature = extra.use_saved_admin_signature;
+      if (extra?.admin_decline_reason !== undefined) payload.admin_decline_reason = extra.admin_decline_reason;
+      const updated = await updateApplication(app.id, payload);
       setApp(updated);
+      setStatus(updated.status);
+      setAdminDeclineReason(updated.admin_decline_reason || "");
+      setShowApproveModal(false);
+      setShowDenyModal(false);
+      setAdminDeclineReason("");
       toast.success("Gespeichert");
     } catch (err: any) {
       toast.error(err.message);
     } finally {
       setSaving(false);
     }
+  };
+
+  const handleConfirmApprove = async () => {
+    const unterschrift_base64 =
+      uploadedSigDataUrl ||
+      (!sigEmpty && sigCanvasRef.current && !sigCanvasRef.current.isEmpty()
+        ? sigCanvasRef.current.getTrimmedCanvas().toDataURL("image/png")
+        : null);
+    if (!unterschrift_base64 && !useSavedAdminSignature) {
+      toast.error("Bitte Signatur eingeben oder gespeicherte Admin-Signatur verwenden.");
+      return;
+    }
+    await doSave({
+      admin_unterschrift_base64: unterschrift_base64 || undefined,
+      use_saved_admin_signature: useSavedAdminSignature,
+    });
+  };
+
+  const handleConfirmDeny = async () => {
+    if (!adminDeclineReason.trim()) {
+      toast.error("Bitte Begründung für die Ablehnung angeben.");
+      return;
+    }
+    await doSave({
+      admin_decline_reason: adminDeclineReason.trim(),
+    });
   };
 
   const handleDelete = async () => {
@@ -395,11 +496,23 @@ export default function AdminApplicationDetail() {
                   )}
                 </div>
                 {app.uploaded_at && (
-                  <div className="flex justify-between">
-                    <span className="text-gray-500">Hochgeladen am:</span>
-                    <span className="text-gray-900">
-                      {new Date(app.uploaded_at).toLocaleString("de-DE")}
-                    </span>
+                <div className="flex justify-between">
+                  <span className="text-gray-500">Hochgeladen am:</span>
+                  <span className="text-gray-900">
+                    {new Date(app.uploaded_at).toLocaleString("de-DE")}
+                  </span>
+                </div>
+                )}
+                {app.admin_approved_file && (
+                  <div className="pt-2 flex gap-2">
+                    <a
+                      href={`/api/admin/applications/${app.id}/approved`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center justify-center gap-1.5 px-3 py-2 text-sm font-medium text-green-700 bg-green-50 rounded-lg hover:bg-green-100 transition-colors"
+                    >
+                      <FileCheck className="w-4 h-4" /> Genehmigungsdokument
+                    </a>
                   </div>
                 )}
                 {app.uploaded_file ? (
@@ -489,6 +602,166 @@ export default function AdminApplicationDetail() {
           </div>
         </div>
       </div>
+
+      {/* Approve modal */}
+      {showApproveModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-xl max-w-md w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-5 border-b flex items-center justify-between">
+              <h3 className="font-semibold text-gray-900">Genehmigung bestätigen</h3>
+              <button
+                onClick={() => setShowApproveModal(false)}
+                className="p-1 text-gray-400 hover:text-gray-600 rounded"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-5 space-y-4">
+              <p className="text-sm text-gray-600">
+                Bitte signieren Sie die Genehmigung (wird dem Antragsteller zugestellt).
+              </p>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setSignatureInputMode("draw")}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-medium border ${
+                    signatureInputMode === "draw"
+                      ? "bg-svu-50 border-svu-300 text-svu-700"
+                      : "bg-white border-gray-300 text-gray-600 hover:bg-gray-50"
+                  }`}
+                >
+                  Zeichnen
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSignatureInputMode("upload")}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-medium border ${
+                    signatureInputMode === "upload"
+                      ? "bg-svu-50 border-svu-300 text-svu-700"
+                      : "bg-white border-gray-300 text-gray-600 hover:bg-gray-50"
+                  }`}
+                >
+                  Bild hochladen
+                </button>
+              </div>
+              {signatureInputMode === "draw" ? (
+                <div className="relative rounded-lg border border-gray-300 bg-white overflow-hidden">
+                  <SignatureCanvas
+                    ref={sigCanvasRef}
+                    penColor="#1a1a1a"
+                    canvasProps={{
+                      className: "w-full",
+                      style: { height: 120, display: "block" },
+                    }}
+                    onBegin={() => setUploadedSigDataUrl(null)}
+                    onEnd={() => setSigEmpty(false)}
+                  />
+                </div>
+              ) : (
+                <div className="rounded-lg border border-gray-300 bg-white p-3">
+                  <label className="inline-flex items-center gap-2 px-3 py-2 text-xs font-medium text-gray-700 border border-gray-300 rounded-lg cursor-pointer hover:bg-gray-50">
+                    <Upload className="w-3.5 h-3.5" />
+                    Signaturbild auswählen
+                    <input
+                      type="file"
+                      accept=".png,.jpg,.jpeg,.webp"
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) handleSignatureUpload(file);
+                        e.target.value = "";
+                      }}
+                    />
+                  </label>
+                  {uploadedSigDataUrl ? (
+                    <div className="mt-3 rounded-md border border-gray-200 p-2 bg-gray-50">
+                      <img
+                        src={uploadedSigDataUrl}
+                        alt="Signaturvorschau"
+                        className="max-h-24 object-contain"
+                      />
+                    </div>
+                  ) : (
+                    <p className="text-xs text-gray-400 mt-2">Noch kein Signaturbild ausgewählt.</p>
+                  )}
+                </div>
+              )}
+              {hasSavedAdminSignature && (
+                <label className="flex items-start gap-2 text-xs text-gray-600">
+                  <input
+                    type="checkbox"
+                    checked={useSavedAdminSignature}
+                    onChange={(e) => setUseSavedAdminSignature(e.target.checked)}
+                    className="mt-0.5"
+                  />
+                  Gespeicherte Admin-Signatur verwenden, wenn keine lokale Unterschrift eingegeben wurde.
+                </label>
+              )}
+            </div>
+            <div className="p-5 border-t flex gap-3">
+              <button
+                onClick={() => setShowApproveModal(false)}
+                className="flex-1 px-4 py-2.5 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200"
+              >
+                Abbrechen
+              </button>
+              <button
+                onClick={handleConfirmApprove}
+                disabled={saving}
+                className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium text-white bg-svu-600 rounded-lg hover:bg-svu-700 disabled:opacity-50"
+              >
+                {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                Bestätigen und speichern
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Deny modal */}
+      {showDenyModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-xl max-w-md w-full">
+            <div className="p-5 border-b flex items-center justify-between">
+              <h3 className="font-semibold text-gray-900">Ablehnung bestätigen</h3>
+              <button
+                onClick={() => setShowDenyModal(false)}
+                className="p-1 text-gray-400 hover:text-gray-600 rounded"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-5">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Begründung für die Ablehnung (wird dem Antragsteller mitgeteilt)
+              </label>
+              <textarea
+                value={adminDeclineReason}
+                onChange={(e) => setAdminDeclineReason(e.target.value)}
+                rows={4}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-svu-500 focus:border-svu-500 outline-none resize-none"
+                placeholder="Bitte Begründung eingeben..."
+              />
+            </div>
+            <div className="p-5 border-t flex gap-3">
+              <button
+                onClick={() => setShowDenyModal(false)}
+                className="flex-1 px-4 py-2.5 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200"
+              >
+                Abbrechen
+              </button>
+              <button
+                onClick={handleConfirmDeny}
+                disabled={saving || !adminDeclineReason.trim()}
+                className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium text-white bg-svu-600 rounded-lg hover:bg-svu-700 disabled:opacity-50"
+              >
+                {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                Bestätigen und speichern
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

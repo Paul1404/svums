@@ -33,7 +33,12 @@ from app.schemas.settings import (
 from app.schemas.cancellation import CancellationLetterResponse
 from app.services.email import send_test_email
 from app.services.fees import calculate_fee
-from app.services.pdf import generate_pdf, generate_cancellation_pdf
+from app.services.pdf import (
+    generate_pdf,
+    generate_cancellation_pdf,
+    generate_approval_page,
+    merge_pdf_with_approval,
+)
 from app.services.crypto import decrypt_iban
 from app.services.email import send_status_email
 from app.services import storage
@@ -228,11 +233,64 @@ async def update_application(
         raise HTTPException(status_code=404, detail="Antrag nicht gefunden")
 
     old_status = app.status
+    settings_obj = _get_or_create_settings(db)
 
     if data.status is not None:
         app.status = data.status
     if data.notes is not None:
         app.notes = data.notes
+
+    # When changing to genehmigt: require admin signature, generate & store approved PDF
+    if data.status == "genehmigt" and old_status != "genehmigt":
+        effective_sig = data.admin_unterschrift_base64
+        if not effective_sig and data.use_saved_admin_signature and settings_obj.admin_signature_base64:
+            effective_sig = settings_obj.admin_signature_base64
+        if not effective_sig:
+            raise HTTPException(
+                status_code=400,
+                detail="Bei Genehmigung ist eine Signatur erforderlich (zeichnen, hochladen oder gespeicherte Admin-Signatur verwenden)",
+            )
+        approval_datum = datetime.now().strftime("%d.%m.%Y")
+        antragsnummer = app.antragsnummer or f"ANT-{app.id}"
+        approval_page_bytes = generate_approval_page(
+            admin_unterschrift_base64=effective_sig,
+            approval_datum=approval_datum,
+            antragsnummer=antragsnummer,
+        )
+        if app.uploaded_file:
+            base_bytes = storage.download_file(app.uploaded_file)
+            if base_bytes:
+                pdf_bytes = merge_pdf_with_approval(base_bytes, approval_page_bytes)
+            else:
+                app_data = _build_application_data(app)
+                app_data["admin_unterschrift_base64"] = effective_sig
+                app_data["approval_datum"] = approval_datum
+                pdf_bytes = generate_pdf(app_data)
+        else:
+            app_data = _build_application_data(app)
+            app_data["admin_unterschrift_base64"] = effective_sig
+            app_data["approval_datum"] = approval_datum
+            pdf_bytes = generate_pdf(app_data)
+        approved_filename = f"{antragsnummer}_approved.pdf"
+        storage.upload_file(approved_filename, pdf_bytes, content_type="application/pdf")
+        app.admin_approved_file = approved_filename
+        app.admin_decline_reason = None
+
+    # When changing to abgelehnt: require reason, clear approved file
+    if data.status == "abgelehnt" and old_status != "abgelehnt":
+        if not data.admin_decline_reason or not str(data.admin_decline_reason).strip():
+            raise HTTPException(
+                status_code=400,
+                detail="Bei Ablehnung ist eine Begründung erforderlich (wird dem Antragsteller mitgeteilt)",
+            )
+        app.admin_decline_reason = data.admin_decline_reason.strip()
+        app.admin_approved_file = None
+
+    # Clear decline reason when changing away from abgelehnt; clear approved file when changing away from genehmigt
+    if data.status and data.status != "abgelehnt":
+        app.admin_decline_reason = None
+    if data.status and data.status != "genehmigt":
+        app.admin_approved_file = None
 
     db.commit()
     db.refresh(app)
@@ -241,7 +299,6 @@ async def update_application(
     new_status = app.status
     if new_status != old_status and new_status in ("genehmigt", "abgelehnt"):
         try:
-            settings_obj = _get_or_create_settings(db)
             if settings_obj.smtp_host:
                 import asyncio
                 from app.config import get_settings as _get_cfg
@@ -253,6 +310,8 @@ async def update_application(
                 _snap_anrede = _compute_anrede(app)
                 _snap_status = new_status
                 _snap_db_url = _get_cfg().database_url
+                _snap_decline_reason = app.admin_decline_reason
+                _snap_approved_file = app.admin_approved_file
 
                 async def _send_status_and_log():
                     from sqlalchemy.orm import sessionmaker as _sm
@@ -265,6 +324,11 @@ async def update_application(
                     )
                     _err = None
                     _ok = False
+                    pdf_bytes = None
+                    pdf_filename = None
+                    if _snap_status == "genehmigt" and _snap_approved_file:
+                        pdf_bytes = storage.download_file(_snap_approved_file)
+                        pdf_filename = f"Beitrittserklaerung_genehmigt_{_snap_nachname}_{_snap_vorname}.pdf"
                     try:
                         await send_status_email(
                             smtp_host=settings_obj.smtp_host,
@@ -279,6 +343,9 @@ async def update_application(
                             antragsnummer=_snap_antragsnummer,
                             status=_snap_status,
                             anrede=_snap_anrede,
+                            decline_reason=_snap_decline_reason,
+                            pdf_bytes=pdf_bytes,
+                            pdf_filename=pdf_filename,
                         )
                         _ok = True
                     except Exception as _exc:
@@ -404,6 +471,37 @@ async def download_upload(
     return Response(
         content=content,
         media_type=media_type,
+        headers={
+            "Content-Disposition": f'inline; filename="{filename}"',
+        },
+    )
+
+
+@router.get("/applications/{application_id}/approved")
+async def download_approved(
+    application_id: int,
+    is_admin: bool = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    """Download the cross-signed approval document for an application."""
+    app = db.query(MembershipApplication).filter(
+        MembershipApplication.id == application_id
+    ).first()
+    if not app:
+        raise HTTPException(status_code=404, detail="Antrag nicht gefunden")
+
+    if not app.admin_approved_file:
+        raise HTTPException(status_code=404, detail="Kein Genehmigungsdokument vorhanden")
+
+    _validate_filename(app.admin_approved_file)
+    content = storage.download_file(app.admin_approved_file)
+    if content is None:
+        raise HTTPException(status_code=404, detail="Datei nicht gefunden")
+
+    filename = f"Beitrittserklaerung_genehmigt_{app.nachname}_{app.vorname}.pdf"
+    return Response(
+        content=content,
+        media_type="application/pdf",
         headers={
             "Content-Disposition": f'inline; filename="{filename}"',
         },

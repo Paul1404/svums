@@ -211,6 +211,7 @@ export default function AdminDocuments() {
                   <th className="text-left px-4 py-2.5 font-medium text-gray-600">Name</th>
                   <th className="text-left px-4 py-2.5 font-medium text-gray-600 hidden md:table-cell">Eingereicht</th>
                   <th className="text-left px-4 py-2.5 font-medium text-gray-600">Dokument</th>
+                  <th className="text-left px-4 py-2.5 font-medium text-gray-600">Genehmigung</th>
                   <th className="text-left px-4 py-2.5 font-medium text-gray-600 hidden md:table-cell">Hochgeladen am</th>
                   <th className="text-left px-4 py-2.5 font-medium text-gray-600">Aktionen</th>
                 </tr>
@@ -243,6 +244,31 @@ export default function AdminDocuments() {
                           <Clock className="h-3.5 w-3.5" />
                           Ausstehend
                         </span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3">
+                      {app.admin_approved_file ? (
+                        <div className="flex items-center gap-1.5">
+                          <a
+                            href={`/api/admin/applications/${app.id}/approved`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            title="Genehmigungsdokument anzeigen"
+                            className="p-1.5 rounded-md text-svu-600 hover:bg-svu-50 transition-colors"
+                          >
+                            <Eye className="h-4 w-4" />
+                          </a>
+                          <a
+                            href={`/api/admin/applications/${app.id}/approved`}
+                            download
+                            title="Genehmigungsdokument herunterladen"
+                            className="p-1.5 rounded-md text-gray-600 hover:bg-gray-100 transition-colors"
+                          >
+                            <Download className="h-4 w-4" />
+                          </a>
+                        </div>
+                      ) : (
+                        <span className="text-gray-400 text-xs">–</span>
                       )}
                     </td>
                     <td className="px-4 py-3 text-gray-500 hidden md:table-cell whitespace-nowrap">

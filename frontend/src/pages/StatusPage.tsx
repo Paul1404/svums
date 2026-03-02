@@ -183,7 +183,7 @@ export default function StatusPage() {
                   <h3 className="text-xl font-bold text-red-700 mb-1">
                     Abgelehnt
                   </h3>
-                  <p className="text-sm text-gray-500">
+                  <p className="text-sm text-gray-500 mb-4">
                     Ihr Antrag wurde leider abgelehnt. Bei Fragen wenden Sie sich
                     bitte an{" "}
                     <a
@@ -194,6 +194,14 @@ export default function StatusPage() {
                     </a>
                     .
                   </p>
+                  {data.admin_decline_reason && (
+                    <div className="mt-4 text-left bg-red-50 border border-red-200 rounded-lg p-4">
+                      <p className="text-xs font-medium text-red-800 mb-1">Begründung:</p>
+                      <p className="text-sm text-red-900 whitespace-pre-wrap">
+                        {data.admin_decline_reason}
+                      </p>
+                    </div>
+                  )}
                 </div>
               ) : (
                 /* Workflow timeline */
