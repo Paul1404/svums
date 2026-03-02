@@ -489,6 +489,17 @@
 </div>
 {% endif %}
 
+{% if admin_unterschrift_base64 %}
+<div style="margin-top: 30px; padding: 16px; border: 2px solid #16a34a; border-radius: 4px; background: #f0fdf4;">
+  <p style="font-size: 11pt; font-weight: bold; color: #16a34a; margin: 0 0 8px 0;">Antrag genehmigt</p>
+  <p style="font-size: 10pt; margin: 8px 0;">Genehmigt am {{ approval_datum }}</p>
+  <div class="sig-img-line">
+    <img src="{{ admin_unterschrift_base64 }}" alt="Unterschrift">
+    <div class="sig-label">Vorstandsmitglied Ressort Finanzen & Verwaltung</div>
+  </div>
+</div>
+{% endif %}
+
 <div class="legal-text" style="margin-top: 12px; text-align: center;">
   Dieses Dokument wurde elektronisch erstellt am {{ datum }} über svums.sv-untereuerheim.de
 </div>

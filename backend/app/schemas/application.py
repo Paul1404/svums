@@ -290,6 +290,8 @@ class ApplicationResponse(BaseModel):
     email_sent: bool
     uploaded_file: Optional[str] = None
     uploaded_at: Optional[datetime] = None
+    admin_decline_reason: Optional[str] = None
+    admin_approved_file: Optional[str] = None
     consent_at: Optional[datetime] = None
     created_at: datetime
 
@@ -331,6 +333,9 @@ class ApplicationResponse(BaseModel):
 class ApplicationUpdate(BaseModel):
     status: Optional[str] = None
     notes: Optional[str] = None
+    admin_unterschrift_base64: Optional[str] = None
+    use_saved_admin_signature: bool = True
+    admin_decline_reason: Optional[str] = None
 
     @field_validator("status")
     @classmethod
@@ -338,6 +343,22 @@ class ApplicationUpdate(BaseModel):
         if v is not None and v not in VALID_STATUS:
             raise ValueError(f"Ungültiger Status: {v}")
         return v
+
+    @model_validator(mode="after")
+    def validate_approval_denial(self):
+        if self.status == "genehmigt":
+            if not self.admin_unterschrift_base64 and not self.use_saved_admin_signature:
+                raise ValueError(
+                    "Bei Genehmigung ist eine Signatur erforderlich "
+                    "(zeichnen, hochladen oder gespeicherte Admin-Signatur verwenden)"
+                )
+        if self.status == "abgelehnt":
+            if not self.admin_decline_reason or not str(self.admin_decline_reason).strip():
+                raise ValueError(
+                    "Bei Ablehnung ist eine Begründung erforderlich "
+                    "(wird dem Antragsteller mitgeteilt)"
+                )
+        return self
 
 
 class ApplicationListResponse(BaseModel):

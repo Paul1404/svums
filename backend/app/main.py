@@ -39,6 +39,12 @@ async def lifespan(app: FastAPI):
             if "consent_at" not in columns:
                 cursor.execute("ALTER TABLE membership_applications ADD COLUMN consent_at DATETIME")
                 logger.info("Added consent_at column")
+            if "admin_decline_reason" not in columns:
+                cursor.execute("ALTER TABLE membership_applications ADD COLUMN admin_decline_reason TEXT")
+                logger.info("Added admin_decline_reason column")
+            if "admin_approved_file" not in columns:
+                cursor.execute("ALTER TABLE membership_applications ADD COLUMN admin_approved_file VARCHAR(500)")
+                logger.info("Added admin_approved_file column")
             for col_name, col_type in [
                 ("geschlecht", "VARCHAR(10)"),
                 ("partner_vorname", "VARCHAR(100)"),
@@ -70,6 +76,14 @@ async def lifespan(app: FastAPI):
                 conn.execute(__import__("sqlalchemy").text(
                     "ALTER TABLE app_settings "
                     "ADD COLUMN IF NOT EXISTS admin_signature_base64 TEXT"
+                ))
+                conn.execute(__import__("sqlalchemy").text(
+                    "ALTER TABLE membership_applications "
+                    "ADD COLUMN IF NOT EXISTS admin_decline_reason TEXT"
+                ))
+                conn.execute(__import__("sqlalchemy").text(
+                    "ALTER TABLE membership_applications "
+                    "ADD COLUMN IF NOT EXISTS admin_approved_file VARCHAR(500)"
                 ))
             logger.info("Widened iban column to VARCHAR(500)")
         except Exception as e:

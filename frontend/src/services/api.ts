@@ -70,6 +70,8 @@ export interface ApplicationResponse {
   email_sent: boolean;
   uploaded_file: string | null;
   uploaded_at: string | null;
+  admin_decline_reason: string | null;
+  admin_approved_file: string | null;
   consent_at: string | null;
   created_at: string;
 }
@@ -90,6 +92,7 @@ export interface StatusLookupResponse {
   created_at: string | null;
   uploaded_at: string | null;
   has_upload: boolean;
+  admin_decline_reason?: string;
 }
 
 export interface FeeResponse {
@@ -373,7 +376,13 @@ export async function getApplication(
 
 export async function updateApplication(
   id: number,
-  data: { status?: string; notes?: string }
+  data: {
+    status?: string;
+    notes?: string;
+    admin_unterschrift_base64?: string | null;
+    use_saved_admin_signature?: boolean;
+    admin_decline_reason?: string | null;
+  }
 ): Promise<ApplicationResponse> {
   return apiRequest(`/api/admin/applications/${id}`, {
     method: "PATCH",

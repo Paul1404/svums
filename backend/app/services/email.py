@@ -188,6 +188,9 @@ async def send_status_email(
     antragsnummer: str,
     status: str,
     anrede: str = "",
+    decline_reason: str | None = None,
+    pdf_bytes: bytes | None = None,
+    pdf_filename: str | None = None,
 ) -> bool:
     """Send status update email to applicant (upload confirmed, approved, declined)."""
     try:
@@ -199,6 +202,7 @@ async def send_status_email(
             antragsnummer=antragsnummer,
             status=status,
             status_url=f"https://svums.sv-untereuerheim.de/status?nr={antragsnummer}",
+            decline_reason=decline_reason or "",
         )
 
         subject_map = {
@@ -213,6 +217,13 @@ async def send_status_email(
         msg["To"] = applicant_email
         msg["Subject"] = subject
         msg.attach(MIMEText(html_body, "html", "utf-8"))
+
+        if pdf_bytes and pdf_filename:
+            pdf_attachment = MIMEApplication(pdf_bytes, _subtype="pdf")
+            pdf_attachment.add_header(
+                "Content-Disposition", "attachment", filename=pdf_filename
+            )
+            msg.attach(pdf_attachment)
 
         await aiosmtplib.send(
             msg,

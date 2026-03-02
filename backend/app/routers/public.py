@@ -643,7 +643,7 @@ async def lookup_status(antragsnummer: str, db: Session = Depends(get_db)):
     if not app:
         raise HTTPException(status_code=404, detail="Antragsnummer nicht gefunden")
 
-    return {
+    result = {
         "antragsnummer": app.antragsnummer,
         "vorname": app.vorname,
         "nachname": app.nachname,
@@ -653,3 +653,6 @@ async def lookup_status(antragsnummer: str, db: Session = Depends(get_db)):
         "uploaded_at": app.uploaded_at.isoformat() if app.uploaded_at else None,
         "has_upload": app.uploaded_file is not None,
     }
+    if app.status == "abgelehnt" and app.admin_decline_reason:
+        result["admin_decline_reason"] = app.admin_decline_reason
+    return result
