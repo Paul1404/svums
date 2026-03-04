@@ -184,14 +184,14 @@ export default function Success() {
         <footer className="text-center text-xs text-gray-400 py-8 space-y-1">
           <p className="font-medium text-gray-500">Sportverein 1945 Untereuerheim e.V.</p>
           <p>Triebweg 9 · 97508 Grettstadt/Untereuerheim</p>
-          <p>1. Vorstand: Alexander Eckert · Tel: 09729/432</p>
+          <p>1. Vorsitzender: Alexander Eckert · Tel: 09729/432</p>
           <p>
             E-Mail:{" "}
             <a href="mailto:info@sv-untereuerheim.de" className="hover:text-svu-600">
               info@sv-untereuerheim.de
             </a>
           </p>
-          <p>Registergericht: Schweinfurt · Steuer-ID: 249/111/20506</p>
+          <p>Registergericht: Amtsgericht Schweinfurt · Registernummer: VR 31 · Steuer-ID: 249/111/20506</p>
           <p className="pt-2">
             <a
               href="https://sv-untereuerheim.de/impressum/"

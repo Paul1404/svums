@@ -1432,20 +1432,22 @@ export default function ApplicationForm() {
                     className="w-4 h-4 mt-0.5 text-svu-600 rounded border-gray-300 focus:ring-svu-500"
                   />
                   <span className="text-sm text-gray-700">
-                    Mit Unterzeichnung stimme ich zu, dass die erhobenen Daten
-                    vom SVU im Rahmen der Mitgliederverwaltung gespeichert und
-                    verarbeitet werden dürfen. Weitere Informationen finden Sie in unserer{" "}
+                    Mit Unterzeichnung willige ich in die Erhebung, Verarbeitung
+                    und Nutzung meiner personenbezogenen Daten zum Zwecke der
+                    Mitgliederverwaltung und des Vereinsbetriebs ein. Es gilt die
+                    aktuelle Datenschutzerklärung des SVU, die unter{" "}
                     <a
-                      href="https://sv-untereuerheim.de/impressum/"
+                      href="https://sv-untereuerheim.de/datenschutz"
                       target="_blank"
                       rel="noopener noreferrer"
                       className="text-svu-600 underline hover:text-svu-700"
                     >
-                      Datenschutzerklärung
-                    </a>.
-                    Ein Austritt ist nur zum Schluss
-                    eines Kalenderjahres unter Einhaltung einer Frist von sechs
-                    Wochen zulässig.
+                      sv-untereuerheim.de/datenschutz
+                    </a>{" "}
+                    eingesehen werden kann. Ein Austritt ist nur zum Ende eines
+                    Kalenderjahres unter Einhaltung einer Frist von sechs Wochen
+                    in Textform (per E-Mail an mitgliedschaft@sv-untereuerheim.de
+                    oder postalisch) zulässig.
                   </span>
                 </label>
               </div>
@@ -1693,14 +1695,14 @@ export default function ApplicationForm() {
         <footer className="text-center text-xs text-gray-400 py-8 space-y-1">
           <p className="font-medium text-gray-500">Sportverein 1945 Untereuerheim e.V.</p>
           <p>Triebweg 9 · 97508 Grettstadt/Untereuerheim</p>
-          <p>1. Vorstand: Alexander Eckert · Tel: 09729/432</p>
+          <p>1. Vorsitzender: Alexander Eckert · Tel: 09729/432</p>
           <p>
             E-Mail:{" "}
             <a href="mailto:info@sv-untereuerheim.de" className="hover:text-svu-600">
               info@sv-untereuerheim.de
             </a>
           </p>
-          <p>Registergericht: Schweinfurt · Steuer-ID: 249/111/20506</p>
+          <p>Registergericht: Amtsgericht Schweinfurt · Registernummer: VR 31 · Steuer-ID: 249/111/20506</p>
           <p className="pt-2 space-x-3">
             <a
               href="https://sv-untereuerheim.de/impressum/"

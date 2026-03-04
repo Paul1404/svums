@@ -69,7 +69,7 @@ def calculate_fee(
             return Decimal("36.00"), "Jugendliche (bis 18 Jahre), kein Elternteil Mitglied"
 
     if mitgliedschaft_typ == "junger_erwachsener":
-        return Decimal("42.00"), "Junge Leute (bis 25 Jahre)"
+        return Decimal("42.00"), "Junge Erwachsene (bis 25 Jahre)"
 
     if mitgliedschaft_typ == "erwachsener":
         return Decimal("54.00"), "Erwachsene"

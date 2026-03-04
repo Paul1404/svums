@@ -15,13 +15,17 @@ def generate_approval_page(
     admin_unterschrift_base64: str,
     approval_datum: str,
     antragsnummer: str,
+    applicant_name: str,
+    mandatsreferenz: str,
 ) -> bytes:
-    """Generate a single-page PDF with the admin approval block."""
+    """Generate a single-page PDF with the formal membership confirmation and admin approval block."""
     template = _env.get_template("genehmigung_seite.html")
     html_content = template.render(
         admin_unterschrift_base64=admin_unterschrift_base64,
         approval_datum=approval_datum,
         antragsnummer=antragsnummer,
+        applicant_name=applicant_name,
+        mandatsreferenz=mandatsreferenz or "",
     )
     return HTML(string=html_content, base_url=str(TEMPLATE_DIR)).write_pdf()
 
