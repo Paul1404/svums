@@ -103,6 +103,8 @@
     margin-top: 40px;
     display: flex;
     justify-content: space-between;
+    page-break-inside: avoid;
+    break-inside: avoid;
   }
   .signature-line {
     width: 45%;
@@ -154,6 +156,10 @@
   .sig-img-line .sig-label {
     border-top: 1px solid #333;
     padding-top: 3px;
+  }
+  .approval-block {
+    page-break-inside: avoid;
+    break-inside: avoid;
   }
 </style>
 </head>
@@ -490,7 +496,7 @@
 {% endif %}
 
 {% if admin_unterschrift_base64 %}
-<div style="margin-top: 30px; padding: 16px; border: 2px solid #16a34a; border-radius: 4px; background: #f0fdf4;">
+<div class="approval-block" style="margin-top: 30px; padding: 16px; border: 2px solid #16a34a; border-radius: 4px; background: #f0fdf4;">
   <p style="font-size: 11pt; font-weight: bold; color: #16a34a; margin: 0 0 8px 0;">Antrag genehmigt</p>
   <p style="font-size: 10pt; margin: 8px 0;">Genehmigt am {{ approval_datum }}</p>
   <div class="sig-img-line">
