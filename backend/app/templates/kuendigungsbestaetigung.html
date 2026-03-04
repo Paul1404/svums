@@ -103,6 +103,10 @@
     padding-top: 4px;
     font-size: 9pt;
   }
+  .signature-block {
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
   .footer {
     position: fixed;
     bottom: 0;
@@ -185,16 +189,18 @@
   Zukunft alles Gute.
 </div>
 
-<div class="closing">
-  Mit freundlichen Grüßen aus Untereuerheim,<br>
-</div>
+<div class="signature-block">
+  <div class="closing">
+    Mit freundlichen Grüßen aus Untereuerheim,<br>
+  </div>
 
-<div class="signature-area">
-  {% if unterschrift_base64 %}
-  <img class="signature-img" src="{{ unterschrift_base64 }}" alt="Unterschrift">
-  {% endif %}
-  <div class="signature-line">
-    Mitgliedsverwaltung, Sportverein 1945 Untereuerheim e.V.
+  <div class="signature-area">
+    {% if unterschrift_base64 %}
+    <img class="signature-img" src="{{ unterschrift_base64 }}" alt="Unterschrift">
+    {% endif %}
+    <div class="signature-line">
+      Mitgliedsverwaltung, Sportverein 1945 Untereuerheim e.V.
+    </div>
   </div>
 </div>
 
