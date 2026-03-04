@@ -177,7 +177,7 @@
 <div class="section">
   <div class="section-title">Daten des Kindes / Jugendlichen</div>
   <div class="field-row">
-    <span class="field-label">Name, Vorname:</span>
+    <span class="field-label">Nachname, Vorname:</span>
     <span class="field-value">{{ nachname }}, {{ vorname }}</span>
   </div>
   <div class="field-row">
@@ -199,7 +199,7 @@
   </div>
   {% endif %}
   <div class="field-row">
-    <span class="field-label">Name, Vorname:</span>
+    <span class="field-label">Nachname, Vorname:</span>
     <span class="field-value">{{ erziehungsberechtigter_nachname }}, {{ erziehungsberechtigter_vorname }}</span>
   </div>
   <div class="field-row">
@@ -237,7 +237,7 @@
   </div>
   {% endif %}
   <div class="field-row">
-    <span class="field-label">Name, Vorname:</span>
+    <span class="field-label">Nachname, Vorname:</span>
     <span class="field-value">{{ nachname }}, {{ vorname }}</span>
   </div>
   <div class="field-row">
@@ -270,7 +270,7 @@
 <div class="section">
   <div class="section-title">Partner / 2. Elternteil</div>
   <div class="field-row">
-    <span class="field-label">Name, Vorname:</span>
+    <span class="field-label">Nachname, Vorname:</span>
     <span class="field-value">{{ partner_nachname }}, {{ partner_vorname }}</span>
   </div>
   {% if partner_geburtsdatum_formatted %}
@@ -295,7 +295,7 @@
   <div class="child-block">
     <div class="child-title">Kind {{ loop.index }}</div>
     <div class="field-row">
-      <span class="field-label">Name, Vorname:</span>
+      <span class="field-label">Nachname, Vorname:</span>
       <span class="field-value">{{ kind.nachname }}, {{ kind.vorname }}</span>
     </div>
     <div class="field-row">
@@ -322,7 +322,7 @@
   </div>
   {% endif %}
   <div class="field-row">
-    <span class="field-label">Name, Vorname:</span>
+    <span class="field-label">Nachname, Vorname:</span>
     <span class="field-value">{{ nachname }}, {{ vorname }}</span>
   </div>
   <div class="field-row">
@@ -353,10 +353,12 @@
 {% endif %}
 
 <div class="legal-text">
-  Mit Unterzeichnung stimmt das Mitglied zu, dass die erhobenen Daten vom SVU im
-  Rahmen der Mitgliederverwaltung gespeichert und verarbeitet werden dürfen.<br>
-  Ein Austritt ist nur zum Schluss eines Kalenderjahres unter Einhaltung einer Frist von
-  sechs Wochen zulässig.
+  Mit Unterzeichnung willigt das Mitglied in die Erhebung, Verarbeitung und Nutzung seiner
+  personenbezogenen Daten zum Zwecke der Mitgliederverwaltung und des Vereinsbetriebs ein.
+  Es gilt die aktuelle Datenschutzerklärung des SVU, die unter sv-untereuerheim.de/datenschutz
+  eingesehen werden kann.<br>
+  Ein Austritt ist nur zum Ende eines Kalenderjahres unter Einhaltung einer Frist von sechs Wochen
+  in Textform (per E-Mail an mitgliedschaft@sv-untereuerheim.de oder postalisch) zulässig.
 </div>
 
 <div class="signature-area">
@@ -456,7 +458,7 @@
         <td>Jugendliche (bis 18 Jahre) – kein Elternteil Mitglied</td><td>36,– €</td>
       </tr>
       <tr class="{{ 'active' if mitgliedschaft_typ == 'junger_erwachsener' else '' }}">
-        <td>Junge Leute (bis 25 Jahre)</td><td>42,– €</td>
+        <td>Junge Erwachsene (bis 25 Jahre)</td><td>42,– €</td>
       </tr>
       <tr class="{{ 'active' if mitgliedschaft_typ == 'erwachsener' else '' }}">
         <td>Erwachsene</td><td>54,– €</td>
@@ -472,8 +474,8 @@
 </div>
 
 {% if unterschrift_base64 %}
-<div style="margin-top: 25px; border: 2px solid #16a34a; border-radius: 4px; padding: 12px; background: #f0fdf4;">
-  <p style="font-size: 10pt; font-weight: bold; color: #16a34a; margin: 0 0 6px 0;">✓ Antrag digital unterzeichnet</p>
+<div style="margin-top: 25px; border: 1px solid #ccc; border-radius: 4px; padding: 12px; background: #fff;">
+  <p style="font-size: 10pt; font-weight: bold; color: #333; margin: 0 0 6px 0;">✓ Antrag digital unterzeichnet</p>
   <p style="font-size: 9pt; color: #333; margin: 0; line-height: 1.5;">
     Ihr Antrag wurde mit digitaler Unterschrift eingereicht und wird zeitnah bearbeitet.
     Sie erhalten eine Bestätigung per E-Mail. Es sind keine weiteren Schritte erforderlich.
@@ -492,8 +494,8 @@
 {% endif %}
 
 {% if admin_unterschrift_base64 %}
-<div class="approval-block" style="margin-top: 30px; padding: 16px; border: 2px solid #16a34a; border-radius: 4px; background: #f0fdf4;">
-  <p style="font-size: 11pt; font-weight: bold; color: #16a34a; margin: 0 0 8px 0;">Antrag genehmigt</p>
+<div class="approval-block" style="margin-top: 30px; padding: 16px; border: 1px solid #999; border-radius: 4px; background: #fff;">
+  <p style="font-size: 11pt; font-weight: bold; color: #333; margin: 0 0 8px 0;">Antrag genehmigt</p>
   <p style="font-size: 10pt; margin: 8px 0;">Genehmigt am {{ approval_datum }}</p>
   <div class="sig-img-line">
     <img src="{{ admin_unterschrift_base64 }}" alt="Unterschrift">
@@ -509,9 +511,9 @@
 <div style="margin-top: 20px; padding-top: 10px; border-top: 1px solid #ccc; text-align: center; font-size: 8pt; color: #888; line-height: 1.6;">
   <strong>Sportverein 1945 Untereuerheim e.V.</strong><br>
   Triebweg 9 · 97508 Grettstadt/Untereuerheim<br>
-  1. Vorstand: Alexander Eckert · Tel: 09729/432<br>
+  1. Vorsitzender: Alexander Eckert · Tel: 09729/432<br>
   E-Mail: info@sv-untereuerheim.de<br>
-  Registergericht: Schweinfurt · Steuer-ID: 249/111/20506
+  Registergericht: Amtsgericht Schweinfurt · Registernummer: VR 31 · Steuer-ID: 249/111/20506
 </div>
 
 </body>
