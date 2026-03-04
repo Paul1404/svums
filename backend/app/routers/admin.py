@@ -477,6 +477,34 @@ async def download_upload(
     )
 
 
+@router.delete("/applications/{application_id}/upload")
+async def delete_upload(
+    application_id: int,
+    is_admin: bool = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    """Delete the uploaded document for an application."""
+    app = db.query(MembershipApplication).filter(
+        MembershipApplication.id == application_id
+    ).first()
+    if not app:
+        raise HTTPException(status_code=404, detail="Antrag nicht gefunden")
+
+    if not app.uploaded_file:
+        raise HTTPException(status_code=404, detail="Kein Dokument hochgeladen")
+
+    filename = app.uploaded_file
+    app.uploaded_file = None
+    app.uploaded_at = None
+    try:
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
+    storage.delete_file(filename)
+    return {"ok": True}
+
+
 @router.get("/applications/{application_id}/approved")
 async def download_approved(
     application_id: int,
@@ -506,6 +534,33 @@ async def download_approved(
             "Content-Disposition": f'inline; filename="{filename}"',
         },
     )
+
+
+@router.delete("/applications/{application_id}/approved")
+async def delete_approved(
+    application_id: int,
+    is_admin: bool = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    """Delete the cross-signed approval document for an application."""
+    app = db.query(MembershipApplication).filter(
+        MembershipApplication.id == application_id
+    ).first()
+    if not app:
+        raise HTTPException(status_code=404, detail="Antrag nicht gefunden")
+
+    if not app.admin_approved_file:
+        raise HTTPException(status_code=404, detail="Kein Genehmigungsdokument vorhanden")
+
+    filename = app.admin_approved_file
+    app.admin_approved_file = None
+    try:
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
+    storage.delete_file(filename)
+    return {"ok": True}
 
 
 @router.post("/applications/{application_id}/admin-upload")
@@ -813,6 +868,28 @@ def download_cancellation_document(
         media_type="application/pdf",
         headers={"Content-Disposition": f'inline; filename="{download_name}"'},
     )
+
+
+@router.delete("/cancellation-documents/{document_id}")
+def delete_cancellation_document(
+    document_id: int,
+    is_admin: bool = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    """Delete a cancellation letter document."""
+    doc = db.query(CancellationLetter).filter(CancellationLetter.id == document_id).first()
+    if not doc:
+        raise HTTPException(status_code=404, detail="Kündigungsdokument nicht gefunden")
+
+    filename = doc.filename
+    db.delete(doc)
+    try:
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
+    storage.delete_file(filename)
+    return {"ok": True}
 
 
 # --- Email Log ---

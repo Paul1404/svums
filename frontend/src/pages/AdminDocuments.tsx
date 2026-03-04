@@ -6,6 +6,9 @@ import {
   getApplications,
   adminUploadDocument,
   getCancellationDocuments,
+  deleteApplicationUpload,
+  deleteApplicationApproved,
+  deleteCancellationDocument,
   type ApplicationResponse,
   type CancellationLetterResponse,
 } from "../services/api";
@@ -19,6 +22,7 @@ import {
   CheckCircle2,
   Clock,
   X,
+  Trash2,
 } from "lucide-react";
 
 const DOC_FILTER_OPTIONS = [
@@ -132,6 +136,49 @@ export default function AdminDocuments() {
 
   const handleUploaded = useCallback((updated: ApplicationResponse) => {
     setApps((prev) => prev.map((a) => (a.id === updated.id ? updated : a)));
+  }, []);
+
+  const handleDeleteUpload = useCallback(async (app: ApplicationResponse) => {
+    if (!app.uploaded_file) return;
+    if (!window.confirm(`Dokument von ${app.vorname} ${app.nachname} wirklich löschen?`)) return;
+    try {
+      await deleteApplicationUpload(app.id);
+      toast.success("Dokument gelöscht");
+      setApps((prev) =>
+        prev.map((a) =>
+          a.id === app.id ? { ...a, uploaded_file: null, uploaded_at: null } : a
+        )
+      );
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : "Löschen fehlgeschlagen");
+    }
+  }, []);
+
+  const handleDeleteApproved = useCallback(async (app: ApplicationResponse) => {
+    if (!app.admin_approved_file) return;
+    if (!window.confirm(`Genehmigungsdokument von ${app.vorname} ${app.nachname} wirklich löschen?`)) return;
+    try {
+      await deleteApplicationApproved(app.id);
+      toast.success("Genehmigungsdokument gelöscht");
+      setApps((prev) =>
+        prev.map((a) =>
+          a.id === app.id ? { ...a, admin_approved_file: null } : a
+        )
+      );
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : "Löschen fehlgeschlagen");
+    }
+  }, []);
+
+  const handleDeleteCancellation = useCallback(async (doc: CancellationLetterResponse) => {
+    if (!window.confirm(`Kündigungsbestätigung von ${doc.vorname} ${doc.nachname} wirklich löschen?`)) return;
+    try {
+      await deleteCancellationDocument(doc.id);
+      toast.success("Kündigungsbestätigung gelöscht");
+      setCancellations((prev) => prev.filter((d) => d.id !== doc.id));
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : "Löschen fehlgeschlagen");
+    }
   }, []);
 
   const filtered = apps.filter((a) => {
@@ -266,6 +313,13 @@ export default function AdminDocuments() {
                           >
                             <Download className="h-4 w-4" />
                           </a>
+                          <button
+                            onClick={() => handleDeleteApproved(app)}
+                            title="Genehmigungsdokument löschen"
+                            className="p-1.5 rounded-md text-red-600 hover:bg-red-50 transition-colors"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
                         </div>
                       ) : (
                         <span className="text-gray-400 text-xs">–</span>
@@ -316,6 +370,13 @@ export default function AdminDocuments() {
                             className="p-1.5 rounded-md text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
                           >
                             <X className="h-4 w-4" />
+                          </button>
+                          <button
+                            onClick={() => handleDeleteUpload(app)}
+                            title="Dokument löschen"
+                            className="p-1.5 rounded-md text-red-600 hover:bg-red-50 transition-colors"
+                          >
+                            <Trash2 className="h-4 w-4" />
                           </button>
                         </div>
                       ) : (
@@ -392,6 +453,13 @@ export default function AdminDocuments() {
                         >
                           <Download className="h-4 w-4" />
                         </a>
+                        <button
+                          onClick={() => handleDeleteCancellation(doc)}
+                          title="Kündigungsbestätigung löschen"
+                          className="p-1.5 rounded-md text-red-600 hover:bg-red-50 transition-colors"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
                       </div>
                     </td>
                   </tr>
