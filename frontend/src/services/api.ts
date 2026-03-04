@@ -449,6 +449,30 @@ export async function adminUploadDocument(
   });
 }
 
+export async function deleteApplicationUpload(
+  id: number
+): Promise<{ ok: boolean }> {
+  return apiRequest(`/api/admin/applications/${id}/upload`, {
+    method: "DELETE",
+  });
+}
+
+export async function deleteApplicationApproved(
+  id: number
+): Promise<{ ok: boolean }> {
+  return apiRequest(`/api/admin/applications/${id}/approved`, {
+    method: "DELETE",
+  });
+}
+
+export async function deleteCancellationDocument(
+  documentId: number
+): Promise<{ ok: boolean }> {
+  return apiRequest(`/api/admin/cancellation-documents/${documentId}`, {
+    method: "DELETE",
+  });
+}
+
 export async function getEmailLogs(params?: {
   status?: string;
   email_type?: string;
