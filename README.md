@@ -50,6 +50,44 @@ built-in admin panel.
 - Email resend button (sends correct email template for each signature flow)
 - CSV export of all applications
 - SMTP configuration and test email from the UI
+- **Admin upload**: Admin can upload a signed document for an application
+  (e.g. when received by post)
+
+**Admin Approval / Denial**
+
+- **Approval**: Admin must sign digitally (draw, upload, or use saved signature).
+  A cross-signed PDF is generated (applicant + admin signature), stored in S3,
+  and emailed to the applicant with an explanation for their records. The
+  approval page is a formal administrative confirmation document with
+  membership details, Satzung link, Mandatsreferenz, and contact info.
+- **Denial**: Admin must provide a reason; it is stored and delivered to the
+  applicant via email and shown on the public status page.
+- **Save and lock signature**: When signing (approval or cancellation), admin
+  can optionally save the drawn/uploaded signature for future use.
+
+**Admin Documents Area**
+
+- Central view of all membership documents and cancellation letters
+- Filter by "Alle" / "Mit Dokument" / "Ohne Dokument"
+- For each application: view/download uploaded document, view/download
+  approval document (when genehmigt), upload or replace document, delete
+  documents
+- Cancellation letters table: view, download, delete
+- All documents stored in Tigris (S3-compatible) object storage
+
+**Admin Cancellation Letters**
+
+- Generate cancellation confirmation PDFs with member details
+- Admin signs digitally (draw, upload, or saved signature)
+- PDFs stored in S3 and listed in the Documents area
+
+**PDF and Document Styling**
+
+- Signature blocks use `page-break-inside: avoid` so greeting, signature, and
+  label stay together (no awkward page breaks)
+- Signature boxes use white background and neutral borders (no green) so
+  inserted signatures blend in
+- Formal approval document with full administrative content
 
 **Security**
 
@@ -90,7 +128,7 @@ svums/
       main.py             FastAPI app, middlewares, startup migrations
       config.py           Settings via environment variables
       database.py         SQLAlchemy engine and session
-      models/             SQLAlchemy models (application, settings)
+      models/             SQLAlchemy models (application, settings, cancellation_letter)
       routers/
         public.py         Form submission, fees, IBAN lookup, upload, status
         admin.py          Auth, CRUD, PDF, CSV export, SMTP settings
@@ -104,6 +142,8 @@ svums/
         storage.py        Tigris/S3 object storage (upload, download, delete)
       templates/
         beitrittserklaerung.html  PDF template (signature-aware)
+        genehmigung_seite.html   Approval page (formal confirmation + signature)
+        kuendigungsbestaetigung.html  Cancellation letter PDF
         email.html                Admin notification email
         email_confirmation.html   Applicant confirmation (flow-aware)
         email_status.html         Status update emails
@@ -114,11 +154,13 @@ svums/
         ApplicationForm   Main membership form (incl. inline signature)
         Success           Post-submit confirmation (flow-aware)
         Upload            Signed document upload
-        StatusPage        Public status lookup
+        StatusPage        Public status lookup (incl. decline reason)
         AdminLogin        Admin authentication
         AdminDashboard    Application list
-        AdminApplicationDetail  Single application view
-        AdminSettings     SMTP and app configuration
+        AdminApplicationDetail  Single application (approval/denial modals)
+        AdminSettings     SMTP, admin signature, app configuration
+        AdminCancellation Cancellation letter generation
+        AdminDocuments    Document overview, upload, delete
       services/api.ts     All API calls, CSRF token handling, formatFee utility
       context/            Admin auth context
 ```
@@ -169,9 +211,12 @@ flyctl deploy
 | Applications, settings | Neon PostgreSQL (external, always persistent) |
 | Uploaded signed documents | Tigris object storage (S3-compatible, always persistent) |
 | Online-signed PDFs | Tigris object storage, key: `{antragsnummer}_signed.pdf` |
+| Approval documents (cross-signed) | Tigris, key: `{antragsnummer}_approved.pdf` |
+| Cancellation letters | Tigris object storage, key per document |
+| Admin signature (optional) | `app_settings.admin_signature_base64` in Neon |
 
-SMTP settings are stored in the `app_settings` table in Neon and survive
-restarts and redeployments.
+SMTP settings and the optional admin signature are stored in the `app_settings`
+table in Neon and survive restarts and redeployments.
 
 ### Environment Variables / Secrets
 
@@ -293,23 +338,37 @@ flowchart TD
     AR3 -->|Ablehnen| DECLINED
 
     subgraph APPROVED["Genehmigt"]
-        AP1["Status: Genehmigt"]
-        AP2["E-Mail an Antragsteller:<br/>Willkommen im Verein!"]
-        AP1 --> AP2
+        AP1["Admin unterschreibt digital<br/>(zeichnen / hochladen / gespeichert)"]
+        AP2["Kreuzunterschriebenes PDF erzeugt<br/>& in S3 gespeichert"]
+        AP3["E-Mail an Antragsteller:<br/>Willkommen + PDF-Anhang"]
+        AP1 --> AP2 --> AP3
     end
 
     subgraph DECLINED["Abgelehnt"]
-        DC1["Status: Abgelehnt"]
-        DC2["E-Mail an Antragsteller:<br/>Ablehnung"]
-        DC1 --> DC2
+        DC1["Admin gibt Begründung ein"]
+        DC2["E-Mail an Antragsteller:<br/>Ablehnung + Begründung"]
+        DC3["Status-Seite zeigt Begründung"]
+        DC1 --> DC2 --> DC3
     end
 
-    AP2 --> DONE([Mitglied ✓])
-    DC2 --> CLOSED([Antrag abgeschlossen])
+    AP3 --> DONE([Mitglied ✓])
+    DC3 --> CLOSED([Antrag abgeschlossen])
 ```
 
 Der Bearbeitungsstand kann jederzeit unter `/status` mit der Antragsnummer
 abgefragt werden (in jeder E-Mail enthalten).
+
+
+## Application Form Content
+
+- **Departments (Abteilungen)**: Fußball, Tischtennis, Volleyball, Gymnastik,
+  Yoga, Dart, Lauftreff, Sonstiges
+- **Fee categories**: Kinder, Jugendliche, Junge Erwachsene (bis 25 J.),
+  Erwachsene, Familie — with Stichtag 1. Januar
+- **Consent**: GDPR-compliant data processing consent; link to
+  sv-untereuerheim.de/datenschutz
+- **Withdrawal**: Austritt zum Jahresende, 6 Wochen Frist, in Textform
+  (E-Mail an mitgliedschaft@sv-untereuerheim.de oder postalisch)
 
 
 ## Fee Formatting
@@ -337,7 +396,7 @@ JSON strings (e.g. `"54.00"`).
 | GET    | /api/iban/lookup            | Validate IBAN, get BIC and bank |
 | GET    | /api/address/plz/{plz}      | Lookup city by PLZ              |
 | GET    | /api/address/streets        | Street autocomplete             |
-| GET    | /api/status/{antragsnummer} | Public status lookup            |
+| GET    | /api/status/{antragsnummer} | Public status lookup (incl. decline reason when abgelehnt) |
 | GET    | /api/upload/{token}         | Get upload info                 |
 | POST   | /api/upload/{token}         | Upload signed document          |
 
@@ -350,11 +409,19 @@ JSON strings (e.g. `"54.00"`).
 | GET    | /api/admin/me                              | Check authentication                |
 | GET    | /api/admin/applications                    | List applications                   |
 | GET    | /api/admin/applications/{id}               | Get single application              |
-| PATCH  | /api/admin/applications/{id}               | Update status/notes                 |
+| PATCH  | /api/admin/applications/{id}               | Update status/notes (incl. approve/deny) |
 | DELETE | /api/admin/applications/{id}               | Delete application                  |
 | POST   | /api/admin/applications/{id}/resend-email  | Resend emails (flow-aware)          |
 | GET    | /api/admin/applications/{id}/pdf           | Download PDF (signed if applicable) |
 | GET    | /api/admin/applications/{id}/upload        | View uploaded document              |
+| DELETE | /api/admin/applications/{id}/upload        | Delete uploaded document            |
+| GET    | /api/admin/applications/{id}/approved      | View approval document              |
+| DELETE | /api/admin/applications/{id}/approved      | Delete approval document            |
+| POST   | /api/admin/applications/{id}/admin-upload  | Admin upload of signed document     |
+| GET    | /api/admin/cancellation-documents          | List cancellation letters           |
+| GET    | /api/admin/cancellation-documents/{id}/download | Download cancellation letter     |
+| DELETE | /api/admin/cancellation-documents/{id}     | Delete cancellation letter          |
+| POST   | /api/admin/cancellation-pdf                | Generate cancellation letter PDF    |
 | GET    | /api/admin/export                          | CSV export                          |
 | GET    | /api/admin/settings                        | Get app settings                    |
 | PUT    | /api/admin/settings                        | Update app settings                 |
@@ -392,6 +459,13 @@ alternative to the print/sign/upload flow. Key implementation details:
   from Tigris rather than regenerating an unsigned blank form.
 - All file I/O (upload, download, delete) goes through `services/storage.py`,
   which wraps the Tigris S3-compatible API via boto3.
+
+**Approval document (`genehmigung_seite.html`)**
+- Formal "Bestätigung der Mitgliedschaft" with personalised salutation
+- Administrative hints: Satzung (PDF link), Mandatsreferenz, Datenänderungen
+- Contact: mitgliedschaft@sv-untereuerheim.de
+- White signature box with "Vorstandsmitglied Ressort Finanzen & Verwaltung"
+- Merged with the signed application PDF and stored as `{antragsnummer}_approved.pdf`
 
 **Email templates**
 - All templates receive a `signed_online` boolean.

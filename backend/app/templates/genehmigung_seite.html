@@ -26,37 +26,39 @@
     width: auto;
     margin-bottom: 6px;
   }
+  .confirmation-page {
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
   .confirmation-body {
-    margin: 24px 0;
-    line-height: 1.6;
+    margin: 16px 0 0 0;
+    line-height: 1.5;
   }
   .confirmation-body h2 {
     font-size: 14pt;
     color: #1a1a1a;
-    margin: 0 0 16px 0;
+    margin: 0 0 10px 0;
   }
   .confirmation-body p {
-    margin: 0 0 12px 0;
+    margin: 0 0 8px 0;
   }
   .confirmation-body ul {
-    margin: 12px 0;
+    margin: 8px 0;
     padding-left: 24px;
   }
   .confirmation-body li {
-    margin-bottom: 8px;
+    margin-bottom: 4px;
   }
   .confirmation-body a {
     color: #b91c1c;
     text-decoration: underline;
   }
   .approval-box {
-    margin-top: 32px;
-    padding: 24px;
+    margin-top: 20px;
+    padding: 16px;
     border: 1px solid #999;
     border-radius: 4px;
     background: #fff;
-    page-break-inside: avoid;
-    break-inside: avoid;
   }
   .approval-title {
     font-size: 12pt;
@@ -97,10 +99,11 @@
   <p style="font-size: 10pt; color: #666; margin: 4px 0 0 0;">Antragsnummer: {{ antragsnummer }}</p>
 </div>
 
+<div class="confirmation-page">
 <div class="confirmation-body">
   <h2>Bestätigung der Mitgliedschaft</h2>
 
-  <p>Sehr geehrte/r <strong>{{ applicant_name }}</strong>,</p>
+  <p>Guten Tag <strong>{{ applicant_name }}</strong>,</p>
 
   <p>wir bestätigen hiermit offiziell die Annahme Ihres Aufnahmeantrags. Ihr Antrag (Antragsnummer: {{ antragsnummer }}) wurde durch das Ressort Finanzen &amp; Verwaltung geprüft und formell genehmigt.</p>
 
@@ -128,6 +131,7 @@
     <img src="{{ admin_unterschrift_base64 }}" alt="Unterschrift">
     <div class="sig-label">Vorstandsmitglied Ressort Finanzen &amp; Verwaltung</div>
   </div>
+</div>
 </div>
 
 <div class="footer">
