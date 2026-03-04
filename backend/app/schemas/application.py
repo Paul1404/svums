@@ -12,6 +12,9 @@ VALID_ABTEILUNGEN = [
     "Kinderturnen",
     "Korbball",
     "Tischtennis",
+    "Yoga",
+    "Dart",
+    "Lauftreff",
     "Keine Abteilung",
 ]
 

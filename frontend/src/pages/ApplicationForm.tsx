@@ -30,6 +30,9 @@ const ABTEILUNGEN = [
   "Kinderturnen",
   "Korbball",
   "Tischtennis",
+  "Yoga",
+  "Dart",
+  "Lauftreff",
   "Keine Abteilung",
 ];
 
