@@ -252,19 +252,13 @@ async def update_application(
             )
         approval_datum = datetime.now().strftime("%d.%m.%Y")
         antragsnummer = app.antragsnummer or f"ANT-{app.id}"
-        # applicant_name for salutation: "Herr Nachname" / "Frau Nachname" / "Vorname Nachname"
+        # applicant_name for "Guten Tag X," - gender-neutral full name
         # For Kind applications, use parent (Erziehungsberechtigte/r) as contact
         antragstyp = app.antragstyp or "einzel"
         if antragstyp == "kind" and (app.erziehungsberechtigter_vorname or app.erziehungsberechtigter_nachname):
             applicant_name = f"{app.erziehungsberechtigter_vorname or ''} {app.erziehungsberechtigter_nachname or ''}".strip()
         else:
-            geschlecht = app.geschlecht or ""
-            if geschlecht == "Herr":
-                applicant_name = f"Herr {app.nachname}"
-            elif geschlecht == "Frau":
-                applicant_name = f"Frau {app.nachname}"
-            else:
-                applicant_name = f"{app.vorname} {app.nachname}"
+            applicant_name = f"{app.vorname} {app.nachname}"
         approval_page_bytes = generate_approval_page(
             admin_unterschrift_base64=effective_sig,
             approval_datum=approval_datum,
