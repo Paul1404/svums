@@ -33,6 +33,7 @@ const ABTEILUNGEN = [
   "Yoga",
   "Dart",
   "Lauftreff",
+  "PingPongParkinson",
   "Keine Abteilung",
 ];
 
