@@ -15,6 +15,7 @@ VALID_ABTEILUNGEN = [
     "Yoga",
     "Dart",
     "Lauftreff",
+    "PingPongParkinson",
     "Keine Abteilung",
 ]
 

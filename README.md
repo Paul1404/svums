@@ -361,8 +361,8 @@ abgefragt werden (in jeder E-Mail enthalten).
 
 ## Application Form Content
 
-- **Departments (Abteilungen)**: Fußball, Tischtennis, Volleyball, Gymnastik,
-  Yoga, Dart, Lauftreff, Sonstiges
+- **Departments (Abteilungen)**: Fußball, Gymnastik, Combo, Kinderturnen,
+  Korbball, Tischtennis, Yoga, Dart, Lauftreff, PingPongParkinson, Keine Abteilung
 - **Fee categories**: Kinder, Jugendliche, Junge Erwachsene (bis 25 J.),
   Erwachsene, Familie — with Stichtag 1. Januar
 - **Consent**: GDPR-compliant data processing consent; link to
