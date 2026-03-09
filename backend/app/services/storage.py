@@ -63,3 +63,12 @@ def file_exists(filename: str) -> bool:
         return True
     except ClientError:
         return False
+
+
+def collect_application_storage_keys(application) -> list[str]:
+    keys: list[str] = []
+    for attr_name in ("uploaded_file", "admin_approved_file"):
+        key = getattr(application, attr_name, None)
+        if key and key not in keys:
+            keys.append(key)
+    return keys

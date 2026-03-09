@@ -24,6 +24,7 @@ from app.services.fees import calculate_fee, determine_mitgliedschaft_typ, calcu
 from app.services.pdf import generate_pdf
 from app.services.email import send_application_email, send_upload_notification
 from app.services.crypto import encrypt_iban, decrypt_iban
+from app.services.urls import build_public_url, public_host_display
 
 logger = logging.getLogger(__name__)
 
@@ -78,7 +79,10 @@ def _build_application_data(app: MembershipApplication) -> dict:
         "mandatsreferenz": app.mandatsreferenz or "",
         "glaeubiger_id": "DE71ZZZ00000901082",
         "upload_token": app.upload_token or "",
-        "upload_url": f"https://svums.sv-untereuerheim.de/upload/{app.upload_token}" if app.upload_token else "",
+        "upload_url": build_public_url(f"/upload/{app.upload_token}") if app.upload_token else "",
+        "status_url": build_public_url(f"/status?nr={app.antragsnummer}") if app.antragsnummer else "",
+        "logo_url": build_public_url("/logo_svu-241x300.png"),
+        "site_host_display": public_host_display(),
         "vorname": app.vorname,
         "nachname": app.nachname,
         "geburtsdatum": app.geburtsdatum,
@@ -343,7 +347,7 @@ async def submit_application(
         id=application.id,
         antragsnummer=application.antragsnummer,
         mandatsreferenz=application.mandatsreferenz,
-        upload_url=f"https://svums.sv-untereuerheim.de/upload/{application.upload_token}",
+        upload_url=build_public_url(f"/upload/{application.upload_token}"),
         message="Ihre Beitrittserklärung wurde erfolgreich eingereicht.",
     )
 
@@ -410,7 +414,7 @@ async def check_duplicate(
 ):
     """Check if an application with the same name and DOB already exists."""
     existing = (
-        db.query(MembershipApplication.id, MembershipApplication.antragsnummer, MembershipApplication.status)
+        db.query(MembershipApplication.id)
         .filter(
             func.lower(MembershipApplication.vorname) == vorname.strip().lower(),
             func.lower(MembershipApplication.nachname) == nachname.strip().lower(),
@@ -419,11 +423,7 @@ async def check_duplicate(
         .first()
     )
     if existing:
-        return {
-            "duplicate": True,
-            "antragsnummer": existing.antragsnummer,
-            "status": existing.status,
-        }
+        return {"duplicate": True}
     return {"duplicate": False}
 
 
@@ -645,8 +645,6 @@ async def lookup_status(antragsnummer: str, db: Session = Depends(get_db)):
 
     result = {
         "antragsnummer": app.antragsnummer,
-        "vorname": app.vorname,
-        "nachname": app.nachname,
         "status": app.status,
         "status_label": STATUS_LABELS.get(app.status, app.status),
         "created_at": app.created_at.isoformat() if app.created_at else None,
