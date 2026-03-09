@@ -6,6 +6,7 @@ import {
   updateSettings,
   testSmtp,
   type SettingsData,
+  type SettingsUpdateData,
 } from "../services/api";
 import {
   ArrowLeft,
@@ -24,6 +25,8 @@ export default function AdminSettings() {
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
   const [testEmail, setTestEmail] = useState("");
+  const [smtpPassword, setSmtpPassword] = useState("");
+  const [clearStoredPassword, setClearStoredPassword] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [sigUploading, setSigUploading] = useState(false);
 
@@ -41,8 +44,25 @@ export default function AdminSettings() {
     if (!settings) return;
     setSaving(true);
     try {
-      const updated = await updateSettings(settings);
+      const payload: SettingsUpdateData = {
+        smtp_host: settings.smtp_host,
+        smtp_port: settings.smtp_port,
+        smtp_user: settings.smtp_user,
+        smtp_from: settings.smtp_from,
+        smtp_use_tls: settings.smtp_use_tls,
+        notification_email: settings.notification_email,
+        admin_signature_base64: settings.admin_signature_base64,
+      };
+      if (smtpPassword) {
+        payload.smtp_password = smtpPassword;
+      }
+      if (clearStoredPassword) {
+        payload.clear_smtp_password = true;
+      }
+      const updated = await updateSettings(payload);
       setSettings(updated);
+      setSmtpPassword("");
+      setClearStoredPassword(false);
       toast.success("Einstellungen gespeichert");
     } catch (err: any) {
       toast.error(err.message);
@@ -170,14 +190,18 @@ export default function AdminSettings() {
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Passwort
+                  Neues Passwort
                 </label>
                 <div className="relative">
                   <input
                     type={showPassword ? "text" : "password"}
-                    value={settings.smtp_password}
-                    onChange={(e) => update("smtp_password", e.target.value)}
+                    value={smtpPassword}
+                    onChange={(e) => {
+                      setSmtpPassword(e.target.value);
+                      if (e.target.value) setClearStoredPassword(false);
+                    }}
                     className="w-full px-3 py-2 pr-10 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-svu-500 focus:border-svu-500 outline-none"
+                    placeholder={settings.smtp_password_configured ? "Gespeichertes Passwort ersetzen" : "SMTP-Passwort eingeben"}
                   />
                   <button
                     type="button"
@@ -190,6 +214,30 @@ export default function AdminSettings() {
                       <Eye className="w-4 h-4" />
                     )}
                   </button>
+                </div>
+                <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
+                  <span className={settings.smtp_password_configured && !clearStoredPassword ? "text-green-700" : "text-gray-500"}>
+                    {settings.smtp_password_configured && !clearStoredPassword
+                      ? "Ein SMTP-Passwort ist gespeichert."
+                      : "Kein SMTP-Passwort gespeichert."}
+                  </span>
+                  {settings.smtp_password_configured && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setClearStoredPassword((prev) => !prev);
+                        setSmtpPassword("");
+                      }}
+                      className={`inline-flex items-center gap-1 rounded-lg border px-2 py-1 ${
+                        clearStoredPassword
+                          ? "border-red-300 bg-red-50 text-red-700"
+                          : "border-gray-300 text-gray-600 hover:bg-gray-50"
+                      }`}
+                    >
+                      <Trash2 className="w-3 h-3" />
+                      {clearStoredPassword ? "Passwort wird entfernt" : "Gespeichertes Passwort entfernen"}
+                    </button>
+                  )}
                 </div>
               </div>
             </div>

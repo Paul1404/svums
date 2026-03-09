@@ -6,7 +6,7 @@ class SettingsResponse(BaseModel):
     smtp_host: Optional[str] = ""
     smtp_port: Optional[int] = 587
     smtp_user: Optional[str] = ""
-    smtp_password: Optional[str] = ""
+    smtp_password_configured: bool = False
     smtp_from: Optional[str] = ""
     smtp_use_tls: bool = True
     notification_email: str = "mitgliedschaft@sv-untereuerheim.de"
@@ -20,6 +20,7 @@ class SettingsUpdate(BaseModel):
     smtp_port: Optional[int] = None
     smtp_user: Optional[str] = None
     smtp_password: Optional[str] = None
+    clear_smtp_password: bool = False
     smtp_from: Optional[str] = None
     smtp_use_tls: Optional[bool] = None
     notification_email: Optional[str] = None

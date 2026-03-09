@@ -685,7 +685,7 @@ export default function ApplicationForm() {
           setDuplicateChecked(true);
           setSubmitting(false);
           toast.warning(
-            `Es existiert bereits ein Antrag (${dupResult.antragsnummer || "unbekannt"}, Status: ${dupResult.status || "unbekannt"}) mit gleichem Namen und Geburtsdatum. Klicken Sie erneut auf "Beitritt erklären", um dennoch fortzufahren.`,
+            'Es könnte bereits ein Antrag mit gleichem Namen und Geburtsdatum existieren. Klicken Sie erneut auf "Beitritt erklären", um dennoch fortzufahren.',
             { duration: 10000 }
           );
           return;

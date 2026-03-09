@@ -1,7 +1,5 @@
 import logging
 import secrets
-import time
-from collections import defaultdict
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -11,13 +9,11 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from app.config import get_settings
-from app.database import Base, engine
+from app.database import Base, SessionLocal, engine
 from app.routers import admin, address, public
+from app.services.rate_limit import consume_rate_limit, normalize_client_ip
 
 logger = logging.getLogger(__name__)
-
-# Rate limiting storage
-_rate_limit_store: dict[str, list[float]] = defaultdict(list)
 
 
 @asynccontextmanager
@@ -139,26 +135,26 @@ app = FastAPI(
 async def rate_limit_middleware(request: Request, call_next):
     """Rate limit on /api/apply — 3 requests per 10 minutes per IP."""
     if request.url.path == "/api/apply" and request.method == "POST":
-        client_ip = request.headers.get("x-forwarded-for", request.client.host)
-        now = time.time()
-        window = 600  # 10 minutes
-        max_requests = 3
-        key = f"apply:{client_ip}"
+        db = SessionLocal()
+        try:
+            client_ip = normalize_client_ip(request.client.host if request.client else None)
+            decision = consume_rate_limit(
+                db,
+                scope="apply",
+                key=client_ip,
+                limit=3,
+                window_seconds=600,
+            )
+        finally:
+            db.close()
 
-        # Clean old entries
-        _rate_limit_store[key] = [
-            t for t in _rate_limit_store[key] if now - t < window
-        ]
-
-        if len(_rate_limit_store[key]) >= max_requests:
+        if not decision.allowed:
             return JSONResponse(
                 status_code=429,
                 content={
                     "detail": "Zu viele Anfragen. Bitte versuchen Sie es in einigen Minuten erneut."
                 },
             )
-
-        _rate_limit_store[key].append(now)
 
     response = await call_next(request)
     return response
@@ -185,7 +181,6 @@ async def security_headers_middleware(request: Request, call_next):
     response = await call_next(request)
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["X-Frame-Options"] = "DENY"
-    response.headers["X-XSS-Protection"] = "1; mode=block"
     response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
     return response
 

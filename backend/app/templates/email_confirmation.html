@@ -42,7 +42,7 @@
   <!-- Header -->
   <tr>
     <td align="center" style="background-color: #b91c1c; padding: 28px 24px;">
-      <img src="https://svums.sv-untereuerheim.de/logo_svu-241x300.png" alt="SVU Logo" width="45" height="56" style="width: 45px; height: 56px; margin-bottom: 10px;">
+      <img src="{{ logo_url }}" alt="SVU Logo" width="45" height="56" style="width: 45px; height: 56px; margin-bottom: 10px;">
       <table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr><td style="font-family: 'Segoe UI', Arial, sans-serif; font-size: 20px; font-weight: 700; color: #ffffff; text-align: center;">Sportverein 1945 Untereuerheim e.V.</td></tr></table>
       <table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr><td style="font-family: 'Segoe UI', Arial, sans-serif; font-size: 13px; color: #fecaca; text-align: center; padding-top: 4px;">{% if signed_online %}Online-Unterschrift bestätigt{% else %}Bestätigung Ihrer Beitrittserklärung{% endif %}</td></tr></table>
       <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin-top: 10px;"><tr><td style="font-family: 'Consolas', 'Courier New', monospace; font-size: 12px; color: #ffffff; background-color: #991b1b; padding: 4px 14px; text-align: center;">{{ antragsnummer }}</td></tr></table>
@@ -213,7 +213,7 @@
       <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin: 20px 0;">
         <tr><td align="center" style="background-color: #f3f4f6; border: 1px solid #e5e7eb; padding: 16px;">
           <span style="font-family: 'Segoe UI', Arial, sans-serif; font-size: 13px; color: #6b7280;">Sie können den Bearbeitungsstand jederzeit online prüfen:</span><br>
-          <a href="https://svums.sv-untereuerheim.de/status?nr={{ antragsnummer }}" style="font-family: 'Segoe UI', Arial, sans-serif; font-size: 14px; color: #b91c1c; font-weight: 700; text-decoration: none;">Status prüfen &rarr;</a>
+          <a href="{{ status_url }}" style="font-family: 'Segoe UI', Arial, sans-serif; font-size: 14px; color: #b91c1c; font-weight: 700; text-decoration: none;">Status prüfen &rarr;</a>
         </td></tr>
       </table>
 
