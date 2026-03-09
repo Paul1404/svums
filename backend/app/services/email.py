@@ -7,6 +7,8 @@ from pathlib import Path
 import aiosmtplib
 from jinja2 import Environment, FileSystemLoader
 
+from app.services.urls import build_public_url, public_host_display
+
 logger = logging.getLogger(__name__)
 
 TEMPLATE_DIR = Path(__file__).parent.parent / "templates"
@@ -156,7 +158,7 @@ async def send_upload_notification(
             f"<p><strong>{nachname}, {vorname}</strong> hat das unterschriebene "
             f"Dokument für Antrag <code>{antragsnummer}</code> hochgeladen.</p>"
             f"<p>Datei: <code>{filename}</code></p>"
-            f"<p><a href='https://svums.sv-untereuerheim.de/admin'>Zum Admin-Panel &rarr;</a></p>"
+            f"<p><a href='{build_public_url('/admin')}'>Zum Admin-Panel &rarr;</a></p>"
         )
         msg.attach(MIMEText(html, "html", "utf-8"))
 
@@ -201,8 +203,10 @@ async def send_status_email(
             anrede=anrede or f"Hallo {vorname}",
             antragsnummer=antragsnummer,
             status=status,
-            status_url=f"https://svums.sv-untereuerheim.de/status?nr={antragsnummer}",
+            status_url=build_public_url(f"/status?nr={antragsnummer}"),
             decline_reason=decline_reason or "",
+            logo_url=build_public_url("/logo_svu-241x300.png"),
+            site_host_display=public_host_display(),
         )
 
         subject_map = {

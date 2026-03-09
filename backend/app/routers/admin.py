@@ -42,11 +42,20 @@ from app.services.pdf import (
 from app.services.crypto import decrypt_iban
 from app.services.email import send_status_email
 from app.services import storage
+from app.services.rate_limit import (
+    is_rate_limited,
+    normalize_client_ip,
+    record_failed_attempt,
+    reset_rate_limit,
+)
 from app.routers.public import _build_application_data, _compute_anrede, _format_iban, _send_email_task
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
+ADMIN_LOGIN_WINDOW_SECONDS = 15 * 60
+ADMIN_LOGIN_LIMIT = 5
+ADMIN_LOGIN_BLOCK_SECONDS = 30 * 60
 
 
 def _validate_filename(filename: str) -> None:
@@ -126,14 +135,59 @@ def _get_or_create_settings(db: Session) -> AppSettings:
     return settings
 
 
+def _serialize_settings(settings: AppSettings) -> SettingsResponse:
+    return SettingsResponse(
+        smtp_host=settings.smtp_host,
+        smtp_port=settings.smtp_port,
+        smtp_user=settings.smtp_user,
+        smtp_password_configured=bool(settings.smtp_password),
+        smtp_from=settings.smtp_from,
+        smtp_use_tls=settings.smtp_use_tls,
+        notification_email=settings.notification_email,
+        admin_signature_base64=settings.admin_signature_base64,
+    )
+
+
 # --- Auth ---
 
 @router.post("/login")
-async def admin_login(data: AdminLoginRequest, response: Response):
+async def admin_login(
+    data: AdminLoginRequest,
+    request: Request,
+    response: Response,
+    db: Session = Depends(get_db),
+):
     settings = get_settings()
+    client_ip = normalize_client_ip(request.client.host if request.client else None)
+    limit_status = is_rate_limited(
+        db,
+        scope="admin_login",
+        key=client_ip,
+        window_seconds=ADMIN_LOGIN_WINDOW_SECONDS,
+    )
+    if not limit_status.allowed:
+        raise HTTPException(
+            status_code=429,
+            detail="Zu viele fehlgeschlagene Anmeldeversuche. Bitte versuchen Sie es später erneut.",
+        )
+
     if data.password != settings.admin_password:
+        failure_status = record_failed_attempt(
+            db,
+            scope="admin_login",
+            key=client_ip,
+            limit=ADMIN_LOGIN_LIMIT,
+            window_seconds=ADMIN_LOGIN_WINDOW_SECONDS,
+            block_seconds=ADMIN_LOGIN_BLOCK_SECONDS,
+        )
+        if not failure_status.allowed:
+            raise HTTPException(
+                status_code=429,
+                detail="Zu viele fehlgeschlagene Anmeldeversuche. Bitte versuchen Sie es später erneut.",
+            )
         raise HTTPException(status_code=401, detail="Falsches Passwort")
 
+    reset_rate_limit(db, scope="admin_login", key=client_ip)
     serializer = get_serializer(settings)
     token = serializer.dumps({"admin": True})
 
@@ -384,8 +438,20 @@ async def delete_application(
     if not app:
         raise HTTPException(status_code=404, detail="Antrag nicht gefunden")
 
+    storage_keys = storage.collect_application_storage_keys(app)
     db.delete(app)
     db.commit()
+
+    for key in storage_keys:
+        try:
+            storage.delete_file(key)
+        except Exception as exc:
+            logger.error(
+                "Failed to delete storage object after application deletion: app_id=%s key=%s error=%s",
+                application_id,
+                key,
+                exc,
+            )
     return {"message": "Antrag gelöscht"}
 
 
@@ -692,7 +758,7 @@ async def get_admin_settings(
     db: Session = Depends(get_db),
 ):
     settings = _get_or_create_settings(db)
-    return SettingsResponse.model_validate(settings)
+    return _serialize_settings(settings)
 
 
 @router.put("/settings", response_model=SettingsResponse)
@@ -704,12 +770,20 @@ async def update_admin_settings(
     settings = _get_or_create_settings(db)
 
     update_data = data.model_dump(exclude_unset=True)
+    clear_smtp_password = update_data.pop("clear_smtp_password", False)
+    smtp_password = update_data.pop("smtp_password", None)
+
     for key, value in update_data.items():
         setattr(settings, key, value)
 
+    if clear_smtp_password:
+        settings.smtp_password = ""
+    elif smtp_password:
+        settings.smtp_password = smtp_password
+
     db.commit()
     db.refresh(settings)
-    return SettingsResponse.model_validate(settings)
+    return _serialize_settings(settings)
 
 
 @router.post("/settings/test-smtp")

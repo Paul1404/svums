@@ -165,12 +165,9 @@ export default function StatusPage() {
                   {data.antragsnummer}
                 </p>
               </div>
-              <div className="text-right">
-                <span className="text-xs text-gray-500">Antragsteller</span>
-                <p className="font-medium text-gray-900">
-                  {data.nachname}, {data.vorname}
-                </p>
-              </div>
+              <span className="text-sm font-medium text-gray-600">
+                {data.status_label}
+              </span>
             </div>
 
             <div className="p-6">

@@ -85,8 +85,6 @@ export interface ApplicationListResponse {
 
 export interface StatusLookupResponse {
   antragsnummer: string;
-  vorname: string;
-  nachname: string;
   status: string;
   status_label: string;
   created_at: string | null;
@@ -113,11 +111,23 @@ export interface SettingsData {
   smtp_host: string;
   smtp_port: number;
   smtp_user: string;
-  smtp_password: string;
+  smtp_password_configured: boolean;
   smtp_from: string;
   smtp_use_tls: boolean;
   notification_email: string;
   admin_signature_base64: string | null;
+}
+
+export interface SettingsUpdateData {
+  smtp_host?: string;
+  smtp_port?: number;
+  smtp_user?: string;
+  smtp_password?: string;
+  clear_smtp_password?: boolean;
+  smtp_from?: string;
+  smtp_use_tls?: boolean;
+  notification_email?: string;
+  admin_signature_base64?: string | null;
 }
 
 export interface CancellationLetterResponse {
@@ -285,7 +295,7 @@ export async function checkDuplicate(
   vorname: string,
   nachname: string,
   geburtsdatum: string
-): Promise<{ duplicate: boolean; antragsnummer?: string; status?: string }> {
+): Promise<{ duplicate: boolean }> {
   const params = new URLSearchParams({ vorname, nachname, geburtsdatum });
   return apiRequest(`/api/check-duplicate?${params}`);
 }
@@ -407,7 +417,7 @@ export async function getSettings(): Promise<SettingsData> {
 }
 
 export async function updateSettings(
-  data: Partial<SettingsData>
+  data: SettingsUpdateData
 ): Promise<SettingsData> {
   return apiRequest("/api/admin/settings", {
     method: "PUT",
