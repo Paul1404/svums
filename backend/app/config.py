@@ -12,11 +12,13 @@ class Settings(BaseSettings):
 
     # CORS
     cors_origins: str = "https://svums.sv-untereuerheim.de"
+    public_base_url: str = "https://svums.sv-untereuerheim.de"
 
     # Cookie settings
     cookie_secure: bool = True
     cookie_name: str = "svums_admin_session"
     session_max_age: int = 86400  # 24 hours
+    forwarded_allow_ips: str = "127.0.0.1,::1"
     allow_insecure_defaults: bool = False
 
     model_config = {"env_prefix": "", "case_sensitive": False}

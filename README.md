@@ -97,7 +97,7 @@ built-in admin panel.
 - Upload token expiry (30 days)
 - Non-sequential, random Antragsnummer (prevents enumeration)
 - Secure session cookies (HttpOnly, Secure, SameSite)
-- Security headers (X-Content-Type-Options, X-Frame-Options, X-XSS-Protection)
+- Security headers (X-Content-Type-Options, X-Frame-Options, Referrer-Policy)
 - Non-root container user
 
 
@@ -186,7 +186,8 @@ flyctl apps create svums --org personal
 flyctl secrets set \
   DATABASE_URL="postgresql://..." \
   ADMIN_PASSWORD="your-secure-password" \
-  COOKIE_SECRET="your-random-secret-min-32-chars"
+  COOKIE_SECRET="your-random-secret-min-32-chars" \
+  PUBLIC_BASE_URL="https://svums.sv-untereuerheim.de"
 
 # Provision Tigris object storage (sets S3 secrets automatically)
 flyctl storage create -a svums
@@ -225,6 +226,7 @@ table in Neon and survive restarts and redeployments.
 | `DATABASE_URL` | `flyctl secrets set` | Neon connection string |
 | `ADMIN_PASSWORD` | `flyctl secrets set` | Admin panel password |
 | `COOKIE_SECRET` | `flyctl secrets set` | Session signing key (min 32 chars) |
+| `PUBLIC_BASE_URL` | `flyctl secrets set` or `fly.toml [env]` | Absolute base URL used in emails and upload/status links |
 | `AWS_ACCESS_KEY_ID` | auto (Tigris) | Set by `flyctl storage create` |
 | `AWS_SECRET_ACCESS_KEY` | auto (Tigris) | Set by `flyctl storage create` |
 | `AWS_ENDPOINT_URL_S3` | auto (Tigris) | Set by `flyctl storage create` |
@@ -233,6 +235,7 @@ table in Neon and survive restarts and redeployments.
 | `CORS_ORIGINS` | `fly.toml [env]` | Allowed CORS origins |
 | `COOKIE_SECURE` | `fly.toml [env]` | Set to `true` in production |
 | `COOKIE_NAME` | `fly.toml [env]` | Session cookie name |
+| `FORWARDED_ALLOW_IPS` | `fly.toml [env]` | Trusted proxy IPs/CIDRs for forwarded headers |
 
 ### First-Time Setup
 
@@ -491,6 +494,7 @@ source venv/bin/activate
 pip install -r requirements.txt
 ADMIN_PASSWORD=dev COOKIE_SECRET=dev-secret-key-at-least-32-chars \
   COOKIE_SECURE=false CORS_ORIGINS=http://localhost:5173 \
+  PUBLIC_BASE_URL=http://localhost:5173 FORWARDED_ALLOW_IPS=127.0.0.1,::1 \
   uvicorn app.main:app --reload --port 8000
 
 # Frontend (separate terminal)

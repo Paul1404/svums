@@ -42,7 +42,7 @@
   <!-- Header -->
   <tr>
     <td align="center" style="background-color: #b91c1c; padding: 28px 24px;">
-      <img src="https://svums.sv-untereuerheim.de/logo_svu-241x300.png" alt="SVU Logo" width="45" height="56" style="width: 45px; height: 56px; margin-bottom: 10px;">
+      <img src="{{ logo_url }}" alt="SVU Logo" width="45" height="56" style="width: 45px; height: 56px; margin-bottom: 10px;">
       <table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr><td style="font-family: 'Segoe UI', Arial, sans-serif; font-size: 20px; font-weight: 700; color: #ffffff; text-align: center;">Sportverein 1945 Untereuerheim e.V.</td></tr></table>
       <table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr><td style="font-family: 'Segoe UI', Arial, sans-serif; font-size: 13px; color: #fecaca; text-align: center; padding-top: 4px;">Neue Beitrittserklärung eingegangen</td></tr></table>
       <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin-top: 10px;"><tr><td style="font-family: 'Consolas', 'Courier New', monospace; font-size: 12px; color: #ffffff; background-color: #991b1b; padding: 4px 14px; text-align: center;">{{ antragsnummer }}</td></tr></table>
@@ -172,7 +172,7 @@
       <!-- Meta -->
       <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
         <tr><td align="center" style="background-color: #f9fafb; padding: 12px 16px; font-family: 'Segoe UI', Arial, sans-serif; font-size: 12px; color: #9ca3af;">
-          Eingereicht am {{ datum }} über svums.sv-untereuerheim.de<br>
+          Eingereicht am {{ datum }} über {{ site_host_display }}<br>
           {% if signed_online %}Unterschriebene PDF-Beitrittserklärung ist als Anhang beigefügt.{% else %}PDF-Beitrittserklärung ist als Anhang beigefügt.{% endif %}
         </td></tr>
       </table>
