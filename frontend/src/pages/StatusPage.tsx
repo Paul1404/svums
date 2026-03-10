@@ -10,7 +10,12 @@ import {
   ArrowLeft,
   Loader2,
 } from "lucide-react";
-import { lookupStatus, type StatusLookupResponse } from "../services/api";
+import { ApiError, lookupStatus, type StatusLookupResponse } from "../services/api";
+import {
+  captureEvent,
+  identifyApplicant,
+  normalizeFailureReason,
+} from "../lib/analytics";
 
 const STEPS = [
   {
@@ -68,11 +73,24 @@ export default function StatusPage() {
     setError("");
     setData(null);
     setSearched(true);
+    captureEvent("membership_status_lookup_requested", {
+      app_area: "public",
+      prefilled_query: Boolean(nr || searchParams.get("nr")),
+    });
 
     try {
       const result = await lookupStatus(query);
       setData(result);
+      identifyApplicant(result.antragsnummer, { app_area: "public" });
     } catch (err: any) {
+      captureEvent("membership_status_lookup_failed", {
+        app_area: "public",
+        http_status: err instanceof ApiError ? err.status : null,
+        reason:
+          err instanceof ApiError
+            ? normalizeFailureReason(err.status)
+            : "server_error",
+      });
       setError(
         err.message?.includes("404")
           ? "Antragsnummer nicht gefunden. Bitte überprüfen Sie die Eingabe."

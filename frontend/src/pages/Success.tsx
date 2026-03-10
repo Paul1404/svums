@@ -1,7 +1,9 @@
 import { useLocation, useNavigate, Link } from "react-router-dom";
+import { useEffect } from "react";
 import { toast } from "sonner";
 import { CheckCircle2, ArrowLeft, Printer, Mail, Upload, Copy } from "lucide-react";
 import { formatFee } from "../services/api";
+import { captureEvent, identifyApplicant } from "../lib/analytics";
 
 export default function Success() {
   const location = useLocation();
@@ -31,6 +33,17 @@ export default function Success() {
       </div>
     );
   }
+
+  useEffect(() => {
+    if (!state?.antragsnummer) return;
+    identifyApplicant(state.antragsnummer, { app_area: "public" });
+    captureEvent("membership_success_viewed", {
+      app_area: "public",
+      signed_online: Boolean(state.signedOnline),
+      has_upload_url: Boolean(state.upload_url),
+      antragsnummer: state.antragsnummer,
+    });
+  }, [state?.antragsnummer, state?.signedOnline, state?.upload_url]);
 
   return (
     <div className="min-h-screen bg-gray-50">

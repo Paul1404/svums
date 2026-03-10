@@ -1,4 +1,5 @@
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import React from "react";
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { Toaster } from "sonner";
 import ApplicationForm from "./pages/ApplicationForm";
 import Success from "./pages/Success";
@@ -12,6 +13,7 @@ import AdminCancellation from "./pages/AdminCancellation";
 import AdminEmailLog from "./pages/AdminEmailLog";
 import AdminDocuments from "./pages/AdminDocuments";
 import { AdminProvider, useAdmin } from "./context/AdminContext";
+import { capturePageView } from "./lib/analytics";
 
 function AdminRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, isLoading } = useAdmin();
@@ -89,9 +91,66 @@ function AdminRoutes() {
   );
 }
 
+function RouteAnalytics() {
+  const location = useLocation();
+
+  React.useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const state = (location.state ?? {}) as { signedOnline?: boolean } | null;
+    let routeName: string | null = null;
+    let appArea: "public" | "admin" | null = null;
+
+    if (location.pathname === "/") {
+      routeName = "application_form";
+      appArea = "public";
+    } else if (location.pathname === "/erfolg") {
+      routeName = "success";
+      appArea = "public";
+    } else if (location.pathname.startsWith("/upload/")) {
+      routeName = "upload";
+      appArea = "public";
+    } else if (location.pathname === "/status") {
+      routeName = "status";
+      appArea = "public";
+    } else if (location.pathname === "/admin/login") {
+      routeName = "admin_login";
+      appArea = "admin";
+    } else if (location.pathname === "/admin") {
+      routeName = "admin_dashboard";
+      appArea = "admin";
+    } else if (location.pathname.startsWith("/admin/applications/")) {
+      routeName = "admin_application_detail";
+      appArea = "admin";
+    } else if (location.pathname === "/admin/settings") {
+      routeName = "admin_settings";
+      appArea = "admin";
+    } else if (location.pathname === "/admin/cancellation") {
+      routeName = "admin_cancellation";
+      appArea = "admin";
+    } else if (location.pathname === "/admin/email-log") {
+      routeName = "admin_email_log";
+      appArea = "admin";
+    } else if (location.pathname === "/admin/documents") {
+      routeName = "admin_documents";
+      appArea = "admin";
+    }
+
+    if (!routeName || !appArea) return;
+
+    capturePageView(routeName, {
+      app_area: appArea,
+      has_query_nr: location.pathname === "/status" ? params.has("nr") : undefined,
+      signed_online: location.pathname === "/erfolg" ? Boolean(state?.signedOnline) : undefined,
+    });
+  }, [location.pathname, location.search, location.state]);
+
+  return null;
+}
+
 export default function App() {
   return (
     <BrowserRouter>
+      <RouteAnalytics />
       <Toaster position="top-right" richColors />
       <Routes>
         <Route path="/" element={<ApplicationForm />} />
