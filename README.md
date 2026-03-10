@@ -235,6 +235,8 @@ table in Neon and survive restarts and redeployments.
 | `CORS_ORIGINS` | `fly.toml [env]` | Allowed CORS origins |
 | `COOKIE_SECURE` | `fly.toml [env]` | Set to `true` in production |
 | `COOKIE_NAME` | `fly.toml [env]` | Session cookie name |
+| `POSTHOG_KEY` | `flyctl secrets set` | PostHog project API key (optional; analytics disabled if unset) |
+| `POSTHOG_HOST` | `fly.toml [env]` | PostHog host, default `https://eu.i.posthog.com` (optional) |
 | `FORWARDED_ALLOW_IPS` | `fly.toml [env]` | Trusted proxy IPs/CIDRs for forwarded headers |
 
 ### First-Time Setup
