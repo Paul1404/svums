@@ -14,6 +14,10 @@ class Settings(BaseSettings):
     cors_origins: str = "https://svums.sv-untereuerheim.de"
     public_base_url: str = "https://svums.sv-untereuerheim.de"
 
+    # PostHog
+    posthog_key: str = ""
+    posthog_host: str = "https://eu.i.posthog.com"
+
     # Cookie settings
     cookie_secure: bool = True
     cookie_name: str = "svums_admin_session"

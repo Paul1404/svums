@@ -6,6 +6,7 @@ import uuid
 from datetime import date, datetime
 from pathlib import Path
 
+from app.services.posthog import capture as posthog_capture
 from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, Request, Response, UploadFile
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
@@ -191,6 +192,8 @@ async def admin_login(
     serializer = get_serializer(settings)
     token = serializer.dumps({"admin": True})
 
+    posthog_capture("admin_login", "admin")
+
     response.set_cookie(
         key=settings.cookie_name,
         value=token,
@@ -206,6 +209,7 @@ async def admin_login(
 @router.post("/logout")
 async def admin_logout(response: Response):
     settings = get_settings()
+    posthog_capture("admin_logout", "admin")
     response.delete_cookie(key=settings.cookie_name, path="/")
     return {"message": "Abgemeldet"}
 
@@ -358,8 +362,31 @@ async def update_application(
     db.commit()
     db.refresh(app)
 
-    # Send status email to applicant on approve/decline
+    # Track status changes for approve/decline
     new_status = app.status
+    if new_status != old_status:
+        if new_status == "genehmigt":
+            posthog_capture(
+                "membership_application_approved",
+                "admin",
+                properties={
+                    "antragsnummer": app.antragsnummer,
+                    "antragstyp": app.antragstyp or "einzel",
+                    "mitgliedschaft_typ": app.mitgliedschaft_typ,
+                },
+            )
+        elif new_status == "abgelehnt":
+            posthog_capture(
+                "membership_application_rejected",
+                "admin",
+                properties={
+                    "antragsnummer": app.antragsnummer,
+                    "antragstyp": app.antragstyp or "einzel",
+                    "mitgliedschaft_typ": app.mitgliedschaft_typ,
+                },
+            )
+
+    # Send status email to applicant on approve/decline
     if new_status != old_status and new_status in ("genehmigt", "abgelehnt"):
         try:
             if settings_obj.smtp_host:
@@ -439,8 +466,19 @@ async def delete_application(
         raise HTTPException(status_code=404, detail="Antrag nicht gefunden")
 
     storage_keys = storage.collect_application_storage_keys(app)
+    _antragsnummer = app.antragsnummer
+    _antragstyp = app.antragstyp or "einzel"
     db.delete(app)
     db.commit()
+
+    posthog_capture(
+        "membership_application_deleted",
+        "admin",
+        properties={
+            "antragsnummer": _antragsnummer,
+            "antragstyp": _antragstyp,
+        },
+    )
 
     for key in storage_keys:
         try:
@@ -476,6 +514,12 @@ async def resend_email(
     from app.config import get_settings
     cfg = get_settings()
     background_tasks.add_task(_send_email_task, application_id, cfg.database_url)
+
+    posthog_capture(
+        "membership_application_email_resent",
+        "admin",
+        properties={"antragsnummer": app.antragsnummer},
+    )
 
     return {"message": "E-Mail wird erneut gesendet"}
 
@@ -742,6 +786,12 @@ async def export_csv(
             app.created_at.strftime("%d.%m.%Y %H:%M"),
         ])
 
+    posthog_capture(
+        "members_csv_exported",
+        "admin",
+        properties={"record_count": len(applications)},
+    )
+
     output.seek(0)
     return StreamingResponse(
         iter([output.getvalue()]),
@@ -905,6 +955,15 @@ async def cancellation_pdf(
         db.rollback()
         storage.delete_file(stored_filename)
         raise
+
+    posthog_capture(
+        "cancellation_pdf_generated",
+        "admin",
+        properties={
+            "signature_source": signature_source,
+            "has_mitgliedsnummer": bool(data.mitgliedsnummer),
+        },
+    )
 
     filename = f"Kuendigungsbestaetigung_{data.nachname}_{data.vorname}.pdf"
     return Response(

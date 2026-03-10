@@ -3,6 +3,7 @@ import secrets
 from contextlib import asynccontextmanager
 from pathlib import Path
 
+import posthog
 from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
@@ -113,8 +114,21 @@ async def lifespan(app: FastAPI):
         logger.warning(f"IBAN encryption migration: {e}")
 
     logger.info("Database tables created")
+
+    # Initialize PostHog
+    _cfg = _get_cfg()
+    if _cfg.posthog_key:
+        posthog.api_key = _cfg.posthog_key
+        posthog.host = _cfg.posthog_host
+        posthog.enable_exception_autocapture = True
+        logger.info("PostHog initialized")
+
     yield
     logger.info("Application shutting down")
+
+    # Flush PostHog events on shutdown
+    if _get_cfg().posthog_key:
+        posthog.flush()
 
 
 settings = get_settings()

@@ -5,6 +5,7 @@ import uuid
 from datetime import date, datetime
 from pathlib import Path
 
+from app.services.posthog import capture as posthog_capture
 from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, Request, UploadFile, File
 
 from app.services import storage
@@ -333,6 +334,19 @@ async def submit_application(
             logger.error(f"Failed to generate inline-signed PDF: {exc}")
             # Non-fatal: continue without embedding; status stays "neu"
 
+    # Track membership application submission
+    posthog_capture(
+        "membership_application_submitted",
+        application.antragsnummer,
+        properties={
+            "antragstyp": application.antragstyp or "einzel",
+            "mitgliedschaft_typ": application.mitgliedschaft_typ,
+            "jahresbeitrag": float(application.jahresbeitrag),
+            "abteilungen_count": len(application.get_abteilungen()),
+            "online_signed": bool(data.unterschrift_base64),
+        },
+    )
+
     # Send email in background (signature forwarded so PDF in email also carries it)
     from app.config import get_settings
     settings = get_settings()
@@ -529,6 +543,16 @@ async def upload_signed_document(
 
     logger.info(f"Upload received for {app.antragsnummer}: {filename} ({len(contents)} bytes)")
 
+    # Track document upload
+    posthog_capture(
+        "membership_document_uploaded",
+        app.antragsnummer,
+        properties={
+            "file_extension": ext,
+            "file_size_bytes": len(contents),
+        },
+    )
+
     # Send notifications
     try:
         settings = db.query(AppSettings).filter(AppSettings.id == 1).first()
@@ -642,6 +666,12 @@ async def lookup_status(antragsnummer: str, db: Session = Depends(get_db)):
     ).first()
     if not app:
         raise HTTPException(status_code=404, detail="Antragsnummer nicht gefunden")
+
+    posthog_capture(
+        "membership_status_lookup",
+        app.antragsnummer,
+        properties={"status": app.status},
+    )
 
     result = {
         "antragsnummer": app.antragsnummer,
