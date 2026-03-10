@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import { ArrowLeft, Download, FileText, Loader2, PenLine, Trash2, Upload } from "lucide-react";
 import SignatureCanvas from "react-signature-canvas";
 import { extractApiError, getSettings, updateSettings } from "../services/api";
+import { getAdminDistinctIdHeader } from "../lib/analytics";
 
 interface CancellationForm {
   anrede: string;
@@ -116,7 +117,10 @@ export default function AdminCancellation() {
       const response = await fetch("/api/admin/cancellation-pdf", {
         method: "POST",
         credentials: "include",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...getAdminDistinctIdHeader(),
+        },
         body: JSON.stringify({
           ...form,
           mitgliedsnummer: form.mitgliedsnummer || null,

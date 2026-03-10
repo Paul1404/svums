@@ -5,6 +5,7 @@ import uuid
 from datetime import date, datetime
 from pathlib import Path
 
+from app.config import get_settings
 from app.services.posthog import capture as posthog_capture
 from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, Request, UploadFile, File
 
@@ -30,6 +31,18 @@ from app.services.urls import build_public_url, public_host_display
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api", tags=["public"])
+
+
+def _hours_since(ts: datetime | None) -> float | None:
+    if not ts:
+        return None
+    return round((datetime.utcnow() - ts).total_seconds() / 3600, 3)
+
+
+def _days_since(ts: datetime | None) -> int | None:
+    if not ts:
+        return None
+    return max((datetime.utcnow() - ts).days, 0)
 
 
 def _format_iban(iban: str) -> str:
@@ -339,11 +352,18 @@ async def submit_application(
         "membership_application_submitted",
         application.antragsnummer,
         properties={
+            "app_area": "public",
+            "source": "backend",
+            "application_id": application.id,
+            "antragsnummer": application.antragsnummer,
             "antragstyp": application.antragstyp or "einzel",
             "mitgliedschaft_typ": application.mitgliedschaft_typ,
             "jahresbeitrag": float(application.jahresbeitrag),
             "abteilungen_count": len(application.get_abteilungen()),
             "online_signed": bool(data.unterschrift_base64),
+            "signature_mode": "inline" if data.unterschrift_base64 else "paper_upload",
+            "status_after_submit": application.status,
+            "hours_to_submit": 0,
         },
     )
 
@@ -419,6 +439,17 @@ async def health_check():
     return {"status": "ok"}
 
 
+@router.get("/client-config")
+async def client_config():
+    settings = get_settings()
+    enabled = bool(settings.posthog_key)
+    return {
+        "posthog_enabled": enabled,
+        "posthog_key": settings.posthog_key if enabled else None,
+        "posthog_host": settings.posthog_host if enabled else None,
+    }
+
+
 @router.get("/check-duplicate")
 async def check_duplicate(
     vorname: str,
@@ -454,12 +485,29 @@ async def get_upload_info(token: str, db: Session = Depends(get_db)):
         MembershipApplication.upload_token == token
     ).first()
     if not app:
+        posthog_capture(
+            "membership_upload_link_invalid",
+            "public",
+            properties={"app_area": "public", "source": "backend", "reason": "not_found"},
+        )
         raise HTTPException(status_code=404, detail="Ungültiger Upload-Link")
 
     # Check 30-day expiry
     if app.created_at:
         days_since = (datetime.utcnow() - app.created_at).days
         if days_since > 30:
+            posthog_capture(
+                "membership_upload_link_expired",
+                app.antragsnummer or "public",
+                properties={
+                    "app_area": "public",
+                    "source": "backend",
+                    "application_id": app.id,
+                    "antragsnummer": app.antragsnummer,
+                    "days_since_submission": days_since,
+                    "reason": "expired_link",
+                },
+            )
             raise HTTPException(
                 status_code=410,
                 detail="Der Upload-Link ist abgelaufen (30 Tage). Bitte kontaktieren Sie den Verein."
@@ -486,12 +534,29 @@ async def upload_signed_document(
         MembershipApplication.upload_token == token
     ).first()
     if not app:
+        posthog_capture(
+            "membership_upload_link_invalid",
+            "public",
+            properties={"app_area": "public", "source": "backend", "reason": "not_found"},
+        )
         raise HTTPException(status_code=404, detail="Ungültiger Upload-Link")
 
     # Check 30-day expiry
     if app.created_at:
         days_since = (datetime.utcnow() - app.created_at).days
         if days_since > 30:
+            posthog_capture(
+                "membership_upload_link_expired",
+                app.antragsnummer or "public",
+                properties={
+                    "app_area": "public",
+                    "source": "backend",
+                    "application_id": app.id,
+                    "antragsnummer": app.antragsnummer,
+                    "days_since_submission": days_since,
+                    "reason": "expired_link",
+                },
+            )
             raise HTTPException(
                 status_code=410,
                 detail="Der Upload-Link ist abgelaufen (30 Tage). Bitte kontaktieren Sie den Verein."
@@ -548,6 +613,11 @@ async def upload_signed_document(
         "membership_document_uploaded",
         app.antragsnummer,
         properties={
+            "app_area": "public",
+            "source": "backend",
+            "application_id": app.id,
+            "antragsnummer": app.antragsnummer,
+            "status_after_upload": app.status,
             "file_extension": ext,
             "file_size_bytes": len(contents),
         },
@@ -670,7 +740,15 @@ async def lookup_status(antragsnummer: str, db: Session = Depends(get_db)):
     posthog_capture(
         "membership_status_lookup",
         app.antragsnummer,
-        properties={"status": app.status},
+        properties={
+            "app_area": "public",
+            "source": "backend",
+            "application_id": app.id,
+            "antragsnummer": app.antragsnummer,
+            "status": app.status,
+            "has_upload": app.uploaded_file is not None,
+            "days_since_submission": _days_since(app.created_at),
+        },
     )
 
     result = {

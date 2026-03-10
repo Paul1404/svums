@@ -6,7 +6,7 @@ import uuid
 from datetime import date, datetime
 from pathlib import Path
 
-from app.services.posthog import capture as posthog_capture
+from app.services.posthog import capture as posthog_capture, get_admin_distinct_id
 from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, Request, Response, UploadFile
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
@@ -59,6 +59,18 @@ ADMIN_LOGIN_LIMIT = 5
 ADMIN_LOGIN_BLOCK_SECONDS = 30 * 60
 
 
+def _hours_since(ts: datetime | None) -> float | None:
+    if not ts:
+        return None
+    return round((datetime.utcnow() - ts).total_seconds() / 3600, 3)
+
+
+def _email_app_area(email_type: str) -> str:
+    if email_type in {"status_update", "test"}:
+        return "admin"
+    return "public"
+
+
 def _validate_filename(filename: str) -> None:
     """Validate filename to prevent path traversal and invalid keys."""
     if not filename or filename.strip() == "":
@@ -101,6 +113,19 @@ def _log_email(
         )
         db.add(entry)
         db.commit()
+        posthog_capture(
+            "email_delivery_result",
+            antragsnummer or "system:email",
+            properties={
+                "app_area": _email_app_area(email_type),
+                "source": "backend",
+                "email_type": email_type,
+                "result": "success" if success else "failed",
+                "antragsnummer": antragsnummer,
+                "has_application": bool(antragsnummer),
+                "has_error": bool(error),
+            },
+        )
     except Exception as log_err:
         logger.error(f"Failed to write email log: {log_err}")
 
@@ -167,6 +192,15 @@ async def admin_login(
         window_seconds=ADMIN_LOGIN_WINDOW_SECONDS,
     )
     if not limit_status.allowed:
+        posthog_capture(
+            "admin_login_failed",
+            get_admin_distinct_id(request),
+            properties={
+                "app_area": "admin",
+                "source": "backend",
+                "reason": "rate_limited",
+            },
+        )
         raise HTTPException(
             status_code=429,
             detail="Zu viele fehlgeschlagene Anmeldeversuche. Bitte versuchen Sie es später erneut.",
@@ -182,17 +216,39 @@ async def admin_login(
             block_seconds=ADMIN_LOGIN_BLOCK_SECONDS,
         )
         if not failure_status.allowed:
+            posthog_capture(
+                "admin_login_failed",
+                get_admin_distinct_id(request),
+                properties={
+                    "app_area": "admin",
+                    "source": "backend",
+                    "reason": "rate_limited",
+                },
+            )
             raise HTTPException(
                 status_code=429,
                 detail="Zu viele fehlgeschlagene Anmeldeversuche. Bitte versuchen Sie es später erneut.",
             )
+        posthog_capture(
+            "admin_login_failed",
+            get_admin_distinct_id(request),
+            properties={
+                "app_area": "admin",
+                "source": "backend",
+                "reason": "unauthorized",
+            },
+        )
         raise HTTPException(status_code=401, detail="Falsches Passwort")
 
     reset_rate_limit(db, scope="admin_login", key=client_ip)
     serializer = get_serializer(settings)
     token = serializer.dumps({"admin": True})
 
-    posthog_capture("admin_login", "admin")
+    posthog_capture(
+        "admin_login",
+        get_admin_distinct_id(request),
+        properties={"app_area": "admin", "source": "backend"},
+    )
 
     response.set_cookie(
         key=settings.cookie_name,
@@ -207,9 +263,13 @@ async def admin_login(
 
 
 @router.post("/logout")
-async def admin_logout(response: Response):
+async def admin_logout(request: Request, response: Response):
     settings = get_settings()
-    posthog_capture("admin_logout", "admin")
+    posthog_capture(
+        "admin_logout",
+        get_admin_distinct_id(request),
+        properties={"app_area": "admin", "source": "backend"},
+    )
     response.delete_cookie(key=settings.cookie_name, path="/")
     return {"message": "Abgemeldet"}
 
@@ -281,6 +341,7 @@ async def get_application(
 async def update_application(
     application_id: int,
     data: ApplicationUpdate,
+    request: Request,
     is_admin: bool = Depends(require_admin),
     db: Session = Depends(get_db),
 ):
@@ -291,6 +352,7 @@ async def update_application(
         raise HTTPException(status_code=404, detail="Antrag nicht gefunden")
 
     old_status = app.status
+    old_notes = app.notes
     settings_obj = _get_or_create_settings(db)
 
     if data.status is not None:
@@ -364,27 +426,54 @@ async def update_application(
 
     # Track status changes for approve/decline
     new_status = app.status
+    admin_distinct_id = get_admin_distinct_id(request)
     if new_status != old_status:
+        shared_status_props = {
+            "app_area": "admin",
+            "source": "backend",
+            "application_id": app.id,
+            "antragsnummer": app.antragsnummer,
+            "antragstyp": app.antragstyp or "einzel",
+            "mitgliedschaft_typ": app.mitgliedschaft_typ,
+            "previous_status": old_status,
+            "new_status": new_status,
+            "status": new_status,
+            "hours_since_submission": _hours_since(app.created_at),
+            "hours_since_upload": _hours_since(app.uploaded_at),
+            "has_upload": bool(app.uploaded_file),
+            "has_approved_file": bool(app.admin_approved_file),
+        }
+        posthog_capture(
+            "admin_application_status_changed",
+            admin_distinct_id,
+            properties=shared_status_props,
+        )
         if new_status == "genehmigt":
             posthog_capture(
                 "membership_application_approved",
-                "admin",
-                properties={
-                    "antragsnummer": app.antragsnummer,
-                    "antragstyp": app.antragstyp or "einzel",
-                    "mitgliedschaft_typ": app.mitgliedschaft_typ,
-                },
+                admin_distinct_id,
+                properties=shared_status_props,
             )
         elif new_status == "abgelehnt":
             posthog_capture(
                 "membership_application_rejected",
-                "admin",
-                properties={
-                    "antragsnummer": app.antragsnummer,
-                    "antragstyp": app.antragstyp or "einzel",
-                    "mitgliedschaft_typ": app.mitgliedschaft_typ,
-                },
+                admin_distinct_id,
+                properties=shared_status_props,
             )
+    elif data.notes is not None and app.notes != old_notes:
+        posthog_capture(
+            "admin_application_notes_updated",
+            admin_distinct_id,
+            properties={
+                "app_area": "admin",
+                "source": "backend",
+                "application_id": app.id,
+                "antragsnummer": app.antragsnummer,
+                "status": app.status,
+                "has_upload": bool(app.uploaded_file),
+                "has_approved_file": bool(app.admin_approved_file),
+            },
+        )
 
     # Send status email to applicant on approve/decline
     if new_status != old_status and new_status in ("genehmigt", "abgelehnt"):
@@ -456,6 +545,7 @@ async def update_application(
 @router.delete("/applications/{application_id}")
 async def delete_application(
     application_id: int,
+    request: Request,
     is_admin: bool = Depends(require_admin),
     db: Session = Depends(get_db),
 ):
@@ -468,15 +558,24 @@ async def delete_application(
     storage_keys = storage.collect_application_storage_keys(app)
     _antragsnummer = app.antragsnummer
     _antragstyp = app.antragstyp or "einzel"
+    _status = app.status
+    _had_upload = bool(app.uploaded_file)
+    _had_approved_file = bool(app.admin_approved_file)
     db.delete(app)
     db.commit()
 
     posthog_capture(
         "membership_application_deleted",
-        "admin",
+        get_admin_distinct_id(request),
         properties={
+            "app_area": "admin",
+            "source": "backend",
+            "application_id": application_id,
             "antragsnummer": _antragsnummer,
             "antragstyp": _antragstyp,
+            "status_at_delete": _status,
+            "had_upload": _had_upload,
+            "had_approved_file": _had_approved_file,
         },
     )
 
@@ -497,6 +596,7 @@ async def delete_application(
 async def resend_email(
     application_id: int,
     background_tasks: BackgroundTasks,
+    request: Request,
     is_admin: bool = Depends(require_admin),
     db: Session = Depends(get_db),
 ):
@@ -517,8 +617,14 @@ async def resend_email(
 
     posthog_capture(
         "membership_application_email_resent",
-        "admin",
-        properties={"antragsnummer": app.antragsnummer},
+        get_admin_distinct_id(request),
+        properties={
+            "app_area": "admin",
+            "source": "backend",
+            "application_id": app.id,
+            "antragsnummer": app.antragsnummer,
+            "status": app.status,
+        },
     )
 
     return {"message": "E-Mail wird erneut gesendet"}
@@ -599,6 +705,7 @@ async def download_upload(
 @router.delete("/applications/{application_id}/upload")
 async def delete_upload(
     application_id: int,
+    request: Request,
     is_admin: bool = Depends(require_admin),
     db: Session = Depends(get_db),
 ):
@@ -613,6 +720,7 @@ async def delete_upload(
         raise HTTPException(status_code=404, detail="Kein Dokument hochgeladen")
 
     filename = app.uploaded_file
+    previous_status = app.status
     app.uploaded_file = None
     app.uploaded_at = None
     try:
@@ -621,6 +729,17 @@ async def delete_upload(
         db.rollback()
         raise
     storage.delete_file(filename)
+    posthog_capture(
+        "admin_uploaded_document_deleted",
+        get_admin_distinct_id(request),
+        properties={
+            "app_area": "admin",
+            "source": "backend",
+            "application_id": app.id,
+            "antragsnummer": app.antragsnummer,
+            "previous_status": previous_status,
+        },
+    )
     return {"ok": True}
 
 
@@ -658,6 +777,7 @@ async def download_approved(
 @router.delete("/applications/{application_id}/approved")
 async def delete_approved(
     application_id: int,
+    request: Request,
     is_admin: bool = Depends(require_admin),
     db: Session = Depends(get_db),
 ):
@@ -679,12 +799,23 @@ async def delete_approved(
         db.rollback()
         raise
     storage.delete_file(filename)
+    posthog_capture(
+        "admin_approved_document_deleted",
+        get_admin_distinct_id(request),
+        properties={
+            "app_area": "admin",
+            "source": "backend",
+            "application_id": app.id,
+            "antragsnummer": app.antragsnummer,
+        },
+    )
     return {"ok": True}
 
 
 @router.post("/applications/{application_id}/admin-upload")
 async def admin_upload_document(
     application_id: int,
+    request: Request,
     file: UploadFile = File(...),
     is_admin: bool = Depends(require_admin),
     db: Session = Depends(get_db),
@@ -742,11 +873,27 @@ async def admin_upload_document(
     if old_filename:
         storage.delete_file(old_filename)
 
+    posthog_capture(
+        "admin_document_uploaded",
+        get_admin_distinct_id(request),
+        properties={
+            "app_area": "admin",
+            "source": "backend",
+            "application_id": app.id,
+            "antragsnummer": app.antragsnummer,
+            "file_extension": ext,
+            "file_size_bytes": len(contents),
+            "replaced_existing": bool(old_filename),
+            "status_after_upload": app.status,
+        },
+    )
+
     return ApplicationResponse.model_validate(app)
 
 
 @router.get("/export")
 async def export_csv(
+    request: Request,
     is_admin: bool = Depends(require_admin),
     db: Session = Depends(get_db),
 ):
@@ -788,8 +935,12 @@ async def export_csv(
 
     posthog_capture(
         "members_csv_exported",
-        "admin",
-        properties={"record_count": len(applications)},
+        get_admin_distinct_id(request),
+        properties={
+            "app_area": "admin",
+            "source": "backend",
+            "record_count": len(applications),
+        },
     )
 
     output.seek(0)
@@ -814,10 +965,19 @@ async def get_admin_settings(
 @router.put("/settings", response_model=SettingsResponse)
 async def update_admin_settings(
     data: SettingsUpdate,
+    request: Request,
     is_admin: bool = Depends(require_admin),
     db: Session = Depends(get_db),
 ):
     settings = _get_or_create_settings(db)
+    previous = {
+        "smtp_host": settings.smtp_host,
+        "smtp_from": settings.smtp_from,
+        "notification_email": settings.notification_email,
+        "smtp_use_tls": settings.smtp_use_tls,
+        "admin_signature_base64": settings.admin_signature_base64,
+        "smtp_password": settings.smtp_password,
+    }
 
     update_data = data.model_dump(exclude_unset=True)
     clear_smtp_password = update_data.pop("clear_smtp_password", False)
@@ -833,12 +993,28 @@ async def update_admin_settings(
 
     db.commit()
     db.refresh(settings)
+    posthog_capture(
+        "admin_settings_updated",
+        get_admin_distinct_id(request),
+        properties={
+            "app_area": "admin",
+            "source": "backend",
+            "smtp_changed": previous["smtp_host"] != settings.smtp_host,
+            "smtp_from_changed": previous["smtp_from"] != settings.smtp_from,
+            "notification_email_changed": previous["notification_email"] != settings.notification_email,
+            "tls_changed": previous["smtp_use_tls"] != settings.smtp_use_tls,
+            "password_updated": bool(smtp_password),
+            "password_cleared": clear_smtp_password,
+            "signature_changed": previous["admin_signature_base64"] != settings.admin_signature_base64,
+        },
+    )
     return _serialize_settings(settings)
 
 
 @router.post("/settings/test-smtp")
 async def test_smtp(
     data: TestSmtpRequest,
+    request: Request,
     is_admin: bool = Depends(require_admin),
     db: Session = Depends(get_db),
 ):
@@ -859,10 +1035,20 @@ async def test_smtp(
             recipient=data.recipient,
         )
         _log_email(db, "test", data.recipient, "Test-E-Mail", True)
+        posthog_capture(
+            "admin_smtp_test_result",
+            get_admin_distinct_id(request),
+            properties={"app_area": "admin", "source": "backend", "result": "success"},
+        )
         return {"message": "Test-E-Mail wurde erfolgreich gesendet"}
     except Exception as e:
         _test_err = e
         _log_email(db, "test", data.recipient, "Test-E-Mail", False, _test_err)
+        posthog_capture(
+            "admin_smtp_test_result",
+            get_admin_distinct_id(request),
+            properties={"app_area": "admin", "source": "backend", "result": "failed"},
+        )
         raise HTTPException(status_code=500, detail=f"SMTP-Fehler: {str(e)}")
 
 
@@ -886,6 +1072,7 @@ class CancellationRequest(BaseModel):
 @router.post("/cancellation-pdf")
 async def cancellation_pdf(
     data: CancellationRequest,
+    request: Request,
     is_admin: bool = Depends(require_admin),
     db: Session = Depends(get_db),
 ):
@@ -958,8 +1145,10 @@ async def cancellation_pdf(
 
     posthog_capture(
         "cancellation_pdf_generated",
-        "admin",
+        get_admin_distinct_id(request),
         properties={
+            "app_area": "admin",
+            "source": "backend",
             "signature_source": signature_source,
             "has_mitgliedsnummer": bool(data.mitgliedsnummer),
         },
@@ -1015,6 +1204,7 @@ def download_cancellation_document(
 @router.delete("/cancellation-documents/{document_id}")
 def delete_cancellation_document(
     document_id: int,
+    request: Request,
     is_admin: bool = Depends(require_admin),
     db: Session = Depends(get_db),
 ):
@@ -1024,6 +1214,7 @@ def delete_cancellation_document(
         raise HTTPException(status_code=404, detail="Kündigungsdokument nicht gefunden")
 
     filename = doc.filename
+    signature_source = doc.signature_source
     db.delete(doc)
     try:
         db.commit()
@@ -1031,6 +1222,16 @@ def delete_cancellation_document(
         db.rollback()
         raise
     storage.delete_file(filename)
+    posthog_capture(
+        "admin_cancellation_document_deleted",
+        get_admin_distinct_id(request),
+        properties={
+            "app_area": "admin",
+            "source": "backend",
+            "document_id": document_id,
+            "signature_source": signature_source,
+        },
+    )
     return {"ok": True}
 
 

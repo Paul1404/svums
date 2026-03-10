@@ -1,5 +1,11 @@
 import { useParams, Link } from "react-router-dom";
 import { useState, useEffect, useCallback } from "react";
+import { ApiError } from "../services/api";
+import {
+  captureEvent,
+  identifyApplicant,
+  normalizeFailureReason,
+} from "../lib/analytics";
 import {
   Upload as UploadIcon,
   CheckCircle2,
@@ -35,12 +41,19 @@ export default function UploadPage() {
       .then(async (res) => {
         if (!res.ok) {
           const data = await res.json().catch(() => ({}));
-          throw new Error(data.detail || "Ungültiger Upload-Link");
+          throw new ApiError(data.detail || "Ungültiger Upload-Link", res.status);
         }
         return res.json();
       })
       .then((data) => {
         setInfo(data);
+        identifyApplicant(data.antragsnummer, { app_area: "public" });
+        captureEvent("membership_upload_page_loaded", {
+          app_area: "public",
+          antragsnummer: data.antragsnummer,
+          already_uploaded: Boolean(data.already_uploaded),
+          antragstyp: data.antragstyp,
+        });
         if (data.already_uploaded) setSuccess(true);
       })
       .catch((err) => setError(err.message))
@@ -79,10 +92,18 @@ export default function UploadPage() {
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        throw new Error(data.detail || `Fehler: ${res.status}`);
+        throw new ApiError(data.detail || `Fehler: ${res.status}`, res.status);
       }
       setSuccess(true);
     } catch (err: any) {
+      captureEvent("membership_upload_failed", {
+        app_area: "public",
+        http_status: err instanceof ApiError ? err.status : null,
+        reason:
+          err instanceof ApiError
+            ? normalizeFailureReason(err.status)
+            : "server_error",
+      });
       setError(err.message);
     } finally {
       setUploading(false);
