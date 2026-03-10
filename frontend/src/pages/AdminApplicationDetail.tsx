@@ -13,6 +13,7 @@ import {
   formatFee,
   type ApplicationResponse,
 } from "../services/api";
+import { captureEvent } from "../lib/analytics";
 import {
   ArrowLeft,
   Download,
@@ -107,6 +108,13 @@ export default function AdminApplicationDetail() {
         setStatus(data.status);
         setNotes(data.notes || "");
         setAdminDeclineReason(data.admin_decline_reason || "");
+        captureEvent("admin_application_viewed", {
+          app_area: "admin",
+          application_id: data.id,
+          status: data.status,
+          has_upload: Boolean(data.uploaded_file),
+          has_approved_file: Boolean(data.admin_approved_file),
+        });
       })
       .catch((err) => {
         toast.error(err.message);
