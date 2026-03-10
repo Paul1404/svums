@@ -1,4 +1,12 @@
+import { getAdminDistinctIdHeader } from "../lib/analytics";
+
 // ---- Types ----
+
+export interface ClientConfig {
+  posthog_enabled: boolean;
+  posthog_key: string | null;
+  posthog_host: string | null;
+}
 
 export interface ChildData {
   vorname: string;
@@ -196,6 +204,16 @@ export function extractApiError(
   return fallback;
 }
 
+export class ApiError extends Error {
+  status: number;
+
+  constructor(message: string, status: number) {
+    super(message);
+    this.name = "ApiError";
+    this.status = status;
+  }
+}
+
 async function apiRequest<T>(
   url: string,
   options: RequestInit = {}
@@ -205,19 +223,26 @@ async function apiRequest<T>(
   const baseHeaders: Record<string, string> = body instanceof FormData
     ? {}
     : { "Content-Type": "application/json" };
+  const adminHeaders = url.startsWith("/api/admin")
+    ? getAdminDistinctIdHeader()
+    : {};
   const response = await fetch(url, {
     credentials: "include",
     body,
     ...rest,
     headers: {
       ...baseHeaders,
+      ...adminHeaders,
       ...(extraHeaders as Record<string, string>),
     },
   });
 
   if (!response.ok) {
     const errorData = await response.json().catch(() => ({}));
-    throw new Error(extractApiError(errorData, `Fehler: ${response.status}`));
+    throw new ApiError(
+      extractApiError(errorData, `Fehler: ${response.status}`),
+      response.status
+    );
   }
 
   if (response.status === 204) {
@@ -245,6 +270,10 @@ async function apiRequest<T>(
 // ---- CSRF ----
 
 let _csrfToken: string | null = null;
+
+export async function getClientConfig(): Promise<ClientConfig> {
+  return apiRequest("/api/client-config");
+}
 
 export async function getCsrfToken(): Promise<string> {
   if (_csrfToken) return _csrfToken;

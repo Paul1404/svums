@@ -6,6 +6,7 @@ import React, {
   useCallback,
 } from "react";
 import { adminCheck, adminLogin, adminLogout } from "../services/api";
+import { identifyAdmin, resetAnalyticsIdentity } from "../lib/analytics";
 
 interface AdminContextType {
   isAuthenticated: boolean;
@@ -22,7 +23,10 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     adminCheck()
-      .then(() => setIsAuthenticated(true))
+      .then(() => {
+        setIsAuthenticated(true);
+        identifyAdmin({ app_area: "admin" });
+      })
       .catch(() => setIsAuthenticated(false))
       .finally(() => setIsLoading(false));
   }, []);
@@ -30,11 +34,13 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
   const login = useCallback(async (password: string) => {
     await adminLogin(password);
     setIsAuthenticated(true);
+    identifyAdmin({ app_area: "admin" });
   }, []);
 
   const logout = useCallback(async () => {
     await adminLogout();
     setIsAuthenticated(false);
+    resetAnalyticsIdentity();
   }, []);
 
   return (

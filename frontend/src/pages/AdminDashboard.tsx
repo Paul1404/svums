@@ -8,6 +8,7 @@ import {
   type ApplicationResponse,
   type ApplicationListResponse,
 } from "../services/api";
+import { captureEvent } from "../lib/analytics";
 import {
   Search,
   Download,
@@ -52,6 +53,13 @@ export default function AdminDashboard() {
         search || undefined
       );
       setData(result);
+      captureEvent("admin_dashboard_loaded", {
+        app_area: "admin",
+        page,
+        status_filter: statusFilter || "all",
+        search_present: Boolean(search),
+        result_count: result.items.length,
+      });
     } catch (err: any) {
       toast.error(err.message);
     } finally {

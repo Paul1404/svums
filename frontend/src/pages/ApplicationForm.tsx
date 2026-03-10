@@ -2,9 +2,21 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import SignatureCanvas from "react-signature-canvas";
-import { submitApplication, calculateFee, lookupIban, checkDuplicate, formatFee } from "../services/api";
+import {
+  ApiError,
+  submitApplication,
+  calculateFee,
+  lookupIban,
+  checkDuplicate,
+  formatFee,
+} from "../services/api";
 import AddressFields from "../components/AddressFields";
 import type { ApplicationData, ChildData, FeeResponse } from "../services/api";
+import {
+  captureEvent,
+  identifyApplicant,
+  normalizeFailureReason,
+} from "../lib/analytics";
 import {
   AlertCircle,
   CheckCircle2,
@@ -203,6 +215,8 @@ export default function ApplicationForm() {
   // Stores the data-URL captured from the fullscreen canvas after confirmation.
   const [capturedSigDataUrl, setCapturedSigDataUrl] = useState<string | null>(null);
   const [uploadedSignatureDataUrl, setUploadedSignatureDataUrl] = useState<string | null>(null);
+  const formStartedTrackedRef = useRef(false);
+  const lastFeeEventKeyRef = useRef<string | null>(null);
 
   // Track orientation changes so the overlay can prompt users to rotate.
   useEffect(() => {
@@ -335,6 +349,50 @@ export default function ApplicationForm() {
       .then(setFeeInfo)
       .catch(() => setFeeInfo(null));
   }, [geburtsdatum, mitgliedschaftTyp, elternteilMitglied, antragstyp, isChildType]);
+
+  useEffect(() => {
+    if (formStartedTrackedRef.current) return;
+    if (_d) {
+      captureEvent("membership_form_started", {
+        app_area: "public",
+        has_draft: true,
+        entry_path: window.location.pathname,
+      });
+      formStartedTrackedRef.current = true;
+    }
+  }, [_d]);
+
+  useEffect(() => {
+    if (formStartedTrackedRef.current) return;
+    const hasMeaningfulData = Boolean(vorname || nachname || geburtsdatum || email || iban);
+    if (!hasMeaningfulData) return;
+    captureEvent("membership_form_started", {
+      app_area: "public",
+      has_draft: false,
+      entry_path: window.location.pathname,
+    });
+    formStartedTrackedRef.current = true;
+  }, [vorname, nachname, geburtsdatum, email, iban]);
+
+  useEffect(() => {
+    if (!feeInfo || !antragstyp || !mitgliedschaftTyp) return;
+    const feeEventKey = JSON.stringify([
+      antragstyp,
+      mitgliedschaftTyp,
+      feeInfo.jahresbeitrag,
+      elternteilMitglied,
+    ]);
+    if (feeEventKey === lastFeeEventKeyRef.current) return;
+    lastFeeEventKeyRef.current = feeEventKey;
+    captureEvent("membership_fee_calculated", {
+      app_area: "public",
+      antragstyp,
+      mitgliedschaft_typ: mitgliedschaftTyp,
+      jahresbeitrag: Number(feeInfo.jahresbeitrag),
+      elternteil_mitglied:
+        elternteilMitglied === null ? null : elternteilMitglied,
+    });
+  }, [feeInfo, antragstyp, mitgliedschaftTyp, elternteilMitglied]);
 
   // ---- IBAN lookup
   useEffect(() => {
@@ -630,6 +688,14 @@ export default function ApplicationForm() {
 
   const nextStep = () => {
     if (validateStep(step)) {
+      captureEvent("membership_form_step_completed", {
+        app_area: "public",
+        step_index: step,
+        antragstyp,
+        mitgliedschaft_typ: mitgliedschaftTyp,
+        has_children: kinder.length > 0,
+        signature_mode: signatureMode === "inline" ? "inline" : "paper_upload",
+      });
       goToStep(Math.min(step + 1, STEPS.length - 1));
     }
   };
@@ -684,6 +750,11 @@ export default function ApplicationForm() {
         if (dupResult.duplicate) {
           setDuplicateChecked(true);
           setSubmitting(false);
+          captureEvent("membership_duplicate_detected", {
+            app_area: "public",
+            antragstyp,
+            mitgliedschaft_typ: mitgliedschaftTyp,
+          });
           toast.warning(
             'Es könnte bereits ein Antrag mit gleichem Namen und Geburtsdatum existieren. Klicken Sie erneut auf "Beitritt erklären", um dennoch fortzufahren.',
             { duration: 10000 }
@@ -733,6 +804,7 @@ export default function ApplicationForm() {
       };
 
       const result = await submitApplication(payload);
+      identifyApplicant(result.antragsnummer, { app_area: "public" });
       clearDraft();
       navigate("/erfolg", {
         state: {
@@ -751,6 +823,15 @@ export default function ApplicationForm() {
         },
       });
     } catch (err: any) {
+      captureEvent("membership_submission_failed", {
+        app_area: "public",
+        http_status: err instanceof ApiError ? err.status : null,
+        reason:
+          err instanceof ApiError
+            ? normalizeFailureReason(err.status)
+            : "server_error",
+        signature_mode: signatureMode === "inline" ? "inline" : "paper_upload",
+      });
       toast.error(err.message || "Fehler beim Absenden");
     } finally {
       setSubmitting(false);
