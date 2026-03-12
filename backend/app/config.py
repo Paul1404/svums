@@ -16,7 +16,7 @@ class Settings(BaseSettings):
 
     # PostHog
     posthog_key: str = ""
-    posthog_host: str = "https://eu.i.posthog.com"
+    posthog_host: str = "https://t.sv-untereuerheim.de"
 
     # Cookie settings
     cookie_secure: bool = True
