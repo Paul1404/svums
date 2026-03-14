@@ -205,14 +205,22 @@ export default function Success() {
             </a>
           </p>
           <p>Registergericht: Amtsgericht Schweinfurt · Registernummer: VR 31 · Steuer-ID: 249/111/20506</p>
-          <p className="pt-2">
+          <p className="pt-2 space-x-3">
             <a
               href="https://sv-untereuerheim.de/impressum/"
               target="_blank"
               rel="noopener noreferrer"
               className="text-gray-500 hover:text-svu-600 underline"
             >
-              Impressum & Datenschutz
+              Impressum
+            </a>
+            <a
+              href="https://sv-untereuerheim.de/datenschutz/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-gray-500 hover:text-svu-600 underline"
+            >
+              Datenschutz
             </a>
           </p>
         </footer>

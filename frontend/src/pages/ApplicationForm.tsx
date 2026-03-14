@@ -1519,7 +1519,7 @@ export default function ApplicationForm() {
                     Mitgliederverwaltung und des Vereinsbetriebs ein. Es gilt die
                     aktuelle Datenschutzerklärung des SVU, die unter{" "}
                     <a
-                      href="https://sv-untereuerheim.de/datenschutz"
+                      href="https://sv-untereuerheim.de/datenschutz/"
                       target="_blank"
                       rel="noopener noreferrer"
                       className="text-svu-600 underline hover:text-svu-700"
@@ -1792,7 +1792,15 @@ export default function ApplicationForm() {
               rel="noopener noreferrer"
               className="text-gray-500 hover:text-svu-600 underline"
             >
-              Impressum & Datenschutz
+              Impressum
+            </a>
+            <a
+              href="https://sv-untereuerheim.de/datenschutz/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-gray-500 hover:text-svu-600 underline"
+            >
+              Datenschutz
             </a>
             <a
               href="/status"
