@@ -168,6 +168,25 @@ svums/
 
 ## Deployment
 
+The app can be deployed to [Fly.io](https://fly.io) or [Railway](https://railway.app). The entrypoint uses `PORT` from the environment (default 8000), so it works on both platforms.
+
+### Railway
+
+1. Create a new project and add PostgreSQL (or use an external Neon DB).
+2. Deploy from Dockerfile (Railway detects it automatically).
+3. Set required variables in Railway dashboard:
+   - `DATABASE_URL` — PostgreSQL connection string (from Railway Postgres or Neon)
+   - `ADMIN_PASSWORD` — Secure admin password
+   - `COOKIE_SECRET` — Random secret, min 24 chars: `python3 -c "import secrets; print(secrets.token_urlsafe(48))"`
+   - `CORS_ORIGINS` — Your frontend URL, e.g. `https://your-app.railway.app`
+   - `PUBLIC_BASE_URL` — Same as CORS_ORIGINS or your custom domain
+4. Health check: Railway uses `/api/health` by default. Ensure the path is configured in your service settings.
+5. If using object storage (Tigris/S3) for uploads, add `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_ENDPOINT_URL_S3`, `AWS_REGION`, `BUCKET_NAME`.
+
+**Note:** Railway injects `PORT` (default 8080). The entrypoint listens on `$PORT`, so no extra config is needed.
+
+### Fly.io
+
 The app is hosted on [Fly.io](https://fly.io) in the Frankfurt (`fra`) region.
 
 ### Prerequisites
