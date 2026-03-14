@@ -306,14 +306,22 @@ export default function UploadPage() {
             Sportverein 1945 Untereuerheim e.V.
           </p>
           <p>Triebweg 9 · 97508 Grettstadt/Untereuerheim</p>
-          <p className="pt-2">
+          <p className="pt-2 space-x-3">
             <a
               href="https://sv-untereuerheim.de/impressum/"
               target="_blank"
               rel="noopener noreferrer"
               className="text-gray-500 hover:text-svu-600 underline"
             >
-              Impressum & Datenschutz
+              Impressum
+            </a>
+            <a
+              href="https://sv-untereuerheim.de/datenschutz/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-gray-500 hover:text-svu-600 underline"
+            >
+              Datenschutz
             </a>
           </p>
         </footer>
