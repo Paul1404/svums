@@ -254,6 +254,7 @@ export default function ApplicationForm() {
   const [plz, setPlz] = useState(_d?.plz ?? "");
   const [ort, setOrt] = useState(_d?.ort ?? "");
   const [telefon, setTelefon] = useState(_d?.telefon ?? "");
+  const [telefonOptOut, setTelefonOptOut] = useState(_d?.telefonOptOut ?? false);
   const [email, setEmail] = useState(_d?.email ?? "");
   const [abteilungen, setAbteilungen] = useState<string[]>(_d?.abteilungen ?? []);
 
@@ -438,7 +439,7 @@ export default function ApplicationForm() {
     const timer = setTimeout(() => {
       saveDraft({
         antragstyp, step, geschlecht, vorname, nachname, geburtsdatum, strasse, plz, ort,
-        telefon, email, abteilungen, erzVorname, erzNachname, elternteilMitglied,
+        telefon, telefonOptOut, email, abteilungen, erzVorname, erzNachname, elternteilMitglied,
         kinder, partnerVorname, partnerNachname, partnerGeburtsdatum, partnerAbteilungen,
         kontoinhaber, iban, bic, kreditinstitut,
       });
@@ -446,7 +447,7 @@ export default function ApplicationForm() {
     return () => clearTimeout(timer);
   }, [
     antragstyp, step, geschlecht, vorname, nachname, geburtsdatum, strasse, plz, ort,
-    telefon, email, abteilungen, erzVorname, erzNachname, elternteilMitglied,
+    telefon, telefonOptOut, email, abteilungen, erzVorname, erzNachname, elternteilMitglied,
     kinder, partnerVorname, partnerNachname, partnerGeburtsdatum, partnerAbteilungen,
     kontoinhaber, iban, bic, kreditinstitut,
   ]);
@@ -557,10 +558,14 @@ export default function ApplicationForm() {
         if (!email.trim()) errs.email = "E-Mail ist erforderlich";
         else if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email))
           errs.email = "Ungültige E-Mail-Adresse";
-        if (telefon && telefon.trim()) {
-          const cp = telefon.replace(/[\s\-/()]/g, "");
-          if (!/^\+?\d{6,15}$/.test(cp))
-            errs.telefon = "Ungültige Telefonnummer";
+        if (!telefonOptOut) {
+          if (!telefon.trim())
+            errs.telefon = "Bitte geben Sie eine Telefonnummer an oder wählen Sie „Ich möchte keine angeben“.";
+          else {
+            const cp = telefon.replace(/[\s\-/()]/g, "");
+            if (!/^\+?\d{6,15}$/.test(cp))
+              errs.telefon = "Ungültige Telefonnummer";
+          }
         }
       }
 
@@ -584,10 +589,14 @@ export default function ApplicationForm() {
         if (!email.trim()) errs.email = "E-Mail ist erforderlich";
         else if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email))
           errs.email = "Ungültige E-Mail-Adresse";
-        if (telefon && telefon.trim()) {
-          const cp = telefon.replace(/[\s\-/()]/g, "");
-          if (!/^\+?\d{6,15}$/.test(cp))
-            errs.telefon = "Ungültige Telefonnummer";
+        if (!telefonOptOut) {
+          if (!telefon.trim())
+            errs.telefon = "Bitte geben Sie eine Telefonnummer an oder wählen Sie „Ich möchte keine angeben“.";
+          else {
+            const cp = telefon.replace(/[\s\-/()]/g, "");
+            if (!/^\+?\d{6,15}$/.test(cp))
+              errs.telefon = "Ungültige Telefonnummer";
+          }
         }
       }
 
@@ -784,7 +793,7 @@ export default function ApplicationForm() {
         strasse,
         plz,
         ort,
-        telefon,
+        telefon: telefonOptOut ? "" : telefon,
         email,
         abteilungen,
         mitgliedschaft_typ: mitgliedschaftTyp,
@@ -1008,10 +1017,35 @@ export default function ApplicationForm() {
                         onStrasseChange={setStrasse} onPlzChange={setPlz} onOrtChange={setOrt}
                         errors={errors} clearError={clearError}
                       />
-                      <Field label="Telefon" error={errors.telefon} value={telefon}
-                        onChange={(v) => { setTelefon(v); clearError("telefon"); }} />
-                      <Field label="E-Mail *" type="email" error={errors.email}
-                        value={email} onChange={(v) => { setEmail(v); clearError("email"); }} />
+                      <div>
+                        <Field
+                          label="Telefon"
+                          error={errors.telefon}
+                          value={telefon}
+                          onChange={(v) => { setTelefon(v); clearError("telefon"); }}
+                          disabled={telefonOptOut}
+                        />
+                        <label className="flex items-center gap-2 mt-2 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={telefonOptOut}
+                            onChange={(e) => {
+                              setTelefonOptOut(e.target.checked);
+                              if (e.target.checked) setTelefon("");
+                              clearError("telefon");
+                            }}
+                            className="rounded border-gray-300 text-svu-600 focus:ring-svu-500"
+                          />
+                          <span className="text-sm text-gray-600">Ich möchte keine angeben</span>
+                        </label>
+                      </div>
+                      <div>
+                        <Field label="E-Mail *" type="email" error={errors.email}
+                          value={email} onChange={(v) => { setEmail(v); clearError("email"); }} />
+                        <p className="text-xs text-gray-500 mt-1">
+                          Wir benötigen Ihre E-Mail für die Bestätigung und Kommunikation zum Antrag.
+                        </p>
+                      </div>
                     </div>
                   </div>
 
@@ -1282,10 +1316,35 @@ export default function ApplicationForm() {
                         onStrasseChange={setStrasse} onPlzChange={setPlz} onOrtChange={setOrt}
                         errors={errors} clearError={clearError}
                       />
-                      <Field label="Telefon" error={errors.telefon} value={telefon}
-                        onChange={(v) => { setTelefon(v); clearError("telefon"); }} />
-                      <Field label="E-Mail *" type="email" error={errors.email}
-                        value={email} onChange={(v) => { setEmail(v); clearError("email"); }} />
+                      <div>
+                        <Field
+                          label="Telefon"
+                          error={errors.telefon}
+                          value={telefon}
+                          onChange={(v) => { setTelefon(v); clearError("telefon"); }}
+                          disabled={telefonOptOut}
+                        />
+                        <label className="flex items-center gap-2 mt-2 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={telefonOptOut}
+                            onChange={(e) => {
+                              setTelefonOptOut(e.target.checked);
+                              if (e.target.checked) setTelefon("");
+                              clearError("telefon");
+                            }}
+                            className="rounded border-gray-300 text-svu-600 focus:ring-svu-500"
+                          />
+                          <span className="text-sm text-gray-600">Ich möchte keine angeben</span>
+                        </label>
+                      </div>
+                      <div>
+                        <Field label="E-Mail *" type="email" error={errors.email}
+                          value={email} onChange={(v) => { setEmail(v); clearError("email"); }} />
+                        <p className="text-xs text-gray-500 mt-1">
+                          Wir benötigen Ihre E-Mail für die Bestätigung und Kommunikation zum Antrag.
+                        </p>
+                      </div>
                     </div>
                   </div>
                 </>
@@ -2029,6 +2088,7 @@ function Field({
   placeholder,
   maxLength,
   className = "",
+  disabled = false,
 }: {
   label: string;
   value: string;
@@ -2038,6 +2098,7 @@ function Field({
   placeholder?: string;
   maxLength?: number;
   className?: string;
+  disabled?: boolean;
 }) {
   return (
     <div>
@@ -2050,9 +2111,10 @@ function Field({
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
         maxLength={maxLength}
+        disabled={disabled}
         className={`w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-svu-500 focus:border-svu-500 outline-none transition-colors ${
           error ? "border-red-400 bg-red-50" : "border-gray-300"
-        } ${className}`}
+        } ${disabled ? "bg-gray-100 cursor-not-allowed" : ""} ${className}`}
       />
       {error && <p className="text-red-600 text-xs mt-1">{error}</p>}
       {type === "date" && !error && !value && (
