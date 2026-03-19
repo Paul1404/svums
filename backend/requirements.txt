@@ -14,6 +14,6 @@ schwifty==2026.3.0
 httpx==0.28.1
 cryptography>=42.0.0
 boto3==1.42.68
-pypdf==6.9.0
+pypdf==6.9.1
 posthog>=3.0.0
 pytest==9.0.2
