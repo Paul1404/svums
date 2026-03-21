@@ -105,16 +105,16 @@ built-in admin panel.
 
 | Layer     | Technology                                                       |
 |-----------|------------------------------------------------------------------|
-| Backend   | Python 3.13, FastAPI 0.129, SQLAlchemy 2.0                      |
+| Backend   | Python 3.14, FastAPI 0.135, SQLAlchemy 2.0                      |
 | Database  | Neon (serverless PostgreSQL)                                     |
 | Storage   | Tigris object storage (S3-compatible) for uploaded/signed PDFs  |
-| Frontend  | React 18, TypeScript, Vite 7, Tailwind CSS 3.4                  |
+| Frontend  | React 19, TypeScript, Vite 8, Tailwind CSS 4                    |
 | Signature | react-signature-canvas (inline digital signing)                  |
 | PDF       | WeasyPrint 68                                                    |
 | Email     | aiosmtplib (async SMTP), Jinja2 HTML templates                   |
 | Auth      | itsdangerous (signed session cookie)                             |
 | Crypto    | cryptography (Fernet for IBAN encryption)                        |
-| Hosting   | Fly.io (Frankfurt region), Docker multi-stage build              |
+| Hosting   | Railway, Docker multi-stage build                                |
 
 
 ## Project Structure
@@ -122,7 +122,6 @@ built-in admin panel.
 ```
 svums/
   Dockerfile              Multi-stage build (Node frontend + Python backend)
-  fly.toml                Fly.io deployment configuration
   backend/
     app/
       main.py             FastAPI app, middlewares, startup migrations
@@ -168,61 +167,23 @@ svums/
 
 ## Deployment
 
-The app can be deployed to [Fly.io](https://fly.io) or [Railway](https://railway.app). The entrypoint uses `PORT` from the environment (default 8000), so it works on both platforms.
+The app is deployed on [Railway](https://railway.app) from the Dockerfile. The entrypoint reads `$PORT` from the environment (default 8000).
 
-### Railway
+### Setup
 
-1. Create a new project and add PostgreSQL (or use an external Neon DB).
+1. Create a new Railway project and add PostgreSQL (or use an external [Neon](https://neon.tech) database).
 2. Deploy from Dockerfile (Railway detects it automatically).
-3. Set required variables in Railway dashboard:
-   - `DATABASE_URL` — PostgreSQL connection string (from Railway Postgres or Neon)
+3. Set required environment variables in the Railway dashboard:
+   - `DATABASE_URL` — PostgreSQL connection string
    - `ADMIN_PASSWORD` — Secure admin password
    - `COOKIE_SECRET` — Random secret, min 24 chars: `python3 -c "import secrets; print(secrets.token_urlsafe(48))"`
-   - `CORS_ORIGINS` — Your frontend URL, e.g. `https://your-app.railway.app`
-   - `PUBLIC_BASE_URL` — Same as CORS_ORIGINS or your custom domain
-4. Health check: Railway uses `/api/health` by default. Ensure the path is configured in your service settings.
-5. If using object storage (Tigris/S3) for uploads, add `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_ENDPOINT_URL_S3`, `AWS_REGION`, `BUCKET_NAME`.
+   - `CORS_ORIGINS` — Your app URL, e.g. `https://your-app.railway.app`
+   - `PUBLIC_BASE_URL` — Same as `CORS_ORIGINS` (or your custom domain)
+4. Configure health check path: `/api/health`
+5. For file uploads (PDFs, signed documents), add S3-compatible storage credentials:
+   `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_ENDPOINT_URL_S3`, `AWS_REGION`, `BUCKET_NAME`
 
-**Note:** Railway injects `PORT` (default 8080). The entrypoint listens on `$PORT`, so no extra config is needed.
-
-### Fly.io
-
-The app is hosted on [Fly.io](https://fly.io) in the Frankfurt (`fra`) region.
-
-### Prerequisites
-
-- [flyctl](https://fly.io/docs/hands-on/install-flyctl/) installed and authenticated
-- A [Neon](https://neon.tech) PostgreSQL database
-- Fly.io account
-
-### Initial Setup (one-time)
-
-```bash
-# Create the Fly app
-flyctl apps create svums --org personal
-
-# Set required secrets
-flyctl secrets set \
-  DATABASE_URL="postgresql://..." \
-  ADMIN_PASSWORD="your-secure-password" \
-  COOKIE_SECRET="your-random-secret-min-32-chars" \
-  PUBLIC_BASE_URL="https://svums.sv-untereuerheim.de"
-
-# Provision Tigris object storage (sets S3 secrets automatically)
-flyctl storage create -a svums
-```
-
-Generate a secure cookie secret:
-
-```bash
-python3 -c "import secrets; print(secrets.token_urlsafe(48))"
-```
-
-### Deploy
-
-```bash
-flyctl deploy
-```
+Railway injects `PORT` automatically. The entrypoint listens on `$PORT`, so no extra config is needed.
 
 ### Data Persistence
 
@@ -238,32 +199,32 @@ flyctl deploy
 SMTP settings and the optional admin signature are stored in the `app_settings`
 table in Neon and survive restarts and redeployments.
 
-### Environment Variables / Secrets
+### Environment Variables
 
-| Name | How set | Description |
-|------|---------|-------------|
-| `DATABASE_URL` | `flyctl secrets set` | Neon connection string |
-| `ADMIN_PASSWORD` | `flyctl secrets set` | Admin panel password |
-| `COOKIE_SECRET` | `flyctl secrets set` | Session signing key (min 32 chars) |
-| `PUBLIC_BASE_URL` | `flyctl secrets set` or `fly.toml [env]` | Absolute base URL used in emails and upload/status links |
-| `AWS_ACCESS_KEY_ID` | auto (Tigris) | Set by `flyctl storage create` |
-| `AWS_SECRET_ACCESS_KEY` | auto (Tigris) | Set by `flyctl storage create` |
-| `AWS_ENDPOINT_URL_S3` | auto (Tigris) | Set by `flyctl storage create` |
-| `AWS_REGION` | auto (Tigris) | Set by `flyctl storage create` |
-| `BUCKET_NAME` | auto (Tigris) | Set by `flyctl storage create` |
-| `CORS_ORIGINS` | `fly.toml [env]` | Allowed CORS origins |
-| `COOKIE_SECURE` | `fly.toml [env]` | Set to `true` in production |
-| `COOKIE_NAME` | `fly.toml [env]` | Session cookie name |
-| `POSTHOG_KEY` | `flyctl secrets set` | PostHog project API key (optional; analytics disabled if unset) |
-| `POSTHOG_HOST` | `fly.toml [env]` | PostHog host, default `https://eu.i.posthog.com` (optional) |
-| `FORWARDED_ALLOW_IPS` | `fly.toml [env]` | Trusted proxy IPs/CIDRs for forwarded headers |
+| Name | Description |
+|------|-------------|
+| `DATABASE_URL` | Neon / PostgreSQL connection string |
+| `ADMIN_PASSWORD` | Admin panel password |
+| `COOKIE_SECRET` | Session signing key + IBAN encryption (min 24 chars) |
+| `PUBLIC_BASE_URL` | Absolute base URL used in emails and links |
+| `CORS_ORIGINS` | Allowed CORS origins (comma-separated) |
+| `COOKIE_SECURE` | Set to `true` in production (default) |
+| `COOKIE_NAME` | Session cookie name (default `svums_admin_session`) |
+| `AWS_ACCESS_KEY_ID` | S3/Tigris access key |
+| `AWS_SECRET_ACCESS_KEY` | S3/Tigris secret key |
+| `AWS_ENDPOINT_URL_S3` | S3/Tigris endpoint URL |
+| `AWS_REGION` | S3 region (default `auto`) |
+| `BUCKET_NAME` | S3 bucket name (default `svums-uploads`) |
+| `POSTHOG_KEY` | PostHog API key (optional; analytics disabled if unset) |
+| `POSTHOG_HOST` | PostHog host (optional) |
+| `FORWARDED_ALLOW_IPS` | Trusted proxy IPs for forwarded headers |
 
 ### First-Time Setup
 
-1. Run `flyctl deploy`
-2. Go to `https://svums.fly.dev/admin` (or your custom domain)
-3. Log in with the password from `ADMIN_PASSWORD`
-4. Navigate to Settings and configure SMTP (required for email delivery)
+1. Deploy to Railway (push to main or connect repo).
+2. Open your Railway app URL at `/admin`.
+3. Log in with `ADMIN_PASSWORD`.
+4. Navigate to Settings and configure SMTP (required for email delivery).
 
 
 ## Antrag-Workflow
