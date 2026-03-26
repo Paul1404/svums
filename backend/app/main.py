@@ -10,7 +10,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from app.config import get_settings
-from app.database import Base, SessionLocal, engine
+from app.database import Base, SessionLocal, engine, wait_for_db
 from app.routers import admin, address, public
 from app.services.rate_limit import consume_rate_limit, normalize_client_ip
 
@@ -20,6 +20,9 @@ logger = logging.getLogger(__name__)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application startup and shutdown."""
+    # Wait for serverless DB to become available (handles Neon cold starts)
+    wait_for_db()
+
     # Create all database tables
     Base.metadata.create_all(bind=engine)
 
