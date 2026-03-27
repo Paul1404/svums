@@ -32,6 +32,7 @@ def _get_bucket(
             RateLimitBucket.scope == scope,
             RateLimitBucket.key == key,
         )
+        .with_for_update()
         .first()
     )
     if not bucket:

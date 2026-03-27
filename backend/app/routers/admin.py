@@ -5,6 +5,7 @@ import logging
 import uuid
 from datetime import date, datetime
 from pathlib import Path
+from urllib.parse import quote
 
 from app.services.posthog import capture as posthog_capture, get_admin_distinct_id
 from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, Request, Response, UploadFile
@@ -40,7 +41,7 @@ from app.services.pdf import (
     generate_approval_page,
     merge_pdf_with_approval,
 )
-from app.services.crypto import decrypt_iban
+from app.services.crypto import decrypt_iban_safe
 from app.services.email import send_status_email
 from app.services import storage
 from app.services.rate_limit import (
@@ -78,6 +79,18 @@ def _validate_filename(filename: str) -> None:
     if ".." in filename or "/" in filename or "\\" in filename:
         logger.warning(f"Blocked invalid upload path reference: {filename}")
         raise HTTPException(status_code=400, detail="Ungültiger Dateiname")
+
+
+def _safe_content_disposition(disposition: str, filename: str) -> str:
+    """Build a Content-Disposition header with RFC 5987 encoded filename.
+
+    Handles umlauts, apostrophes, quotes, and other special characters safely.
+    """
+    # ASCII fallback: replace non-ASCII chars with underscores
+    ascii_name = filename.encode("ascii", errors="replace").decode().replace('"', "_")
+    # UTF-8 encoded version for modern browsers
+    encoded_name = quote(filename, safe="")
+    return f"{disposition}; filename=\"{ascii_name}\"; filename*=UTF-8''{encoded_name}"
 
 
 def _make_engine(db_url: str):
@@ -299,13 +312,15 @@ async def list_applications(
         query = query.filter(MembershipApplication.status == status)
 
     if search:
-        search_term = f"%{search}%"
+        # Escape LIKE wildcards so literal %, _, \ in search terms don't match unintended rows
+        escaped = search.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+        search_term = f"%{escaped}%"
         query = query.filter(
             or_(
-                MembershipApplication.vorname.ilike(search_term),
-                MembershipApplication.nachname.ilike(search_term),
-                MembershipApplication.email.ilike(search_term),
-                MembershipApplication.ort.ilike(search_term),
+                MembershipApplication.vorname.ilike(search_term, escape="\\"),
+                MembershipApplication.nachname.ilike(search_term, escape="\\"),
+                MembershipApplication.email.ilike(search_term, escape="\\"),
+                MembershipApplication.ort.ilike(search_term, escape="\\"),
             )
         )
 
@@ -373,7 +388,7 @@ async def update_application(
                 status_code=400,
                 detail="Bei Genehmigung ist eine Signatur erforderlich (zeichnen, hochladen oder gespeicherte Admin-Signatur verwenden)",
             )
-        approval_datum = datetime.now().strftime("%d.%m.%Y")
+        approval_datum = datetime.utcnow().strftime("%d.%m.%Y")
         antragsnummer = app.antragsnummer or f"ANT-{app.id}"
         # applicant_name for "Guten Tag X," - gender-neutral full name
         # For Kind applications, use parent (Erziehungsberechtigte/r) as contact
@@ -660,7 +675,7 @@ async def download_pdf(
     return Response(
         content=pdf_bytes,
         media_type="application/pdf",
-        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        headers={"Content-Disposition": _safe_content_disposition("attachment", filename)},
     )
 
 
@@ -700,7 +715,7 @@ async def download_upload(
         content=content,
         media_type=media_type,
         headers={
-            "Content-Disposition": f'inline; filename="{filename}"',
+            "Content-Disposition": _safe_content_disposition("inline", filename),
         },
     )
 
@@ -772,7 +787,7 @@ async def download_approved(
         content=content,
         media_type="application/pdf",
         headers={
-            "Content-Disposition": f'inline; filename="{filename}"',
+            "Content-Disposition": _safe_content_disposition("inline", filename),
         },
     )
 
@@ -930,7 +945,7 @@ async def export_csv(
             ", ".join(app.get_abteilungen()), app.mitgliedschaft_typ,
             "Ja" if app.elternteil_mitglied else ("Nein" if app.elternteil_mitglied is False else ""),
             f"{app.jahresbeitrag:.2f}",
-            app.kontoinhaber or "", decrypt_iban(app.iban), app.bic or "", app.kreditinstitut or "",
+            app.kontoinhaber or "", decrypt_iban_safe(app.iban), app.bic or "", app.kreditinstitut or "",
             app.status, app.notes or "",
             "Ja" if app.email_sent else "Nein",
             app.created_at.strftime("%d.%m.%Y %H:%M"),
@@ -1161,7 +1176,7 @@ async def cancellation_pdf(
     return Response(
         content=pdf_bytes,
         media_type="application/pdf",
-        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        headers={"Content-Disposition": _safe_content_disposition("attachment", filename)},
     )
 
 
@@ -1200,7 +1215,7 @@ def download_cancellation_document(
     return Response(
         content=content,
         media_type="application/pdf",
-        headers={"Content-Disposition": f'inline; filename="{download_name}"'},
+        headers={"Content-Disposition": _safe_content_disposition("inline", download_name)},
     )
 
 

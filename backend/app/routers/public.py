@@ -25,7 +25,7 @@ from app.schemas.application import (
 from app.services.fees import calculate_fee, determine_mitgliedschaft_typ, calculate_age
 from app.services.pdf import generate_pdf
 from app.services.email import send_application_email, send_upload_notification
-from app.services.crypto import encrypt_iban, decrypt_iban
+from app.services.crypto import encrypt_iban, decrypt_iban_safe
 from app.services.urls import build_public_url, public_host_display
 
 logger = logging.getLogger(__name__)
@@ -113,8 +113,8 @@ def _build_application_data(app: MembershipApplication) -> dict:
         "jahresbeitrag": int(app.jahresbeitrag),
         "fee_label": fee_label,
         "kontoinhaber": app.kontoinhaber,
-        "iban": decrypt_iban(app.iban),
-        "iban_formatted": _format_iban(decrypt_iban(app.iban)),
+        "iban": decrypt_iban_safe(app.iban),
+        "iban_formatted": _format_iban(decrypt_iban_safe(app.iban)),
         "bic": app.bic,
         "kreditinstitut": app.kreditinstitut,
         "datum": date.today().strftime("%d.%m.%Y"),
@@ -238,6 +238,7 @@ async def _send_email_task(application_id: int, db_url: str, unterschrift_base64
         logger.error(f"Email task error: {e}")
     finally:
         db.close()
+        eng.dispose()
 
 
 @router.post("/apply", response_model=ApplicationSubmitResponse)
