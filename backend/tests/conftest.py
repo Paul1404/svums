@@ -49,7 +49,7 @@ def db_session():
 def admin_cookie():
     settings = get_settings()
     token = get_serializer(settings).dumps({"admin": True})
-    return {settings.cookie_name: token}
+    return {settings.cookie_name: token, "csrf_token": "test-csrf-token"}
 
 
 @pytest.fixture
