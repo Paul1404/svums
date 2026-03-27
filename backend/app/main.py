@@ -1,5 +1,6 @@
 import logging
 import secrets
+import time
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -11,8 +12,12 @@ from fastapi.staticfiles import StaticFiles
 
 from app.config import get_settings
 from app.database import Base, SessionLocal, engine, wait_for_db
+from app.logging_config import setup_logging
 from app.routers import admin, address, public
 from app.services.rate_limit import consume_rate_limit, normalize_client_ip
+
+# Configure logging before anything else uses it
+setup_logging()
 
 logger = logging.getLogger(__name__)
 
@@ -149,6 +154,23 @@ app = FastAPI(
 # --- Middlewares ---
 
 @app.middleware("http")
+async def request_logging_middleware(request: Request, call_next):
+    """Log every HTTP request with method, path, status, and duration."""
+    start = time.perf_counter()
+    response = await call_next(request)
+    duration_ms = round((time.perf_counter() - start) * 1000, 1)
+
+    # Skip noisy paths (health checks, static assets)
+    path = request.url.path
+    if path not in ("/api/health",) and not path.startswith("/assets"):
+        logger.info(
+            "%s %s %s (%.1fms)",
+            request.method, path, response.status_code, duration_ms,
+        )
+    return response
+
+
+@app.middleware("http")
 async def rate_limit_middleware(request: Request, call_next):
     """Rate limit on /api/apply — 3 requests per 10 minutes per IP."""
     if request.url.path == "/api/apply" and request.method == "POST":
@@ -166,6 +188,10 @@ async def rate_limit_middleware(request: Request, call_next):
             db.close()
 
         if not decision.allowed:
+            logger.warning(
+                "Rate limit hit on /api/apply from %s (retry_after=%ss)",
+                client_ip, decision.retry_after_seconds,
+            )
             return JSONResponse(
                 status_code=429,
                 content={
@@ -184,6 +210,11 @@ async def csrf_middleware(request: Request, call_next):
         cookie_token = request.cookies.get("csrf_token")
         header_token = request.headers.get("x-csrf-token")
         if not cookie_token or not header_token or cookie_token != header_token:
+            client_ip = request.client.host if request.client else "unknown"
+            logger.warning(
+                "CSRF validation failed on /api/apply from %s (cookie=%s, header=%s)",
+                client_ip, bool(cookie_token), bool(header_token),
+            )
             return JSONResponse(
                 status_code=403,
                 content={"detail": "Ungültiges CSRF-Token. Bitte laden Sie die Seite neu."},

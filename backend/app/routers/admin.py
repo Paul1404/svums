@@ -192,6 +192,7 @@ async def admin_login(
         window_seconds=ADMIN_LOGIN_WINDOW_SECONDS,
     )
     if not limit_status.allowed:
+        logger.warning("Admin login blocked (rate limited) from %s", client_ip)
         posthog_capture(
             "admin_login_failed",
             get_admin_distinct_id(request),
@@ -229,6 +230,7 @@ async def admin_login(
                 status_code=429,
                 detail="Zu viele fehlgeschlagene Anmeldeversuche. Bitte versuchen Sie es später erneut.",
             )
+        logger.warning("Admin login failed (wrong password) from %s", client_ip)
         posthog_capture(
             "admin_login_failed",
             get_admin_distinct_id(request),
@@ -241,6 +243,7 @@ async def admin_login(
         raise HTTPException(status_code=401, detail="Falsches Passwort")
 
     reset_rate_limit(db, scope="admin_login", key=client_ip)
+    logger.info("Admin login successful from %s", client_ip)
     serializer = get_serializer(settings)
     token = serializer.dumps({"admin": True})
 

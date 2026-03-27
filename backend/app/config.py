@@ -25,6 +25,10 @@ class Settings(BaseSettings):
     forwarded_allow_ips: str = "127.0.0.1,::1"
     allow_insecure_defaults: bool = False
 
+    # Logging
+    log_level: str = "INFO"
+    log_format: str = "text"  # "text" or "json"
+
     model_config = {"env_prefix": "", "case_sensitive": False}
 
 
