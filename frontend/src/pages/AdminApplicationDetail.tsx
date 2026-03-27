@@ -1,7 +1,10 @@
 import { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { toast } from "sonner";
-import SignatureCanvas from "react-signature-canvas";
+import SignatureCanvasType from "react-signature-canvas";
+const SignatureCanvas: typeof SignatureCanvasType = typeof SignatureCanvasType === "function"
+  ? SignatureCanvasType
+  : (SignatureCanvasType as unknown as { default: typeof SignatureCanvasType }).default;
 import {
   getApplication,
   updateApplication,
@@ -76,7 +79,7 @@ export default function AdminApplicationDetail() {
   const [showApproveModal, setShowApproveModal] = useState(false);
   const [showDenyModal, setShowDenyModal] = useState(false);
   const [adminDeclineReason, setAdminDeclineReason] = useState("");
-  const sigCanvasRef = useRef<SignatureCanvas | null>(null);
+  const sigCanvasRef = useRef<SignatureCanvasType | null>(null);
   const [sigEmpty, setSigEmpty] = useState(true);
   const [signatureInputMode, setSignatureInputMode] = useState<"draw" | "upload">("draw");
   const [uploadedSigDataUrl, setUploadedSigDataUrl] = useState<string | null>(null);
