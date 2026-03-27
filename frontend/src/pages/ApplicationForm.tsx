@@ -1,7 +1,10 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
-import SignatureCanvas from "react-signature-canvas";
+import SignatureCanvasType from "react-signature-canvas";
+const SignatureCanvas: typeof SignatureCanvasType = typeof SignatureCanvasType === "function"
+  ? SignatureCanvasType
+  : (SignatureCanvasType as unknown as { default: typeof SignatureCanvasType }).default;
 import {
   ApiError,
   submitApplication,
@@ -178,7 +181,7 @@ export default function ApplicationForm() {
   // ---- Signature flow: "upload" (Option A, default) or "inline" (Option B)
   const [signatureMode, setSignatureMode] = useState<"upload" | "inline">("upload");
   const [sigEmpty, setSigEmpty] = useState(true);
-  const sigCanvasRef = useRef<SignatureCanvas | null>(null);
+  const sigCanvasRef = useRef<SignatureCanvasType | null>(null);
   // Container ref + dynamic width so the canvas internal resolution always
   // matches its CSS size — prevents the touch-offset bug on mobile.
   const sigContainerRef = useRef<HTMLDivElement | null>(null);
@@ -208,7 +211,7 @@ export default function ApplicationForm() {
   const [isPortrait, setIsPortrait] = useState(
     typeof window !== "undefined" ? window.matchMedia("(orientation: portrait)").matches : true,
   );
-  const fullscreenCanvasRef = useRef<SignatureCanvas | null>(null);
+  const fullscreenCanvasRef = useRef<SignatureCanvasType | null>(null);
   const fullscreenContainerRef = useRef<HTMLDivElement | null>(null);
   const [fsCanvasWidth, setFsCanvasWidth] = useState(800);
   const [fsCanvasHeight, setFsCanvasHeight] = useState(400);
