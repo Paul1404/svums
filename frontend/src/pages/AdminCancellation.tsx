@@ -2,7 +2,12 @@ import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { toast } from "sonner";
 import { ArrowLeft, Download, FileText, Loader2, PenLine, Trash2, Upload } from "lucide-react";
-import SignatureCanvas from "react-signature-canvas";
+import SignatureCanvasType from "react-signature-canvas";
+// CJS interop: Vite 8/Rolldown may wrap the CJS module so the default import
+// is a namespace object { default: Component } instead of the component itself.
+const SignatureCanvas: typeof SignatureCanvasType = typeof SignatureCanvasType === "function"
+  ? SignatureCanvasType
+  : (SignatureCanvasType as unknown as { default: typeof SignatureCanvasType }).default;
 import { extractApiError, getSettings, updateSettings } from "../services/api";
 import { getAdminDistinctIdHeader } from "../lib/analytics";
 
@@ -36,7 +41,7 @@ export default function AdminCancellation() {
   const [form, setForm] = useState<CancellationForm>({ ...EMPTY_FORM });
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<Partial<Record<keyof CancellationForm, string>>>({});
-  const sigCanvasRef = useRef<SignatureCanvas | null>(null);
+  const sigCanvasRef = useRef<SignatureCanvasType | null>(null);
   const [sigEmpty, setSigEmpty] = useState(true);
   const [signatureInputMode, setSignatureInputMode] = useState<"draw" | "upload">("draw");
   const [uploadedSigDataUrl, setUploadedSigDataUrl] = useState<string | null>(null);
