@@ -32,8 +32,15 @@ def encrypt_iban(iban: str) -> str:
     return f"enc:{encrypted.decode()}"
 
 
+class IBANDecryptionError(Exception):
+    """Raised when IBAN decryption fails (wrong key, corrupted data, etc.)."""
+
+
 def decrypt_iban(value: str) -> str:
-    """Decrypt an IBAN. If not encrypted (no 'enc:' prefix), returns as-is."""
+    """Decrypt an IBAN. If not encrypted (no 'enc:' prefix), returns as-is.
+
+    Raises IBANDecryptionError if decryption fails.
+    """
     if not value or not value.startswith("enc:"):
         return value
     f = _get_fernet()
@@ -41,5 +48,13 @@ def decrypt_iban(value: str) -> str:
         decrypted = f.decrypt(value[4:].encode())
         return decrypted.decode()
     except InvalidToken:
-        logger.error("Failed to decrypt IBAN — returning masked value")
-        return "****"
+        logger.error("Failed to decrypt IBAN — data may be corrupted or key changed")
+        raise IBANDecryptionError("IBAN decryption failed — wrong key or corrupted data")
+
+
+def decrypt_iban_safe(value: str) -> str:
+    """Decrypt an IBAN, returning a visible error string on failure instead of raising."""
+    try:
+        return decrypt_iban(value)
+    except IBANDecryptionError:
+        return "[ENTSCHLÜSSELUNG FEHLGESCHLAGEN]"

@@ -303,8 +303,8 @@ class ApplicationResponse(BaseModel):
     @classmethod
     def decrypt_iban_field(cls, v):
         if isinstance(v, str) and v.startswith("enc:"):
-            from app.services.crypto import decrypt_iban
-            return decrypt_iban(v)
+            from app.services.crypto import decrypt_iban_safe
+            return decrypt_iban_safe(v)
         return v
 
     @field_validator("abteilungen", mode="before")

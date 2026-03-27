@@ -205,14 +205,23 @@ async def rate_limit_middleware(request: Request, call_next):
 
 @app.middleware("http")
 async def csrf_middleware(request: Request, call_next):
-    """CSRF double-submit cookie validation for /api/apply."""
-    if request.url.path == "/api/apply" and request.method == "POST":
+    """CSRF double-submit cookie validation for state-changing requests."""
+    needs_csrf = False
+    if request.method in ("POST", "PATCH", "DELETE", "PUT"):
+        path = request.url.path
+        if path == "/api/apply":
+            needs_csrf = True
+        elif path.startswith("/api/admin/") and path not in ("/api/admin/login", "/api/admin/logout"):
+            needs_csrf = True
+
+    if needs_csrf:
         cookie_token = request.cookies.get("csrf_token")
         header_token = request.headers.get("x-csrf-token")
         if not cookie_token or not header_token or cookie_token != header_token:
             client_ip = request.client.host if request.client else "unknown"
             logger.warning(
-                "CSRF validation failed on /api/apply from %s (cookie=%s, header=%s)",
+                "CSRF validation failed on %s %s from %s (cookie=%s, header=%s)",
+                request.method, request.url.path,
                 client_ip, bool(cookie_token), bool(header_token),
             )
             return JSONResponse(
@@ -230,6 +239,17 @@ async def security_headers_middleware(request: Request, call_next):
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["X-Frame-Options"] = "DENY"
     response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    response.headers["Content-Security-Policy"] = (
+        "default-src 'self'; "
+        "script-src 'self'; "
+        "style-src 'self' 'unsafe-inline'; "
+        "img-src 'self' data: blob:; "
+        "font-src 'self'; "
+        "connect-src 'self'; "
+        "frame-ancestors 'none'; "
+        "base-uri 'self'; "
+        "form-action 'self'"
+    )
     return response
 
 

@@ -214,6 +214,11 @@ export class ApiError extends Error {
   }
 }
 
+function _getCsrfTokenFromCookie(): string | null {
+  const match = document.cookie.match(/(?:^|;\s*)csrf_token=([^;]*)/);
+  return match ? decodeURIComponent(match[1]) : null;
+}
+
 async function apiRequest<T>(
   url: string,
   options: RequestInit = {}
@@ -226,6 +231,15 @@ async function apiRequest<T>(
   const adminHeaders = url.startsWith("/api/admin")
     ? getAdminDistinctIdHeader()
     : {};
+  // Include CSRF token on all state-changing requests (defense-in-depth)
+  const method = (rest.method || "GET").toUpperCase();
+  const csrfHeaders: Record<string, string> = {};
+  if (method !== "GET" && method !== "HEAD") {
+    const token = _getCsrfTokenFromCookie();
+    if (token) {
+      csrfHeaders["X-CSRF-Token"] = token;
+    }
+  }
   const response = await fetch(url, {
     credentials: "include",
     body,
@@ -233,6 +247,7 @@ async function apiRequest<T>(
     headers: {
       ...baseHeaders,
       ...adminHeaders,
+      ...csrfHeaders,
       ...(extraHeaders as Record<string, string>),
     },
   });

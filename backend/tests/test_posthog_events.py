@@ -25,7 +25,7 @@ def test_status_change_emits_admin_application_status_changed(
         f"/api/admin/applications/{app_row.id}",
         json={"status": "in_bearbeitung"},
         cookies=admin_cookie,
-        headers={"X-PostHog-Distinct-Id": "admin-browser-1"},
+        headers={"X-PostHog-Distinct-Id": "admin-browser-1", "X-CSRF-Token": "test-csrf-token"},
     )
 
     assert response.status_code == 200
