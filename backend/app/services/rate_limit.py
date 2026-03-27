@@ -1,9 +1,12 @@
+import logging
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 
 from sqlalchemy.orm import Session
 
 from app.models.rate_limit import RateLimitBucket
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -88,6 +91,10 @@ def consume_rate_limit(
         bucket.updated_at = now
         db.commit()
         retry_after = max(1, int((bucket.blocked_until - now).total_seconds()))
+        logger.warning(
+            "Rate limit exceeded: scope=%s key=%s count=%d/%d (blocked for %ds)",
+            scope, key, bucket.count, limit, retry_after,
+        )
         return RateLimitDecision(allowed=False, retry_after_seconds=retry_after)
 
     bucket.count += 1
