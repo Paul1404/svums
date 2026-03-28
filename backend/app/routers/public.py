@@ -445,8 +445,14 @@ async def lookup_iban(iban: str):
 
 
 @router.get("/health")
-async def health_check():
-    return {"status": "ok"}
+def health_check(db: Session = Depends(get_db)):
+    """Health check that also keeps the DB connection warm (prevents Neon cold-start)."""
+    from sqlalchemy import text
+    try:
+        db.execute(text("SELECT 1"))
+        return {"status": "ok"}
+    except Exception:
+        return {"status": "degraded", "db": "unavailable"}
 
 
 @router.get("/client-config")

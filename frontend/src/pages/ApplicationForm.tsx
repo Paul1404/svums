@@ -2145,13 +2145,14 @@ function AbteilungenPicker({
 }
 
 function useAnimatedFee(target: number | null): { display: string; popping: boolean } {
-  const [display, setDisplay] = useState(target ?? 0);
+  const numTarget = target != null ? Number(target) : null;
+  const [display, setDisplay] = useState(numTarget ?? 0);
   const [popping, setPopping] = useState(false);
-  const prevRef = useRef(target ?? 0);
+  const prevRef = useRef(numTarget ?? 0);
   const rafRef = useRef(0);
 
   useEffect(() => {
-    const to = target ?? 0;
+    const to = numTarget ?? 0;
     const from = prevRef.current;
     prevRef.current = to;
     if (from === to) return;
@@ -2176,7 +2177,7 @@ function useAnimatedFee(target: number | null): { display: string; popping: bool
       cancelAnimationFrame(rafRef.current);
       clearTimeout(popTimer);
     };
-  }, [target]);
+  }, [numTarget]);
 
   const formatted = (() => {
     const n = display;

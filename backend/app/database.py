@@ -31,6 +31,7 @@ else:
         settings.database_url,
         pool_pre_ping=True,
         pool_recycle=300,
+        connect_args={"connect_timeout": 10},
     )
 
 
@@ -66,7 +67,27 @@ def wait_for_db(max_retries: int = 5, initial_delay: float = 2.0) -> None:
 
 
 def get_db():
-    db = SessionLocal()
+    """Yield a DB session, retrying on transient connection errors (Neon cold-start)."""
+    from sqlalchemy.exc import OperationalError
+
+    last_exc: Exception | None = None
+    for attempt in range(3):
+        try:
+            db = SessionLocal()
+            # Force a connection checkout to surface errors before yielding
+            db.connection()
+            break
+        except OperationalError as exc:
+            last_exc = exc
+            if attempt < 2:
+                logger.warning(
+                    "DB connection failed (attempt %d/3), retrying: %s",
+                    attempt + 1, exc,
+                )
+                time.sleep(1.0 * (attempt + 1))
+                continue
+            logger.error("DB connection failed after 3 attempts")
+            raise
     try:
         yield db
     except Exception:
