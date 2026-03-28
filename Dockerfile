@@ -4,8 +4,7 @@ FROM node:25-alpine AS frontend-builder
 WORKDIR /app/frontend
 
 COPY frontend/package*.json ./
-RUN --mount=type=cache,id=npm-cache,target=/root/.npm \
-    npm ci
+RUN npm ci
 
 COPY frontend/ ./
 RUN npm run build
@@ -16,9 +15,7 @@ FROM python:3.14-slim
 WORKDIR /app
 
 # Install system dependencies for WeasyPrint
-RUN --mount=type=cache,id=apt-cache,target=/var/cache/apt,sharing=locked \
-    --mount=type=cache,id=apt-lib,target=/var/lib/apt,sharing=locked \
-    apt-get update && apt-get install -y --no-install-recommends \
+RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc \
     libpango-1.0-0 \
     libpangocairo-1.0-0 \
@@ -27,12 +24,12 @@ RUN --mount=type=cache,id=apt-cache,target=/var/cache/apt,sharing=locked \
     libgdk-pixbuf-2.0-0 \
     libffi-dev \
     libglib2.0-0 \
-    shared-mime-info
+    shared-mime-info \
+    && rm -rf /var/lib/apt/lists/*
 
 # Install Python dependencies (pytest excluded — dev only)
 COPY backend/requirements.txt .
-RUN --mount=type=cache,id=pip-cache,target=/root/.cache/pip \
-    pip install -r requirements.txt
+RUN pip install -r requirements.txt
 
 # Copy backend application code (tests/venv excluded via .dockerignore)
 COPY backend/ .
