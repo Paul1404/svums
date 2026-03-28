@@ -289,6 +289,7 @@ async def submit_application(
         datenschutz_accepted=data.datenschutz_accepted,
         satzung_accepted=data.satzung_accepted,
         consent_ip=request.client.host if request.client else None,
+        is_test=data.is_test,
     )
 
     db.add(application)

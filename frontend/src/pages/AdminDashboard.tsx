@@ -5,6 +5,7 @@ import { useAdmin } from "../context/AdminContext";
 import {
   getApplications,
   getAdminStats,
+  getTestData,
   formatFee,
   type ApplicationResponse,
   type ApplicationListResponse,
@@ -31,6 +32,7 @@ import {
   CalendarDays,
   Euro,
   Users,
+  FlaskConical,
 } from "lucide-react";
 
 const STATUS_LABELS: Record<string, { label: string; color: string }> = {
@@ -52,6 +54,9 @@ export default function AdminDashboard() {
   const [search, setSearch] = useState("");
   const [searchInput, setSearchInput] = useState("");
   const [showDetailedStats, setShowDetailedStats] = useState(false);
+  const [showTestFilter, setShowTestFilter] = useState<boolean | null>(null); // null = show all, true = only test, false = hide test
+  const [testModeType, setTestModeType] = useState<"einzel" | "kind" | "familie">("einzel");
+  const [launchingTest, setLaunchingTest] = useState(false);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -61,7 +66,8 @@ export default function AdminDashboard() {
           page,
           25,
           statusFilter || undefined,
-          search || undefined
+          search || undefined,
+          showTestFilter
         ),
         getAdminStats(),
       ]);
@@ -79,7 +85,7 @@ export default function AdminDashboard() {
     } finally {
       setLoading(false);
     }
-  }, [page, statusFilter, search]);
+  }, [page, statusFilter, search, showTestFilter]);
 
   useEffect(() => {
     fetchData();
@@ -96,6 +102,19 @@ export default function AdminDashboard() {
     navigate("/admin/login");
   };
 
+  const handleLaunchTestMode = async () => {
+    setLaunchingTest(true);
+    try {
+      const testData = await getTestData(testModeType);
+      sessionStorage.setItem("svums_test_data", JSON.stringify(testData));
+      window.open("/", "_blank");
+    } catch (err: any) {
+      toast.error(err.message || "Testdaten konnten nicht geladen werden");
+    } finally {
+      setLaunchingTest(false);
+    }
+  };
+
   const totalPages = data ? Math.ceil(data.total / data.per_page) : 0;
 
   return (
@@ -110,6 +129,27 @@ export default function AdminDashboard() {
             <p className="text-xs text-gray-500">Mitgliederverwaltung</p>
           </div>
           <div className="flex items-center gap-2">
+            {/* Test Application */}
+            <div className="flex items-center gap-1.5 border-r pr-2 mr-1">
+              <select
+                value={testModeType}
+                onChange={(e) => setTestModeType(e.target.value as "einzel" | "kind" | "familie")}
+                className="text-xs border border-gray-300 rounded px-1.5 py-1.5 bg-white"
+              >
+                <option value="einzel">Einzel</option>
+                <option value="kind">Kind</option>
+                <option value="familie">Familie</option>
+              </select>
+              <button
+                onClick={handleLaunchTestMode}
+                disabled={launchingTest}
+                className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-orange-700 bg-orange-50 border border-orange-200 rounded-lg hover:bg-orange-100 transition-colors disabled:opacity-50"
+                title="Testantrag mit Beispieldaten öffnen"
+              >
+                <FlaskConical className="w-3.5 h-3.5" />
+                {launchingTest ? "Laden..." : "Testantrag"}
+              </button>
+            </div>
             <Link
               to="/admin/documents"
               className="flex items-center gap-1.5 px-3 py-2 text-sm text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-colors"
@@ -195,6 +235,36 @@ export default function AdminDashboard() {
               </button>
             ))}
           </div>
+
+          <button
+            onClick={() => {
+              setShowTestFilter((prev) =>
+                prev === null ? true : prev === true ? false : null
+              );
+              setPage(1);
+            }}
+            className={`flex items-center gap-1 px-3 py-2 text-sm rounded-lg border transition-colors ${
+              showTestFilter === true
+                ? "bg-orange-100 text-orange-700 border-orange-300"
+                : showTestFilter === false
+                ? "bg-gray-100 text-gray-500 border-gray-300"
+                : "bg-white text-gray-600 border-gray-300 hover:bg-gray-50"
+            }`}
+            title={
+              showTestFilter === null
+                ? "Alle anzeigen — klicken für nur Testanträge"
+                : showTestFilter
+                ? "Nur Testanträge — klicken für ohne Testanträge"
+                : "Ohne Testanträge — klicken für alle"
+            }
+          >
+            <FlaskConical className="w-3.5 h-3.5" />
+            {showTestFilter === null
+              ? "Test: Alle"
+              : showTestFilter
+              ? "Test: Nur"
+              : "Test: Aus"}
+          </button>
 
           <button
             onClick={fetchData}
@@ -411,13 +481,22 @@ export default function AdminDashboard() {
                       onClick={() =>
                         navigate(`/admin/applications/${app.id}`)
                       }
-                      className="border-b hover:bg-gray-50 cursor-pointer transition-colors"
+                      className={`border-b hover:bg-gray-50 cursor-pointer transition-colors ${
+                        app.is_test ? "bg-orange-50/60" : ""
+                      }`}
                     >
                       <td className="px-4 py-3 text-gray-500 font-mono">
                         {app.id}
                       </td>
                       <td className="px-4 py-3 font-medium text-gray-900">
-                        {app.nachname}, {app.vorname}
+                        <span className="flex items-center gap-1.5">
+                          {app.is_test && (
+                            <span className="inline-flex items-center px-1.5 py-0.5 text-[10px] font-semibold rounded bg-orange-100 text-orange-700 shrink-0">
+                              TEST
+                            </span>
+                          )}
+                          {app.nachname}, {app.vorname}
+                        </span>
                       </td>
                       <td className="px-4 py-3 text-gray-600 hidden md:table-cell">
                         {app.email}

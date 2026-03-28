@@ -45,6 +45,8 @@ export interface ApplicationData {
   /** Legal consent checkboxes (DSGVO) */
   datenschutz_accepted: boolean;
   satzung_accepted: boolean;
+  /** Test mode flag — set when submitting via admin test mode */
+  is_test?: boolean;
 }
 
 export interface ApplicationResponse {
@@ -88,6 +90,7 @@ export interface ApplicationResponse {
   datenschutz_accepted: boolean | null;
   satzung_accepted: boolean | null;
   consent_ip: string | null;
+  is_test: boolean;
   created_at: string;
 }
 
@@ -430,7 +433,8 @@ export async function getApplications(
   page = 1,
   perPage = 25,
   status?: string,
-  search?: string
+  search?: string,
+  showTest?: boolean | null
 ): Promise<ApplicationListResponse> {
   const params = new URLSearchParams({
     page: String(page),
@@ -438,7 +442,42 @@ export async function getApplications(
   });
   if (status) params.set("status", status);
   if (search) params.set("search", search);
+  if (showTest !== undefined && showTest !== null) {
+    params.set("show_test", String(showTest));
+  }
   return apiRequest(`/api/admin/applications?${params}`);
+}
+
+export interface TestDataResponse {
+  membership_type: string;
+  geschlecht: string | null;
+  vorname: string;
+  nachname: string;
+  geburtsdatum: string;
+  strasse: string;
+  plz: string;
+  ort: string;
+  email: string;
+  telefon: string;
+  abteilungen: string[];
+  kontoinhaber: string;
+  iban: string;
+  bic: string;
+  kreditinstitut: string;
+  erziehungsberechtigter_vorname?: string;
+  erziehungsberechtigter_nachname?: string;
+  elternteil_mitglied?: boolean;
+  partner_vorname?: string;
+  partner_nachname?: string;
+  partner_geburtsdatum?: string;
+  partner_abteilungen?: string[];
+  kinder?: Array<{ vorname: string; nachname: string; geburtsdatum: string; abteilungen: string[] }>;
+}
+
+export async function getTestData(
+  type: "einzel" | "kind" | "familie" = "einzel"
+): Promise<TestDataResponse> {
+  return apiRequest(`/api/admin/test-data?type=${type}`);
 }
 
 export async function getAdminStats(): Promise<AdminStatsResponse> {
