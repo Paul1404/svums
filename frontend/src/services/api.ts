@@ -42,6 +42,9 @@ export interface ApplicationData {
   kreditinstitut: string;
   /** Base64 data-URL of the drawn signature PNG (Option B – inline signing). */
   unterschrift_base64?: string | null;
+  /** Legal consent checkboxes (DSGVO) */
+  datenschutz_accepted: boolean;
+  satzung_accepted: boolean;
 }
 
 export interface ApplicationResponse {
@@ -82,6 +85,9 @@ export interface ApplicationResponse {
   admin_approved_file: string | null;
   mitgliedsnummer: string | null;
   consent_at: string | null;
+  datenschutz_accepted: boolean | null;
+  satzung_accepted: boolean | null;
+  consent_ip: string | null;
   created_at: string;
 }
 
