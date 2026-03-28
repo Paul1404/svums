@@ -18,6 +18,8 @@ import {
   LogOut,
   ChevronLeft,
   ChevronRight,
+  ChevronDown,
+  ChevronUp,
   FileText,
   RefreshCw,
   Mail,
@@ -28,6 +30,7 @@ import {
   BarChart3,
   CalendarDays,
   Euro,
+  Users,
 } from "lucide-react";
 
 const STATUS_LABELS: Record<string, { label: string; color: string }> = {
@@ -48,6 +51,7 @@ export default function AdminDashboard() {
   const [statusFilter, setStatusFilter] = useState("");
   const [search, setSearch] = useState("");
   const [searchInput, setSearchInput] = useState("");
+  const [showDetailedStats, setShowDetailedStats] = useState(false);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -240,6 +244,114 @@ export default function AdminDashboard() {
                 ))}
               </div>
             </div>
+          </div>
+        )}
+
+        {/* Detailed Stats Toggle */}
+        {stats && (
+          <div className="mb-6">
+            <button
+              onClick={() => setShowDetailedStats(!showDetailedStats)}
+              className="flex items-center gap-2 text-sm text-gray-600 hover:text-gray-800 transition-colors mb-3"
+            >
+              <Users className="w-4 h-4" />
+              <span className="font-medium">Detaillierte Statistiken</span>
+              {showDetailedStats ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+            </button>
+
+            {showDetailedStats && (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+                {/* Abteilungen */}
+                <div className="bg-white rounded-xl border shadow-sm p-4">
+                  <h3 className="text-xs font-medium text-gray-500 mb-3">Anträge pro Abteilung</h3>
+                  {Object.keys(stats.by_abteilung).length === 0 ? (
+                    <p className="text-sm text-gray-400">Keine Daten</p>
+                  ) : (
+                    <div className="space-y-2">
+                      {Object.entries(stats.by_abteilung)
+                        .sort(([, a], [, b]) => b - a)
+                        .map(([abt, count]) => (
+                          <div key={abt} className="flex items-center justify-between">
+                            <span className="text-sm text-gray-700 truncate mr-2">{abt}</span>
+                            <span className="text-sm font-semibold text-gray-900 shrink-0">{count}</span>
+                          </div>
+                        ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Altersgruppen */}
+                <div className="bg-white rounded-xl border shadow-sm p-4">
+                  <h3 className="text-xs font-medium text-gray-500 mb-3">Altersverteilung</h3>
+                  <div className="space-y-2">
+                    {Object.entries(stats.by_age_group).map(([group, count]) => {
+                      const max = Math.max(...Object.values(stats.by_age_group), 1);
+                      return (
+                        <div key={group}>
+                          <div className="flex items-center justify-between mb-0.5">
+                            <span className="text-sm text-gray-700">{group}</span>
+                            <span className="text-sm font-semibold text-gray-900">{count}</span>
+                          </div>
+                          <div className="w-full bg-gray-100 rounded-full h-1.5">
+                            <div
+                              className="bg-svu-500 h-1.5 rounded-full transition-all"
+                              style={{ width: `${(count / max) * 100}%` }}
+                            />
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Mitgliedschaftstyp */}
+                <div className="bg-white rounded-xl border shadow-sm p-4">
+                  <h3 className="text-xs font-medium text-gray-500 mb-3">Mitgliedschaftstyp</h3>
+                  {Object.keys(stats.by_membership_type).length === 0 ? (
+                    <p className="text-sm text-gray-400">Keine Daten</p>
+                  ) : (
+                    <div className="space-y-2">
+                      {Object.entries(stats.by_membership_type)
+                        .sort(([, a], [, b]) => b - a)
+                        .map(([typ, count]) => {
+                          const labels: Record<string, string> = {
+                            kind: "Kind",
+                            jugendlich: "Jugendlich",
+                            junger_erwachsener: "Junger Erwachsener",
+                            erwachsener: "Erwachsener",
+                            familie: "Familie",
+                          };
+                          return (
+                            <div key={typ} className="flex items-center justify-between">
+                              <span className="text-sm text-gray-700">{labels[typ] || typ}</span>
+                              <span className="text-sm font-semibold text-gray-900">{count}</span>
+                            </div>
+                          );
+                        })}
+                    </div>
+                  )}
+                </div>
+
+                {/* Geschlecht */}
+                <div className="bg-white rounded-xl border shadow-sm p-4">
+                  <h3 className="text-xs font-medium text-gray-500 mb-3">Geschlecht</h3>
+                  {Object.keys(stats.by_gender).length === 0 ? (
+                    <p className="text-sm text-gray-400">Keine Daten</p>
+                  ) : (
+                    <div className="space-y-2">
+                      {Object.entries(stats.by_gender)
+                        .sort(([, a], [, b]) => b - a)
+                        .map(([g, count]) => (
+                          <div key={g} className="flex items-center justify-between">
+                            <span className="text-sm text-gray-700">{g}</span>
+                            <span className="text-sm font-semibold text-gray-900">{count}</span>
+                          </div>
+                        ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
         )}
 
