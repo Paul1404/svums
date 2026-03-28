@@ -328,11 +328,60 @@ async def get_stats(
         .scalar()
     ) or 0
 
+    # --- Extended stats: abteilung, age, membership type, gender ---
+    all_apps = db.query(
+        MembershipApplication.abteilungen,
+        MembershipApplication.geburtsdatum,
+        MembershipApplication.mitgliedschaft_typ,
+        MembershipApplication.geschlecht,
+    ).all()
+
+    by_abteilung: dict[str, int] = {}
+    by_age_group: dict[str, int] = {"Unter 14": 0, "14-17": 0, "18-26": 0, "27-59": 0, "60+": 0}
+    by_membership_type: dict[str, int] = {}
+    by_gender: dict[str, int] = {}
+
+    today = now.date()
+    for abt_json, geb, mtyp, geschlecht in all_apps:
+        # Abteilungen (JSON array)
+        try:
+            abteilungen = json.loads(abt_json) if abt_json else []
+        except (json.JSONDecodeError, TypeError):
+            abteilungen = []
+        for abt in abteilungen:
+            by_abteilung[abt] = by_abteilung.get(abt, 0) + 1
+
+        # Age groups
+        if geb:
+            age = today.year - geb.year - ((today.month, today.day) < (geb.month, geb.day))
+            if age < 14:
+                by_age_group["Unter 14"] += 1
+            elif age < 18:
+                by_age_group["14-17"] += 1
+            elif age < 27:
+                by_age_group["18-26"] += 1
+            elif age < 60:
+                by_age_group["27-59"] += 1
+            else:
+                by_age_group["60+"] += 1
+
+        # Membership type
+        if mtyp:
+            by_membership_type[mtyp] = by_membership_type.get(mtyp, 0) + 1
+
+        # Gender
+        if geschlecht:
+            by_gender[geschlecht] = by_gender.get(geschlecht, 0) + 1
+
     return AdminStatsResponse(
         total=total,
         by_status=by_status,
         revenue_approved=revenue,
         applications_this_month=this_month,
+        by_abteilung=by_abteilung,
+        by_age_group=by_age_group,
+        by_membership_type=by_membership_type,
+        by_gender=by_gender,
     )
 
 

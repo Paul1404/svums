@@ -379,6 +379,10 @@ class AdminStatsResponse(BaseModel):
     by_status: dict[str, int]
     revenue_approved: Decimal
     applications_this_month: int
+    by_abteilung: dict[str, int]
+    by_age_group: dict[str, int]
+    by_membership_type: dict[str, int]
+    by_gender: dict[str, int]
 
 
 class FeeCalculationRequest(BaseModel):
