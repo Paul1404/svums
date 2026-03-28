@@ -1085,6 +1085,14 @@ class CancellationRequest(BaseModel):
     austritt_datum: str
     unterschrift_base64: str | None = None  # data-URL from signature canvas
     use_saved_admin_signature: bool = True
+    # Optional: separate recipient (parent/payer) when different from the member
+    empfaenger_abweichend: bool = False
+    empfaenger_anrede: str | None = None
+    empfaenger_vorname: str | None = None
+    empfaenger_nachname: str | None = None
+    empfaenger_strasse: str | None = None
+    empfaenger_plz: str | None = None
+    empfaenger_ort: str | None = None
 
 
 @router.post("/cancellation-pdf")
@@ -1104,20 +1112,50 @@ async def cancellation_pdf(
         effective_signature = settings.admin_signature_base64
         signature_source = "admin_saved"
 
-    if data.anrede == "keine Angabe":
-        anrede_full = f"Guten Tag {data.vorname} {data.nachname}"
-        anrede_text = ""
+    # Determine recipient: use separate parent/payer fields if provided
+    ist_empfaenger_abweichend = (
+        data.empfaenger_abweichend
+        and data.empfaenger_vorname
+        and data.empfaenger_nachname
+    )
+    if ist_empfaenger_abweichend:
+        e_anrede = data.empfaenger_anrede or "keine Angabe"
+        e_vorname = data.empfaenger_vorname
+        e_nachname = data.empfaenger_nachname
+        e_strasse = data.empfaenger_strasse or data.strasse
+        e_plz = data.empfaenger_plz or data.plz
+        e_ort = data.empfaenger_ort or data.ort
     else:
+        e_anrede = data.anrede
+        e_vorname = data.vorname
+        e_nachname = data.nachname
+        e_strasse = data.strasse
+        e_plz = data.plz
+        e_ort = data.ort
+
+    def _resolve_anrede(anrede: str, vorname: str, nachname: str):
+        if anrede == "keine Angabe":
+            return f"Guten Tag {vorname} {nachname}", ""
         anrede_map = {
             "Herr": ("Sehr geehrter Herr", "Herrn"),
             "Frau": ("Sehr geehrte Frau", "Frau"),
         }
-        greeting, anrede_text = anrede_map.get(data.anrede, ("Sehr geehrte/r", ""))
-        anrede_full = f"{greeting} {data.nachname}"
+        greeting, text = anrede_map.get(anrede, ("Sehr geehrte/r", ""))
+        return f"{greeting} {nachname}", text
+
+    empfaenger_anrede_full, empfaenger_anrede_text = _resolve_anrede(
+        e_anrede, e_vorname, e_nachname
+    )
 
     pdf_data = {
-        "anrede": anrede_full,
-        "anrede_text": anrede_text,
+        "empfaenger_anrede": empfaenger_anrede_full,
+        "empfaenger_anrede_text": empfaenger_anrede_text,
+        "empfaenger_vorname": e_vorname,
+        "empfaenger_nachname": e_nachname,
+        "empfaenger_strasse": e_strasse,
+        "empfaenger_plz": e_plz,
+        "empfaenger_ort": e_ort,
+        "ist_empfaenger_abweichend": bool(ist_empfaenger_abweichend),
         "vorname": data.vorname,
         "nachname": data.nachname,
         "strasse": data.strasse,
