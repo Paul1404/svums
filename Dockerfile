@@ -4,7 +4,8 @@ FROM node:25-alpine AS frontend-builder
 WORKDIR /app/frontend
 
 COPY frontend/package*.json ./
-RUN npm install
+RUN --mount=type=cache,target=/root/.npm \
+    npm ci
 
 COPY frontend/ ./
 RUN npm run build
@@ -15,7 +16,9 @@ FROM python:3.14-slim
 WORKDIR /app
 
 # Install system dependencies for WeasyPrint
-RUN apt-get update && apt-get install -y --no-install-recommends \
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt,sharing=locked \
+    apt-get update && apt-get install -y --no-install-recommends \
     gcc \
     libpango-1.0-0 \
     libpangocairo-1.0-0 \
@@ -24,25 +27,24 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libgdk-pixbuf-2.0-0 \
     libffi-dev \
     libglib2.0-0 \
-    shared-mime-info \
-    && rm -rf /var/lib/apt/lists/*
+    shared-mime-info
 
-# Copy requirements first for better caching
+# Install Python dependencies (pytest excluded — dev only)
 COPY backend/requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN --mount=type=cache,target=/root/.cache/pip \
+    pip install -r requirements.txt
 
-# Copy backend application code
+# Copy backend application code (tests/venv excluded via .dockerignore)
 COPY backend/ .
 RUN chmod +x /app/entrypoint.sh
 
 # Copy built frontend to static directory
 COPY --from=frontend-builder /app/frontend/dist ./static
 
-# Create data directory (for sqlite if used; uploads go to Tigris/S3)
-RUN mkdir -p /app/data
-
-# Create non-root user
-RUN useradd -m -u 1000 appuser && chown -R appuser:appuser /app
+# Create data directory and non-root user
+RUN mkdir -p /app/data \
+    && useradd -m -u 1000 appuser \
+    && chown -R appuser:appuser /app
 USER appuser
 
 EXPOSE 8000
