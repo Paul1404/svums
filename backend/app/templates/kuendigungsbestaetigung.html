@@ -126,10 +126,10 @@
 </div>
 
 <div class="recipient">
-  {{ anrede_text }}<br>
-  {{ vorname }} {{ nachname }}<br>
-  {{ strasse }}<br>
-  {{ plz }} {{ ort }}
+  {{ empfaenger_anrede_text }}<br>
+  {{ empfaenger_vorname }} {{ empfaenger_nachname }}<br>
+  {{ empfaenger_strasse }}<br>
+  {{ empfaenger_plz }} {{ empfaenger_ort }}
 </div>
 
 <div class="meta">
@@ -141,12 +141,17 @@
 </div>
 
 <div class="body-text">
-  {{ anrede }},
+  {{ empfaenger_anrede }},
 </div>
 
 <div class="body-text">
+  {% if ist_empfaenger_abweichend %}
+  hiermit bestätigen wir den Eingang der schriftlichen Austrittserklärung und das Ende der
+  Mitgliedschaft von {{ vorname }} {{ nachname }} beim Sportverein 1945 Untereuerheim e.V.
+  {% else %}
   hiermit bestätigen wir den Eingang Ihrer schriftlichen Austrittserklärung und das Ende Ihrer
   Mitgliedschaft beim Sportverein 1945 Untereuerheim e.V.
+  {% endif %}
 </div>
 
 <div class="detail-box">
@@ -200,7 +205,7 @@
     <img class="signature-img" src="{{ unterschrift_base64 }}" alt="Unterschrift">
     {% endif %}
     <div class="signature-line">
-      Vorstandsmitglied Ressort Finanzen & Verwaltung, Sportverein 1945 Untereuerheim e.V.
+      Mitgliederverwaltung | Sportverein 1945 Untereuerheim e.V.
     </div>
   </div>
 </div>
