@@ -67,7 +67,7 @@ def generate_pdf(application_data: dict) -> bytes:
 
 
 def generate_cancellation_pdf(data: dict) -> bytes:
-    """Generate a PDF Kündigungsbestätigung."""
+    """Generate a PDF Austrittsbestätigung."""
     start = time.perf_counter()
     template = _env.get_template("kuendigungsbestaetigung.html")
     html_content = template.render(**data)
