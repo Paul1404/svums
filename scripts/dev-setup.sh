@@ -25,7 +25,7 @@ source "$VENV_DIR/bin/activate"
 
 echo "Installing/upgrading Python dependencies..."
 pip install --quiet --upgrade pip
-pip install --quiet -r "$ROOT/backend/requirements.txt"
+pip install --quiet -r "$ROOT/backend/requirements-dev.txt"
 
 # Create data directory for SQLite
 mkdir -p "$ROOT/backend/data"
