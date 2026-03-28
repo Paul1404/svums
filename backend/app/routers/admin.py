@@ -1036,7 +1036,7 @@ async def get_test_data(
         "strasse": "Hauptstraße 12",
         "plz": "97528",
         "ort": "Sulzdorf a.d.L.",
-        "email": "test@sv-untereuerheim.de",
+        "email": "mitgliedschaft@sv-untereuerheim.de",
         "telefon": "09727 1234567",
         "abteilungen": ["Fußball"],
         "kontoinhaber": "Max Mustermann",
