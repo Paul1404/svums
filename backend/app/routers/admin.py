@@ -11,7 +11,7 @@ from app.services.posthog import capture as posthog_capture, get_admin_distinct_
 from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, Request, Response, UploadFile
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
-from sqlalchemy import or_
+from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 from itsdangerous import URLSafeTimedSerializer, BadSignature, SignatureExpired
 
@@ -22,6 +22,7 @@ from app.models.cancellation_letter import CancellationLetter
 from app.models.settings import AppSettings
 from app.models.email_log import EmailLog
 from app.schemas.application import (
+    AdminStatsResponse,
     ApplicationResponse,
     ApplicationListResponse,
     ApplicationUpdate,
@@ -293,6 +294,46 @@ async def admin_logout(request: Request, response: Response):
 @router.get("/me")
 async def admin_check(is_admin: bool = Depends(require_admin)):
     return {"authenticated": True}
+
+
+# --- Stats ---
+
+@router.get("/stats", response_model=AdminStatsResponse)
+async def get_stats(
+    is_admin: bool = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    from decimal import Decimal
+
+    total = db.query(func.count(MembershipApplication.id)).scalar() or 0
+
+    status_rows = (
+        db.query(MembershipApplication.status, func.count(MembershipApplication.id))
+        .group_by(MembershipApplication.status)
+        .all()
+    )
+    by_status = {s: c for s, c in status_rows}
+
+    revenue = (
+        db.query(func.sum(MembershipApplication.jahresbeitrag))
+        .filter(MembershipApplication.status == "genehmigt")
+        .scalar()
+    ) or Decimal("0")
+
+    now = datetime.utcnow()
+    month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    this_month = (
+        db.query(func.count(MembershipApplication.id))
+        .filter(MembershipApplication.created_at >= month_start)
+        .scalar()
+    ) or 0
+
+    return AdminStatsResponse(
+        total=total,
+        by_status=by_status,
+        revenue_approved=revenue,
+        applications_this_month=this_month,
+    )
 
 
 # --- Applications ---

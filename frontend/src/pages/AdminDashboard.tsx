@@ -4,9 +4,11 @@ import { toast } from "sonner";
 import { useAdmin } from "../context/AdminContext";
 import {
   getApplications,
+  getAdminStats,
   formatFee,
   type ApplicationResponse,
   type ApplicationListResponse,
+  type AdminStatsResponse,
 } from "../services/api";
 import { captureEvent } from "../lib/analytics";
 import {
@@ -23,6 +25,9 @@ import {
   FileCheck,
   FileX,
   UserX,
+  BarChart3,
+  CalendarDays,
+  Euro,
 } from "lucide-react";
 
 const STATUS_LABELS: Record<string, { label: string; color: string }> = {
@@ -37,6 +42,7 @@ export default function AdminDashboard() {
   const { logout } = useAdmin();
   const navigate = useNavigate();
   const [data, setData] = useState<ApplicationListResponse | null>(null);
+  const [stats, setStats] = useState<AdminStatsResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
   const [statusFilter, setStatusFilter] = useState("");
@@ -46,13 +52,17 @@ export default function AdminDashboard() {
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
-      const result = await getApplications(
-        page,
-        25,
-        statusFilter || undefined,
-        search || undefined
-      );
+      const [result, statsResult] = await Promise.all([
+        getApplications(
+          page,
+          25,
+          statusFilter || undefined,
+          search || undefined
+        ),
+        getAdminStats(),
+      ]);
       setData(result);
+      setStats(statsResult);
       captureEvent("admin_dashboard_loaded", {
         app_area: "admin",
         page,
@@ -192,10 +202,45 @@ export default function AdminDashboard() {
         </div>
 
         {/* Stats */}
-        {data && (
-          <p className="text-sm text-gray-500 mb-4">
-            {data.total} Antrag{data.total !== 1 ? "e" : ""} gefunden
-          </p>
+        {stats && (
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
+            <div className="bg-white rounded-xl border shadow-sm p-4">
+              <div className="flex items-center gap-2 text-gray-500 mb-1">
+                <BarChart3 className="w-4 h-4" />
+                <span className="text-xs font-medium">Gesamt</span>
+              </div>
+              <p className="text-2xl font-bold text-gray-900">{stats.total}</p>
+            </div>
+            <div className="bg-white rounded-xl border shadow-sm p-4">
+              <div className="flex items-center gap-2 text-gray-500 mb-1">
+                <CalendarDays className="w-4 h-4" />
+                <span className="text-xs font-medium">Diesen Monat</span>
+              </div>
+              <p className="text-2xl font-bold text-gray-900">{stats.applications_this_month}</p>
+            </div>
+            <div className="bg-white rounded-xl border shadow-sm p-4">
+              <div className="flex items-center gap-2 text-gray-500 mb-1">
+                <Euro className="w-4 h-4" />
+                <span className="text-xs font-medium">Einnahmen (genehmigt)</span>
+              </div>
+              <p className="text-2xl font-bold text-gray-900">{formatFee(stats.revenue_approved)}</p>
+            </div>
+            <div className="bg-white rounded-xl border shadow-sm p-4">
+              <div className="flex items-center gap-2 text-gray-500 mb-2">
+                <span className="text-xs font-medium">Status-Verteilung</span>
+              </div>
+              <div className="flex flex-wrap gap-1.5">
+                {Object.entries(STATUS_LABELS).map(([key, { label, color }]) => (
+                  <span
+                    key={key}
+                    className={`inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded-full ${color}`}
+                  >
+                    {stats.by_status[key] ?? 0} {label}
+                  </span>
+                ))}
+              </div>
+            </div>
+          </div>
         )}
 
         {/* Table */}

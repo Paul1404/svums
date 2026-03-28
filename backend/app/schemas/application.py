@@ -374,6 +374,13 @@ class ApplicationListResponse(BaseModel):
     per_page: int
 
 
+class AdminStatsResponse(BaseModel):
+    total: int
+    by_status: dict[str, int]
+    revenue_approved: Decimal
+    applications_this_month: int
+
+
 class FeeCalculationRequest(BaseModel):
     geburtsdatum: date
     mitgliedschaft_typ: str
