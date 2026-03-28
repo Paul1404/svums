@@ -1026,6 +1026,7 @@ async def export_csv(
         "Abteilungen", "Mitgliedschaftstyp", "Elternteil Mitglied",
         "Jahresbeitrag", "Kontoinhaber", "IBAN", "BIC", "Kreditinstitut",
         "Status", "Notizen", "E-Mail gesendet", "Eingereicht am",
+        "Datenschutz akzeptiert", "Satzung akzeptiert", "Einwilligung am", "Einwilligung IP",
     ])
 
     for app in applications:
@@ -1044,6 +1045,10 @@ async def export_csv(
             app.status, app.notes or "",
             "Ja" if app.email_sent else "Nein",
             app.created_at.strftime("%d.%m.%Y %H:%M"),
+            "Ja" if app.datenschutz_accepted else ("Nein" if app.datenschutz_accepted is False else "N/A"),
+            "Ja" if app.satzung_accepted else ("Nein" if app.satzung_accepted is False else "N/A"),
+            app.consent_at.strftime("%d.%m.%Y %H:%M") if app.consent_at else "N/A",
+            app.consent_ip or "N/A",
         ])
 
     posthog_capture(

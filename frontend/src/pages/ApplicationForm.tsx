@@ -175,6 +175,8 @@ export default function ApplicationForm() {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState(false);
   const [consent, setConsent] = useState(false);
+  const [consentDatenschutz, setConsentDatenschutz] = useState(false);
+  const [consentSatzung, setConsentSatzung] = useState(false);
   const [feeInfo, setFeeInfo] = useState<FeeResponse | null>(null);
   const [duplicateChecked, setDuplicateChecked] = useState(false);
 
@@ -737,8 +739,8 @@ export default function ApplicationForm() {
   };
 
   const handleSubmit = async () => {
-    if (!consent) {
-      toast.error("Bitte stimmen Sie der Datenschutzerklärung zu.");
+    if (!consentDatenschutz || !consentSatzung) {
+      toast.error("Bitte akzeptieren Sie sowohl die Datenschutzerklärung als auch die Satzung.");
       return;
     }
     if (!antragstyp) return;
@@ -813,6 +815,8 @@ export default function ApplicationForm() {
         bic,
         kreditinstitut,
         unterschrift_base64,
+        datenschutz_accepted: true,
+        satzung_accepted: true,
       };
 
       const result = await submitApplication(payload);
@@ -1568,32 +1572,58 @@ export default function ApplicationForm() {
                 </SummarySection>
               </div>
 
-              {/* Consent */}
-              <div className="mt-6 p-4 bg-amber-50 border border-amber-200 rounded-lg">
-                <label className="flex items-start gap-3 cursor-pointer">
-                  <input type="checkbox" checked={consent}
-                    onChange={(e) => setConsent(e.target.checked)}
-                    className="w-4 h-4 mt-0.5 text-svu-600 rounded border-gray-300 focus:ring-svu-500"
-                  />
-                  <span className="text-sm text-gray-700">
-                    Mit Unterzeichnung willige ich in die Erhebung, Verarbeitung
-                    und Nutzung meiner personenbezogenen Daten zum Zwecke der
-                    Mitgliederverwaltung und des Vereinsbetriebs ein. Es gilt die
-                    aktuelle Datenschutzerklärung des SVU, die unter{" "}
-                    <a
-                      href="https://sv-untereuerheim.de/datenschutz/"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-svu-600 underline hover:text-svu-700"
-                    >
-                      sv-untereuerheim.de/datenschutz
-                    </a>{" "}
-                    eingesehen werden kann. Ein Austritt ist nur zum Ende eines
-                    Kalenderjahres unter Einhaltung einer Frist von sechs Wochen
-                    in Textform (per E-Mail an mitgliedschaft@sv-untereuerheim.de
-                    oder postalisch) zulässig.
-                  </span>
-                </label>
+              {/* Consent checkboxes */}
+              <div className="mt-6 space-y-3">
+                <div className="p-4 bg-amber-50 border border-amber-200 rounded-lg">
+                  <label className="flex items-start gap-3 cursor-pointer">
+                    <input type="checkbox" checked={consentDatenschutz}
+                      onChange={(e) => {
+                        setConsentDatenschutz(e.target.checked);
+                        setConsent(e.target.checked && consentSatzung);
+                      }}
+                      className="w-4 h-4 mt-0.5 text-svu-600 rounded border-gray-300 focus:ring-svu-500"
+                    />
+                    <span className="text-sm text-gray-700">
+                      Ich habe die{" "}
+                      <a
+                        href="https://sv-untereuerheim.de/datenschutz"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-svu-600 underline hover:text-svu-700"
+                      >
+                        Datenschutzerklärung
+                      </a>{" "}
+                      gelesen und stimme der Verarbeitung meiner Daten gemäß dieser Erklärung zu.
+                    </span>
+                  </label>
+                </div>
+                <div className="p-4 bg-amber-50 border border-amber-200 rounded-lg">
+                  <label className="flex items-start gap-3 cursor-pointer">
+                    <input type="checkbox" checked={consentSatzung}
+                      onChange={(e) => {
+                        setConsentSatzung(e.target.checked);
+                        setConsent(consentDatenschutz && e.target.checked);
+                      }}
+                      className="w-4 h-4 mt-0.5 text-svu-600 rounded border-gray-300 focus:ring-svu-500"
+                    />
+                    <span className="text-sm text-gray-700">
+                      Ich habe die{" "}
+                      <a
+                        href="https://sv-untereuerheim.de/satzung"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-svu-600 underline hover:text-svu-700"
+                      >
+                        Satzung
+                      </a>{" "}
+                      des SV 1945 Untereuerheim e.V. gelesen und erkenne diese an.
+                    </span>
+                  </label>
+                </div>
+                <p className="text-xs text-gray-500 px-1">
+                  Ein Austritt ist nur zum Ende eines Kalenderjahres unter Einhaltung einer Frist von sechs Wochen
+                  in Textform (per E-Mail an mitgliedschaft@sv-untereuerheim.de oder postalisch) zulässig.
+                </p>
               </div>
 
               {/* ---- Signature flow choice ---- */}
@@ -1817,7 +1847,7 @@ export default function ApplicationForm() {
               </button>
             ) : (
               <button type="button" onClick={handleSubmit}
-                disabled={submitting || !consent || (signatureMode === "inline" && sigEmpty && !capturedSigDataUrl && !uploadedSignatureDataUrl)}
+                disabled={submitting || !consentDatenschutz || !consentSatzung || (signatureMode === "inline" && sigEmpty && !capturedSigDataUrl && !uploadedSignatureDataUrl)}
                 className="flex items-center gap-2 px-6 py-2.5 text-sm font-medium text-white bg-svu-600 rounded-lg hover:bg-svu-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
                 {submitting ? (
@@ -1863,6 +1893,14 @@ export default function ApplicationForm() {
               className="text-gray-500 hover:text-svu-600 underline"
             >
               Datenschutz
+            </a>
+            <a
+              href="https://sv-untereuerheim.de/satzung/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-gray-500 hover:text-svu-600 underline"
+            >
+              Satzung
             </a>
             <a
               href="/status"
