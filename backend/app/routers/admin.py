@@ -397,6 +397,8 @@ async def update_application(
             applicant_name = f"{app.erziehungsberechtigter_vorname or ''} {app.erziehungsberechtigter_nachname or ''}".strip()
         else:
             applicant_name = f"{app.vorname} {app.nachname}"
+        if data.mitgliedsnummer:
+            app.mitgliedsnummer = data.mitgliedsnummer.strip()
         approval_page_bytes = generate_approval_page(
             admin_unterschrift_base64=effective_sig,
             approval_datum=approval_datum,
@@ -423,8 +425,6 @@ async def update_application(
         storage.upload_file(approved_filename, pdf_bytes, content_type="application/pdf")
         app.admin_approved_file = approved_filename
         app.admin_decline_reason = None
-        if data.mitgliedsnummer:
-            app.mitgliedsnummer = data.mitgliedsnummer.strip()
 
     # When changing to abgelehnt: require reason, clear approved file
     if data.status == "abgelehnt" and old_status != "abgelehnt":
