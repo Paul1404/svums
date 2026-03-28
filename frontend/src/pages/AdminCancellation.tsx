@@ -8,7 +8,7 @@ import SignatureCanvasType from "react-signature-canvas";
 const SignatureCanvas: typeof SignatureCanvasType = typeof SignatureCanvasType === "function"
   ? SignatureCanvasType
   : (SignatureCanvasType as unknown as { default: typeof SignatureCanvasType }).default;
-import { extractApiError, getSettings, updateSettings } from "../services/api";
+import { extractApiError, getCsrfTokenFromCookie, getSettings, updateSettings } from "../services/api";
 import { getAdminDistinctIdHeader } from "../lib/analytics";
 
 interface CancellationForm {
@@ -119,12 +119,14 @@ export default function AdminCancellation() {
 
     setLoading(true);
     try {
+      const csrfToken = getCsrfTokenFromCookie();
       const response = await fetch("/api/admin/cancellation-pdf", {
         method: "POST",
         credentials: "include",
         headers: {
           "Content-Type": "application/json",
           ...getAdminDistinctIdHeader(),
+          ...(csrfToken ? { "X-CSRF-Token": csrfToken } : {}),
         },
         body: JSON.stringify({
           ...form,
