@@ -245,7 +245,7 @@ export default function AddressFields({
               if (streetSuggestions.length > 0) setShowStreetDropdown(true);
             }}
             placeholder="z.B. Triebweg 9"
-            className={`w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-svu-500 focus:border-svu-500 outline-none transition-colors pr-8 ${
+            className={`field-glow w-full px-3 py-2 border rounded-lg text-sm outline-none transition-all duration-200 pr-8 ${
               errors.strasse ? "border-red-400 bg-red-50" : "border-gray-300"
             }`}
           />
@@ -305,7 +305,7 @@ export default function AddressFields({
             }}
             maxLength={5}
             placeholder="z.B. 97508"
-            className={`w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-svu-500 focus:border-svu-500 outline-none transition-colors pr-8 ${
+            className={`field-glow w-full px-3 py-2 border rounded-lg text-sm outline-none transition-all duration-200 pr-8 ${
               errors.plz
                 ? "border-red-400 bg-red-50"
                 : plzValid === true
@@ -346,7 +346,7 @@ export default function AddressFields({
             }}
             placeholder={plzValid ? "Ort wird automatisch ausgefüllt" : "z.B. Grettstadt"}
             readOnly={ortOptions.length === 1 && ortAutoFilled.current}
-            className={`w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-svu-500 focus:border-svu-500 outline-none transition-colors ${
+            className={`field-glow w-full px-3 py-2 border rounded-lg text-sm outline-none transition-all duration-200 ${
               errors.ort
                 ? "border-red-400 bg-red-50"
                 : ortAutoFilled.current && ort
