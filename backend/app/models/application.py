@@ -63,6 +63,7 @@ class MembershipApplication(Base):
     uploaded_at = Column(DateTime, nullable=True)
     admin_decline_reason = Column(Text, nullable=True)  # reason when status is abgelehnt
     admin_approved_file = Column(String(500), nullable=True)  # cross-signed PDF when genehmigt
+    mitgliedsnummer = Column(String(50), nullable=True)  # membership number from Linear Webverein
     consent_at = Column(DateTime, nullable=True)  # GDPR consent timestamp
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
 

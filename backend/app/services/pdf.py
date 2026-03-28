@@ -21,6 +21,7 @@ def generate_approval_page(
     antragsnummer: str,
     applicant_name: str,
     mandatsreferenz: str,
+    mitgliedsnummer: str = "",
 ) -> bytes:
     """Generate a single-page PDF with the formal membership confirmation and admin approval block."""
     start = time.perf_counter()
@@ -31,6 +32,7 @@ def generate_approval_page(
         antragsnummer=antragsnummer,
         applicant_name=applicant_name,
         mandatsreferenz=mandatsreferenz or "",
+        mitgliedsnummer=mitgliedsnummer or "",
     )
     pdf_bytes = HTML(string=html_content, base_url=str(TEMPLATE_DIR)).write_pdf()
     logger.info(

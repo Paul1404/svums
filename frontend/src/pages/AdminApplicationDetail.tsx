@@ -86,6 +86,7 @@ export default function AdminApplicationDetail() {
   const [hasSavedAdminSignature, setHasSavedAdminSignature] = useState(false);
   const [useSavedAdminSignature, setUseSavedAdminSignature] = useState(true);
   const [saveSignatureForFuture, setSaveSignatureForFuture] = useState(false);
+  const [mitgliedsnummer, setMitgliedsnummer] = useState("");
 
   const handleAdminUpload = async (file: File) => {
     if (!app) return;
@@ -176,6 +177,7 @@ export default function AdminApplicationDetail() {
     admin_unterschrift_base64?: string | null;
     use_saved_admin_signature?: boolean;
     admin_decline_reason?: string | null;
+    mitgliedsnummer?: string | null;
   }) => {
     if (!app) return;
     setSaving(true);
@@ -187,6 +189,7 @@ export default function AdminApplicationDetail() {
       if (extra?.admin_unterschrift_base64 !== undefined) payload.admin_unterschrift_base64 = extra.admin_unterschrift_base64;
       if (extra?.use_saved_admin_signature !== undefined) payload.use_saved_admin_signature = extra.use_saved_admin_signature;
       if (extra?.admin_decline_reason !== undefined) payload.admin_decline_reason = extra.admin_decline_reason;
+      if (extra?.mitgliedsnummer !== undefined) payload.mitgliedsnummer = extra.mitgliedsnummer;
       const updated = await updateApplication(app.id, payload);
       setApp(updated);
       setStatus(updated.status);
@@ -215,6 +218,7 @@ export default function AdminApplicationDetail() {
     await doSave({
       admin_unterschrift_base64: unterschrift_base64 || undefined,
       use_saved_admin_signature: useSavedAdminSignature,
+      mitgliedsnummer: mitgliedsnummer.trim() || null,
     });
     if (saveSignatureForFuture && unterschrift_base64) {
       try {
@@ -539,6 +543,12 @@ export default function AdminApplicationDetail() {
                     </a>
                   </div>
                 )}
+                {app.mitgliedsnummer && (
+                  <div className="pt-2">
+                    <span className="text-xs text-gray-500">Mitgliedsnummer:</span>{" "}
+                    <span className="text-sm font-mono font-medium text-gray-800">{app.mitgliedsnummer}</span>
+                  </div>
+                )}
                 {app.uploaded_file ? (
                   <div className="pt-2 flex gap-2">
                     <a
@@ -644,6 +654,19 @@ export default function AdminApplicationDetail() {
               </button>
             </div>
             <div className="p-5 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Mitgliedsnummer (aus Linear Webverein)
+                </label>
+                <input
+                  type="text"
+                  value={mitgliedsnummer}
+                  onChange={(e) => setMitgliedsnummer(e.target.value)}
+                  placeholder="z.B. 12345"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-svu-500 focus:border-svu-500"
+                />
+                <p className="text-xs text-gray-400 mt-1">Optional – wird in der Bestätigung und E-Mail an das Mitglied übermittelt.</p>
+              </div>
               <p className="text-sm text-gray-600">
                 Bitte signieren Sie die Genehmigung (wird dem Antragsteller zugestellt).
               </p>

@@ -111,6 +111,10 @@
 
   <p>wir bestätigen hiermit offiziell die Annahme Ihres Aufnahmeantrags. Ihr Antrag (Antragsnummer: {{ antragsnummer }}) wurde durch das Ressort Finanzen &amp; Verwaltung geprüft und formell genehmigt.</p>
 
+  {% if mitgliedsnummer %}
+  <p>Ihre <strong>Mitgliedsnummer</strong> lautet: <strong>{{ mitgliedsnummer }}</strong>. Bitte halten Sie diese für künftige Anfragen bereit.</p>
+  {% endif %}
+
   <p><strong>Wichtige administrative Hinweise zu Ihrer Mitgliedschaft:</strong></p>
   <ul>
     <li><strong>Vereinssatzung:</strong> Mit der Aufnahme erkennen Sie die Satzung des SV 1945 Untereuerheim e.V. an. Die aktuell gültige Fassung können Sie jederzeit unter folgendem Link einsehen und herunterladen:<br>
