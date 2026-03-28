@@ -73,7 +73,9 @@
       <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom: 20px;">
         <tr><td style="font-family: 'Segoe UI', Arial, sans-serif; font-size: 14px; color: #4b5563; line-height: 1.7;">
           wir freuen uns, Ihnen mitteilen zu können, dass Ihr Antrag <strong>{{ antragsnummer }}</strong> <strong>genehmigt</strong> wurde!<br><br>
-          Herzlich willkommen beim Sportverein 1945 Untereuerheim e.V.! Wir freuen uns auf Sie.<br><br>
+          Herzlich willkommen beim Sportverein 1945 Untereuerheim e.V.! Wir freuen uns auf Sie.
+          {% if mitgliedsnummer %}<br><br>
+          Ihre <strong>Mitgliedsnummer</strong> lautet: <strong>{{ mitgliedsnummer }}</strong>. Bitte halten Sie diese für künftige Anfragen bereit.{% endif %}<br><br>
           Anbei erhalten Sie Ihre <strong>kreuzunterschriebene</strong> Beitrittserklärung – mit Ihrer Unterschrift und der Genehmigung durch den Verein. Sie können das Dokument für Ihre Unterlagen ausdrucken oder abspeichern.
         </td></tr>
       </table>

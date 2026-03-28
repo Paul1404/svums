@@ -403,6 +403,7 @@ async def update_application(
             antragsnummer=antragsnummer,
             applicant_name=applicant_name,
             mandatsreferenz=app.mandatsreferenz or "",
+            mitgliedsnummer=app.mitgliedsnummer or "",
         )
         if app.uploaded_file:
             base_bytes = storage.download_file(app.uploaded_file)
@@ -422,6 +423,8 @@ async def update_application(
         storage.upload_file(approved_filename, pdf_bytes, content_type="application/pdf")
         app.admin_approved_file = approved_filename
         app.admin_decline_reason = None
+        if data.mitgliedsnummer:
+            app.mitgliedsnummer = data.mitgliedsnummer.strip()
 
     # When changing to abgelehnt: require reason, clear approved file
     if data.status == "abgelehnt" and old_status != "abgelehnt":
@@ -509,6 +512,7 @@ async def update_application(
                 _snap_db_url = _get_cfg().database_url
                 _snap_decline_reason = app.admin_decline_reason
                 _snap_approved_file = app.admin_approved_file
+                _snap_mitgliedsnummer = app.mitgliedsnummer
 
                 async def _send_status_and_log():
                     from sqlalchemy.orm import sessionmaker as _sm
@@ -543,6 +547,7 @@ async def update_application(
                             decline_reason=_snap_decline_reason,
                             pdf_bytes=pdf_bytes,
                             pdf_filename=pdf_filename,
+                            mitgliedsnummer=_snap_mitgliedsnummer,
                         )
                         _ok = True
                     except Exception as _exc:

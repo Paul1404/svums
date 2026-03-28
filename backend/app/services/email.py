@@ -193,6 +193,7 @@ async def send_status_email(
     decline_reason: str | None = None,
     pdf_bytes: bytes | None = None,
     pdf_filename: str | None = None,
+    mitgliedsnummer: str | None = None,
 ) -> bool:
     """Send status update email to applicant (upload confirmed, approved, declined)."""
     try:
@@ -207,6 +208,7 @@ async def send_status_email(
             decline_reason=decline_reason or "",
             logo_url=build_public_url("/logo_svu-241x300.png"),
             site_host_display=public_host_display(),
+            mitgliedsnummer=mitgliedsnummer or "",
         )
 
         subject_map = {

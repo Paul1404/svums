@@ -296,6 +296,7 @@ class ApplicationResponse(BaseModel):
     uploaded_at: Optional[datetime] = None
     admin_decline_reason: Optional[str] = None
     admin_approved_file: Optional[str] = None
+    mitgliedsnummer: Optional[str] = None
     consent_at: Optional[datetime] = None
     created_at: datetime
 
@@ -340,6 +341,7 @@ class ApplicationUpdate(BaseModel):
     admin_unterschrift_base64: Optional[str] = None
     use_saved_admin_signature: bool = True
     admin_decline_reason: Optional[str] = None
+    mitgliedsnummer: Optional[str] = None
 
     @field_validator("status")
     @classmethod
