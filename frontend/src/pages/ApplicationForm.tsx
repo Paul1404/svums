@@ -964,10 +964,10 @@ export default function ApplicationForm() {
         </div>
 
         {/* Step Content */}
-        <div className="bg-white rounded-xl shadow-sm border p-6 sm:p-8">
+        <div className="glass-card shadow-sm p-6 sm:p-8">
           {/* ===================== STEP 0: MITGLIEDSDATEN ===================== */}
           {step === 0 && (
-            <div>
+            <div key="step-0" className="step-enter">
               <h2 className="text-xl font-semibold text-gray-900 mb-2">
                 Mitgliedsdaten
               </h2>
@@ -1395,7 +1395,7 @@ export default function ApplicationForm() {
 
           {/* ===================== STEP 1: SEPA ===================== */}
           {step === 1 && (
-            <div>
+            <div key="step-1" className="step-enter">
               <h2 className="text-xl font-semibold text-gray-900 mb-2">
                 SEPA-Lastschriftmandat
               </h2>
@@ -1458,18 +1458,22 @@ export default function ApplicationForm() {
                       <span>BIC wird ermittelt…</span>
                     </div>
                   )}
-                  {!ibanLookup.loading && ibanLookup.valid === true && ibanLookup.autoFilled && (
-                    <div className="flex items-center gap-1.5 mt-1.5 text-xs text-green-600">
-                      <CheckCircle2 className="w-3 h-3" />
-                      <span>BIC und Kreditinstitut automatisch ermittelt</span>
+                  <div className={`iban-reveal ${!ibanLookup.loading && ibanLookup.valid === true && ibanLookup.autoFilled ? "visible" : ""}`}>
+                    <div>
+                      <div className="flex items-center gap-1.5 mt-1.5 text-xs text-green-600">
+                        <CheckCircle2 className="w-3 h-3" />
+                        <span>BIC und Kreditinstitut automatisch ermittelt</span>
+                      </div>
                     </div>
-                  )}
-                  {!ibanLookup.loading && ibanLookup.valid === true && !ibanLookup.autoFilled && (
-                    <div className="flex items-center gap-1.5 mt-1.5 text-xs text-green-600">
-                      <CheckCircle2 className="w-3 h-3" />
-                      <span>IBAN gültig</span>
+                  </div>
+                  <div className={`iban-reveal ${!ibanLookup.loading && ibanLookup.valid === true && !ibanLookup.autoFilled ? "visible" : ""}`}>
+                    <div>
+                      <div className="flex items-center gap-1.5 mt-1.5 text-xs text-green-600">
+                        <CheckCircle2 className="w-3 h-3" />
+                        <span>IBAN gültig</span>
+                      </div>
                     </div>
-                  )}
+                  </div>
                   {!ibanLookup.loading && ibanLookup.valid === false && (
                     <div className="flex items-center gap-1.5 mt-1.5 text-xs text-red-600">
                       <AlertCircle className="w-3 h-3" />
@@ -1498,7 +1502,7 @@ export default function ApplicationForm() {
 
           {/* ===================== STEP 2: SUMMARY ===================== */}
           {step === 2 && (
-            <div>
+            <div key="step-2" className="step-enter">
               <h2 className="text-xl font-semibold text-gray-900 mb-2">
                 Zusammenfassung &amp; Unterschrift
               </h2>
@@ -1585,7 +1589,7 @@ export default function ApplicationForm() {
                 )}
 
                 {feeInfo && (
-                  <div className="p-4 bg-svu-50 border-2 border-svu-500 rounded-xl text-center">
+                  <div className="fee-card p-4 text-center">
                     <div className="text-2xl font-bold text-svu-600">
                       {formatFee(feeInfo.jahresbeitrag)} / Jahr
                     </div>
@@ -1610,13 +1614,19 @@ export default function ApplicationForm() {
               <div className="mt-6 space-y-3">
                 <div className="p-4 bg-amber-50 border border-amber-200 rounded-lg">
                   <label className="flex items-start gap-3 cursor-pointer">
-                    <input type="checkbox" checked={consentDatenschutz}
-                      onChange={(e) => {
-                        setConsentDatenschutz(e.target.checked);
-                        setConsent(e.target.checked && consentSatzung);
-                      }}
-                      className="w-4 h-4 mt-0.5 text-svu-600 rounded border-gray-300 focus:ring-svu-500"
-                    />
+                    <span className="custom-checkbox mt-0.5">
+                      <input type="checkbox" checked={consentDatenschutz}
+                        onChange={(e) => {
+                          setConsentDatenschutz(e.target.checked);
+                          setConsent(e.target.checked && consentSatzung);
+                        }}
+                      />
+                      <span className="cb-box">
+                        <svg className="cb-check" viewBox="0 0 12 12">
+                          <polyline points="2 6 5 9 10 3" />
+                        </svg>
+                      </span>
+                    </span>
                     <span className="text-sm text-gray-700">
                       Ich habe die{" "}
                       <a
@@ -1633,13 +1643,19 @@ export default function ApplicationForm() {
                 </div>
                 <div className="p-4 bg-amber-50 border border-amber-200 rounded-lg">
                   <label className="flex items-start gap-3 cursor-pointer">
-                    <input type="checkbox" checked={consentSatzung}
-                      onChange={(e) => {
-                        setConsentSatzung(e.target.checked);
-                        setConsent(consentDatenschutz && e.target.checked);
-                      }}
-                      className="w-4 h-4 mt-0.5 text-svu-600 rounded border-gray-300 focus:ring-svu-500"
-                    />
+                    <span className="custom-checkbox mt-0.5">
+                      <input type="checkbox" checked={consentSatzung}
+                        onChange={(e) => {
+                          setConsentSatzung(e.target.checked);
+                          setConsent(consentDatenschutz && e.target.checked);
+                        }}
+                      />
+                      <span className="cb-box">
+                        <svg className="cb-check" viewBox="0 0 12 12">
+                          <polyline points="2 6 5 9 10 3" />
+                        </svg>
+                      </span>
+                    </span>
                     <span className="text-sm text-gray-700">
                       Ich habe die{" "}
                       <a
@@ -1882,7 +1898,7 @@ export default function ApplicationForm() {
             ) : (
               <button type="button" onClick={handleSubmit}
                 disabled={submitting || !consentDatenschutz || !consentSatzung || (signatureMode === "inline" && sigEmpty && !capturedSigDataUrl && !uploadedSignatureDataUrl)}
-                className="flex items-center gap-2 px-6 py-2.5 text-sm font-medium text-white bg-svu-600 rounded-lg hover:bg-svu-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                className="btn-spring flex items-center gap-2 px-6 py-2.5 text-sm font-medium text-white bg-svu-600 rounded-lg"
               >
                 {submitting ? (
                   <Loader2 className="w-4 h-4 animate-spin" />
@@ -2128,6 +2144,49 @@ function AbteilungenPicker({
   );
 }
 
+function useAnimatedFee(target: number | null): { display: string; popping: boolean } {
+  const [display, setDisplay] = useState(target ?? 0);
+  const [popping, setPopping] = useState(false);
+  const prevRef = useRef(target ?? 0);
+  const rafRef = useRef(0);
+
+  useEffect(() => {
+    const to = target ?? 0;
+    const from = prevRef.current;
+    prevRef.current = to;
+    if (from === to) return;
+
+    setPopping(true);
+    const popTimer = setTimeout(() => setPopping(false), 200);
+
+    const duration = 400;
+    const start = performance.now();
+    cancelAnimationFrame(rafRef.current);
+
+    const tick = (now: number) => {
+      const elapsed = now - start;
+      const t = Math.min(elapsed / duration, 1);
+      const eased = 1 - Math.pow(1 - t, 3); // ease-out cubic
+      setDisplay(from + (to - from) * eased);
+      if (t < 1) rafRef.current = requestAnimationFrame(tick);
+    };
+    rafRef.current = requestAnimationFrame(tick);
+
+    return () => {
+      cancelAnimationFrame(rafRef.current);
+      clearTimeout(popTimer);
+    };
+  }, [target]);
+
+  const formatted = (() => {
+    const n = display;
+    if (n % 1 === 0) return `${Math.round(n).toString()},– €`;
+    return `${n.toFixed(2).replace(".", ",")} €`;
+  })();
+
+  return { display: formatted, popping };
+}
+
 function CategoryFeeDisplay({
   typ,
   feeInfo,
@@ -2135,6 +2194,7 @@ function CategoryFeeDisplay({
   typ: string;
   feeInfo: FeeResponse | null;
 }) {
+  const { display, popping } = useAnimatedFee(feeInfo?.jahresbeitrag ?? null);
   if (!typ) return null;
   return (
     <div className="mt-4 space-y-3">
@@ -2143,9 +2203,10 @@ function CategoryFeeDisplay({
         <span className="font-semibold text-gray-800">{typLabel[typ]}</span>
       </div>
       {feeInfo && (
-        <div className="p-4 bg-svu-50 border-2 border-svu-500 rounded-xl text-center">
-          <div className="text-2xl font-bold text-svu-600">
-            {formatFee(feeInfo.jahresbeitrag)} / Jahr
+        <div className={`fee-card p-4 text-center ${popping ? "fee-card-pop" : ""}`}>
+          <div className="flex items-center justify-between">
+            <span className="text-sm font-medium text-svu-700">Jahresbeitrag</span>
+            <span className="text-2xl font-bold text-svu-600">{display} / Jahr</span>
           </div>
           <div className="text-sm text-svu-700 mt-1">{feeInfo.label}</div>
         </div>
@@ -2187,7 +2248,7 @@ function Field({
         placeholder={placeholder}
         maxLength={maxLength}
         disabled={disabled}
-        className={`w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-svu-500 focus:border-svu-500 outline-none transition-colors ${
+        className={`field-glow w-full px-3 py-2 border rounded-lg text-sm outline-none transition-all duration-200 ${
           error ? "border-red-400 bg-red-50" : "border-gray-300"
         } ${disabled ? "bg-gray-100 cursor-not-allowed" : ""} ${className}`}
       />
