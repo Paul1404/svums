@@ -22,6 +22,13 @@ interface CancellationForm {
   mitgliedsnummer: string;
   abteilung: string;
   austritt_datum: string;
+  empfaenger_abweichend: boolean;
+  empfaenger_anrede: string;
+  empfaenger_vorname: string;
+  empfaenger_nachname: string;
+  empfaenger_strasse: string;
+  empfaenger_plz: string;
+  empfaenger_ort: string;
 }
 
 const EMPTY_FORM: CancellationForm = {
@@ -35,6 +42,13 @@ const EMPTY_FORM: CancellationForm = {
   mitgliedsnummer: "",
   abteilung: "",
   austritt_datum: "",
+  empfaenger_abweichend: false,
+  empfaenger_anrede: "",
+  empfaenger_vorname: "",
+  empfaenger_nachname: "",
+  empfaenger_strasse: "",
+  empfaenger_plz: "",
+  empfaenger_ort: "",
 };
 
 export default function AdminCancellation() {
@@ -104,6 +118,14 @@ export default function AdminCancellation() {
     if (!form.ort.trim()) errs.ort = "Pflichtfeld";
     if (!form.geburtsdatum.trim()) errs.geburtsdatum = "Pflichtfeld";
     if (!form.austritt_datum.trim()) errs.austritt_datum = "Pflichtfeld";
+    if (form.empfaenger_abweichend) {
+      if (!form.empfaenger_anrede) errs.empfaenger_anrede = "Pflichtfeld";
+      if (!form.empfaenger_vorname.trim()) errs.empfaenger_vorname = "Pflichtfeld";
+      if (!form.empfaenger_nachname.trim()) errs.empfaenger_nachname = "Pflichtfeld";
+      if (!form.empfaenger_strasse.trim()) errs.empfaenger_strasse = "Pflichtfeld";
+      if (!form.empfaenger_plz.trim()) errs.empfaenger_plz = "Pflichtfeld";
+      if (!form.empfaenger_ort.trim()) errs.empfaenger_ort = "Pflichtfeld";
+    }
     setErrors(errs);
     return Object.keys(errs).length === 0;
   };
@@ -132,11 +154,25 @@ export default function AdminCancellation() {
           "X-CSRF-Token": csrfToken,
         },
         body: JSON.stringify({
-          ...form,
+          anrede: form.anrede,
+          vorname: form.vorname,
+          nachname: form.nachname,
+          strasse: form.strasse,
+          plz: form.plz,
+          ort: form.ort,
+          geburtsdatum: form.geburtsdatum,
           mitgliedsnummer: form.mitgliedsnummer || null,
           abteilung: form.abteilung || null,
+          austritt_datum: form.austritt_datum,
           unterschrift_base64,
           use_saved_admin_signature: useSavedAdminSignature,
+          empfaenger_abweichend: form.empfaenger_abweichend,
+          empfaenger_anrede: form.empfaenger_abweichend ? form.empfaenger_anrede : null,
+          empfaenger_vorname: form.empfaenger_abweichend ? form.empfaenger_vorname : null,
+          empfaenger_nachname: form.empfaenger_abweichend ? form.empfaenger_nachname : null,
+          empfaenger_strasse: form.empfaenger_abweichend ? form.empfaenger_strasse : null,
+          empfaenger_plz: form.empfaenger_abweichend ? form.empfaenger_plz : null,
+          empfaenger_ort: form.empfaenger_abweichend ? form.empfaenger_ort : null,
         }),
       });
 
@@ -221,6 +257,11 @@ export default function AdminCancellation() {
 
           {/* Form */}
           <div className="space-y-5">
+            {/* Member heading */}
+            <h3 className="text-sm font-semibold text-gray-800 uppercase tracking-wide">
+              Mitgliedsdaten
+            </h3>
+
             {/* Anrede */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -324,6 +365,115 @@ export default function AdminCancellation() {
                 placeholder="z.B. Fußball, Turnen"
               />
             </div>
+
+            {/* Separate recipient (parent / payer) */}
+            <div className="pt-4 border-t">
+              <label className="flex items-start gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={form.empfaenger_abweichend}
+                  onChange={(e) => {
+                    setForm((prev) => ({ ...prev, empfaenger_abweichend: e.target.checked }));
+                    if (!e.target.checked) {
+                      setErrors((prev) => {
+                        const next = { ...prev };
+                        delete next.empfaenger_anrede;
+                        delete next.empfaenger_vorname;
+                        delete next.empfaenger_nachname;
+                        delete next.empfaenger_strasse;
+                        delete next.empfaenger_plz;
+                        delete next.empfaenger_ort;
+                        return next;
+                      });
+                    }
+                  }}
+                  className="mt-0.5 text-svu-600 focus:ring-svu-500"
+                />
+                <div>
+                  <span className="text-sm font-medium text-gray-700">
+                    Empfänger weicht vom Mitglied ab
+                  </span>
+                  <p className="text-xs text-gray-500">
+                    Z.B. bei Minderjährigen: Brief an Erziehungsberechtigten / Beitragszahler adressieren.
+                  </p>
+                </div>
+              </label>
+            </div>
+
+            {form.empfaenger_abweichend && (
+              <div className="space-y-4 p-4 bg-amber-50 border border-amber-200 rounded-lg">
+                <h3 className="text-sm font-semibold text-gray-800 uppercase tracking-wide">
+                  Briefempfänger (Erziehungsberechtigter / Beitragszahler)
+                </h3>
+
+                {/* Empfänger Anrede */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Anrede <span className="text-red-500">*</span>
+                  </label>
+                  <div className="flex gap-4">
+                    {["Herr", "Frau", "keine Angabe"].map((a) => (
+                      <label key={a} className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="radio"
+                          name="empfaenger_anrede"
+                          value={a}
+                          checked={form.empfaenger_anrede === a}
+                          onChange={() => set("empfaenger_anrede", a)}
+                          className="text-svu-600 focus:ring-svu-500"
+                        />
+                        <span className="text-sm">{a}</span>
+                      </label>
+                    ))}
+                  </div>
+                  {errors.empfaenger_anrede && <p className="text-xs text-red-500 mt-1">{errors.empfaenger_anrede}</p>}
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <FormField
+                    label="Vorname"
+                    required
+                    value={form.empfaenger_vorname}
+                    error={errors.empfaenger_vorname}
+                    onChange={(v) => set("empfaenger_vorname", v)}
+                  />
+                  <FormField
+                    label="Nachname"
+                    required
+                    value={form.empfaenger_nachname}
+                    error={errors.empfaenger_nachname}
+                    onChange={(v) => set("empfaenger_nachname", v)}
+                  />
+                </div>
+
+                <FormField
+                  label="Straße und Hausnummer"
+                  required
+                  value={form.empfaenger_strasse}
+                  error={errors.empfaenger_strasse}
+                  onChange={(v) => set("empfaenger_strasse", v)}
+                />
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <FormField
+                    label="PLZ"
+                    required
+                    value={form.empfaenger_plz}
+                    error={errors.empfaenger_plz}
+                    onChange={(v) => set("empfaenger_plz", v)}
+                    maxLength={5}
+                  />
+                  <div className="sm:col-span-2">
+                    <FormField
+                      label="Ort"
+                      required
+                      value={form.empfaenger_ort}
+                      error={errors.empfaenger_ort}
+                      onChange={(v) => set("empfaenger_ort", v)}
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Signature */}
