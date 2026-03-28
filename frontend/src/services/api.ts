@@ -214,7 +214,7 @@ export class ApiError extends Error {
   }
 }
 
-function _getCsrfTokenFromCookie(): string | null {
+export function getCsrfTokenFromCookie(): string | null {
   const match = document.cookie.match(/(?:^|;\s*)csrf_token=([^;]*)/);
   return match ? decodeURIComponent(match[1]) : null;
 }
@@ -235,7 +235,7 @@ async function apiRequest<T>(
   const method = (rest.method || "GET").toUpperCase();
   const csrfHeaders: Record<string, string> = {};
   if (method !== "GET" && method !== "HEAD") {
-    const token = _getCsrfTokenFromCookie();
+    const token = getCsrfTokenFromCookie();
     if (token) {
       csrfHeaders["X-CSRF-Token"] = token;
     }
