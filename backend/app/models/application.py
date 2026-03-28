@@ -68,6 +68,7 @@ class MembershipApplication(Base):
     datenschutz_accepted = Column(Boolean, nullable=True)  # Datenschutzerklärung accepted
     satzung_accepted = Column(Boolean, nullable=True)  # Satzung accepted
     consent_ip = Column(String(45), nullable=True)  # IP address at time of consent
+    is_test = Column(Boolean, nullable=False, default=False)  # True for test-mode applications
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
 
     def get_abteilungen(self) -> list[str]:

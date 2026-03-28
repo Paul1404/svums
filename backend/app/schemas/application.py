@@ -105,6 +105,8 @@ class ApplicationCreate(BaseModel):
     # Legal consent checkboxes (DSGVO)
     datenschutz_accepted: bool = False
     satzung_accepted: bool = False
+    # Test mode flag — set when submitting via admin test mode
+    is_test: bool = False
 
     @field_validator("partner_geburtsdatum", mode="before")
     @classmethod
@@ -313,7 +315,14 @@ class ApplicationResponse(BaseModel):
     datenschutz_accepted: Optional[bool] = None
     satzung_accepted: Optional[bool] = None
     consent_ip: Optional[str] = None
+    is_test: bool = False
     created_at: datetime
+
+    @field_validator("is_test", mode="before")
+    @classmethod
+    def coerce_is_test(cls, v):
+        """Coerce None to False for older rows that predate the is_test column."""
+        return bool(v) if v is not None else False
 
     @field_validator("iban", mode="before")
     @classmethod
