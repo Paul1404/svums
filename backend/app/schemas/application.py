@@ -102,6 +102,9 @@ class ApplicationCreate(BaseModel):
     kreditinstitut: Optional[str] = None
     # Optional inline signature (base64 data-URL PNG) – Option B flow
     unterschrift_base64: Optional[str] = None
+    # Legal consent checkboxes (DSGVO)
+    datenschutz_accepted: bool = False
+    satzung_accepted: bool = False
 
     @field_validator("partner_geburtsdatum", mode="before")
     @classmethod
@@ -220,6 +223,15 @@ class ApplicationCreate(BaseModel):
     def validate_type_specific(self):
         from app.services.fees import calculate_real_age
 
+        if not self.datenschutz_accepted:
+            raise ValueError(
+                "Die Datenschutzerklärung muss akzeptiert werden, um den Antrag einzureichen."
+            )
+        if not self.satzung_accepted:
+            raise ValueError(
+                "Die Satzung muss anerkannt werden, um den Antrag einzureichen."
+            )
+
         if self.antragstyp == "kind":
             if not self.erziehungsberechtigter_vorname or not self.erziehungsberechtigter_nachname:
                 raise ValueError("Erziehungsberechtigter ist bei Kind-Antrag erforderlich")
@@ -298,6 +310,9 @@ class ApplicationResponse(BaseModel):
     admin_approved_file: Optional[str] = None
     mitgliedsnummer: Optional[str] = None
     consent_at: Optional[datetime] = None
+    datenschutz_accepted: Optional[bool] = None
+    satzung_accepted: Optional[bool] = None
+    consent_ip: Optional[str] = None
     created_at: datetime
 
     @field_validator("iban", mode="before")

@@ -65,6 +65,9 @@ class MembershipApplication(Base):
     admin_approved_file = Column(String(500), nullable=True)  # cross-signed PDF when genehmigt
     mitgliedsnummer = Column(String(50), nullable=True)  # membership number from Linear Webverein
     consent_at = Column(DateTime, nullable=True)  # GDPR consent timestamp
+    datenschutz_accepted = Column(Boolean, nullable=True)  # Datenschutzerklärung accepted
+    satzung_accepted = Column(Boolean, nullable=True)  # Satzung accepted
+    consent_ip = Column(String(45), nullable=True)  # IP address at time of consent
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
 
     def get_abteilungen(self) -> list[str]:

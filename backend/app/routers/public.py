@@ -118,6 +118,10 @@ def _build_application_data(app: MembershipApplication) -> dict:
         "bic": app.bic,
         "kreditinstitut": app.kreditinstitut,
         "datum": date.today().strftime("%d.%m.%Y"),
+        "consent_at": app.consent_at,
+        "consent_at_formatted": app.consent_at.strftime("%d.%m.%Y um %H:%M Uhr") if app.consent_at else None,
+        "datenschutz_accepted": app.datenschutz_accepted,
+        "satzung_accepted": app.satzung_accepted,
     }
 
     # Guardian info for Kind type
@@ -244,6 +248,7 @@ async def _send_email_task(application_id: int, db_url: str, unterschrift_base64
 @router.post("/apply", response_model=ApplicationSubmitResponse)
 async def submit_application(
     data: ApplicationCreate,
+    request: Request,
     background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
 ):
@@ -281,6 +286,9 @@ async def submit_application(
         bic=data.bic,
         kreditinstitut=data.kreditinstitut,
         consent_at=datetime.utcnow(),
+        datenschutz_accepted=data.datenschutz_accepted,
+        satzung_accepted=data.satzung_accepted,
+        consent_ip=request.client.host if request.client else None,
     )
 
     db.add(application)

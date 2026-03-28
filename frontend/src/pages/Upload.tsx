@@ -323,6 +323,14 @@ export default function UploadPage() {
             >
               Datenschutz
             </a>
+            <a
+              href="https://sv-untereuerheim.de/satzung/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-gray-500 hover:text-svu-600 underline"
+            >
+              Satzung
+            </a>
           </p>
         </footer>
       </div>
