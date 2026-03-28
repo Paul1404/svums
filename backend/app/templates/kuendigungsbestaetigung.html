@@ -137,7 +137,11 @@
 </div>
 
 <div class="subject">
+  {% if ist_empfaenger_abweichend %}
+  Bestätigung des Austritts von {{ vorname }} {{ nachname }} aus dem Verein
+  {% else %}
   Bestätigung Ihres Austritts aus dem Verein
+  {% endif %}
 </div>
 
 <div class="body-text">
@@ -183,16 +187,30 @@
 
 <div class="body-text">
   Gemäß § 3 Abs. 2 der Vereinssatzung ist der Austritt nur zum Schluss eines Kalenderjahres unter
-  Einhaltung einer Frist von sechs Wochen zulässig. Ihre Mitgliedschaft endet somit zum oben
+  Einhaltung einer Frist von sechs Wochen zulässig.
+  {% if ist_empfaenger_abweichend %}
+  Die Mitgliedschaft von {{ vorname }} {{ nachname }} endet somit zum oben
+  genannten Datum. Bis dahin bestehende Beitragspflichten bleiben unberührt; der Anspruch des
+  Vereins auf rückständige Beiträge oder sonstige Forderungen bleibt gemäß § 3 Abs. 5 der
+  Satzung auch nach Beendigung der Mitgliedschaft bestehen. Das von Ihnen erteilte SEPA-Lastschriftmandat
+  wird mit Beendigung der Mitgliedschaft ebenfalls widerrufen.
+  {% else %}
+  Ihre Mitgliedschaft endet somit zum oben
   genannten Datum. Bis dahin bestehende Beitragspflichten bleiben unberührt; der Anspruch des
   Vereins auf rückständige Beiträge oder sonstige Forderungen bleibt gemäß § 3 Abs. 5 der
   Satzung auch nach Beendigung der Mitgliedschaft bestehen. Das erteilte SEPA-Lastschriftmandat
   wird mit Beendigung der Mitgliedschaft ebenfalls widerrufen.
+  {% endif %}
 </div>
 
 <div class="body-text">
+  {% if ist_empfaenger_abweichend %}
+  Wir bedanken uns für die Zeit von {{ vorname }} {{ nachname }} als Mitglied in unserem Verein und wünschen Ihnen für die
+  Zukunft alles Gute.
+  {% else %}
   Wir bedanken uns für Ihre Zeit als Mitglied in unserem Verein und wünschen Ihnen für die
   Zukunft alles Gute.
+  {% endif %}
 </div>
 
 <div class="signature-block">
