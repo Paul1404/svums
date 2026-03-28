@@ -305,17 +305,21 @@ async def get_stats(
 ):
     from decimal import Decimal
 
-    total = db.query(func.count(MembershipApplication.id)).scalar() or 0
+    # Exclude test applications from stats
+    base_q = db.query(MembershipApplication).filter(
+        (MembershipApplication.is_test == False) | (MembershipApplication.is_test == None)  # noqa: E712, E711
+    )
+    total = base_q.count()
 
     status_rows = (
-        db.query(MembershipApplication.status, func.count(MembershipApplication.id))
+        base_q.with_entities(MembershipApplication.status, func.count(MembershipApplication.id))
         .group_by(MembershipApplication.status)
         .all()
     )
     by_status = {s: c for s, c in status_rows}
 
     revenue = (
-        db.query(func.sum(MembershipApplication.jahresbeitrag))
+        base_q.with_entities(func.sum(MembershipApplication.jahresbeitrag))
         .filter(MembershipApplication.status == "genehmigt")
         .scalar()
     ) or Decimal("0")
@@ -323,13 +327,13 @@ async def get_stats(
     now = datetime.utcnow()
     month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
     this_month = (
-        db.query(func.count(MembershipApplication.id))
+        base_q.with_entities(func.count(MembershipApplication.id))
         .filter(MembershipApplication.created_at >= month_start)
         .scalar()
     ) or 0
 
     # --- Extended stats: abteilung, age, membership type, gender ---
-    all_apps = db.query(
+    all_apps = base_q.with_entities(
         MembershipApplication.abteilungen,
         MembershipApplication.geburtsdatum,
         MembershipApplication.mitgliedschaft_typ,
@@ -393,6 +397,7 @@ async def list_applications(
     per_page: int = 25,
     status: str | None = None,
     search: str | None = None,
+    show_test: bool | None = None,
     is_admin: bool = Depends(require_admin),
     db: Session = Depends(get_db),
 ):
@@ -400,6 +405,14 @@ async def list_applications(
 
     if status:
         query = query.filter(MembershipApplication.status == status)
+
+    if show_test is not None:
+        if show_test:
+            query = query.filter(MembershipApplication.is_test == True)  # noqa: E712
+        else:
+            query = query.filter(
+                (MembershipApplication.is_test == False) | (MembershipApplication.is_test == None)  # noqa: E712, E711
+            )
 
     if search:
         # Escape LIKE wildcards so literal %, _, \ in search terms don't match unintended rows
@@ -1004,17 +1017,96 @@ async def admin_upload_document(
     return ApplicationResponse.model_validate(app)
 
 
+# --- Test data for admin test mode ---
+
+@router.get("/test-data")
+async def get_test_data(
+    type: str = "einzel",
+    is_admin: bool = Depends(require_admin),
+):
+    """Return realistic sample data for pre-filling the application form in test mode."""
+    if type not in ("einzel", "kind", "familie"):
+        raise HTTPException(status_code=400, detail="Ungültiger Typ. Erlaubt: einzel, kind, familie")
+
+    base = {
+        "geschlecht": "Herr",
+        "vorname": "Max",
+        "nachname": "Mustermann",
+        "geburtsdatum": "1990-05-15",
+        "strasse": "Hauptstraße 12",
+        "plz": "97528",
+        "ort": "Sulzdorf a.d.L.",
+        "email": "test@sv-untereuerheim.de",
+        "telefon": "09727 1234567",
+        "abteilungen": ["Fußball"],
+        "kontoinhaber": "Max Mustermann",
+        "iban": "DE89370400440532013000",
+        "bic": "COBADEFFXXX",
+        "kreditinstitut": "Commerzbank",
+    }
+
+    if type == "einzel":
+        return {**base, "membership_type": "einzel"}
+
+    if type == "kind":
+        return {
+            **base,
+            "membership_type": "kind",
+            "geschlecht": None,
+            "vorname": "Lina",
+            "nachname": "Müller",
+            "geburtsdatum": "2014-03-22",
+            "abteilungen": ["Kinderturnen"],
+            "erziehungsberechtigter_vorname": "Sabine",
+            "erziehungsberechtigter_nachname": "Müller",
+            "elternteil_mitglied": False,
+            "kontoinhaber": "Sabine Müller",
+            "email": "test-kind@sv-untereuerheim.de",
+        }
+
+    # familie
+    return {
+        **base,
+        "membership_type": "familie",
+        "vorname": "Thomas",
+        "nachname": "Schneider",
+        "geburtsdatum": "1985-08-10",
+        "email": "test-familie@sv-untereuerheim.de",
+        "kontoinhaber": "Thomas Schneider",
+        "partner_vorname": "Anna",
+        "partner_nachname": "Schneider",
+        "partner_geburtsdatum": "1987-11-03",
+        "partner_abteilungen": ["Yoga"],
+        "kinder": [
+            {
+                "vorname": "Emma",
+                "nachname": "Schneider",
+                "geburtsdatum": "2015-06-20",
+                "abteilungen": ["Kinderturnen"],
+            },
+            {
+                "vorname": "Paul",
+                "nachname": "Schneider",
+                "geburtsdatum": "2018-01-14",
+                "abteilungen": ["Kinderturnen"],
+            },
+        ],
+    }
+
+
 @router.get("/export")
 async def export_csv(
     request: Request,
+    include_test: bool = False,
     is_admin: bool = Depends(require_admin),
     db: Session = Depends(get_db),
 ):
-    applications = (
-        db.query(MembershipApplication)
-        .order_by(MembershipApplication.created_at.desc())
-        .all()
-    )
+    query = db.query(MembershipApplication)
+    if not include_test:
+        query = query.filter(
+            (MembershipApplication.is_test == False) | (MembershipApplication.is_test == None)  # noqa: E712, E711
+        )
+    applications = query.order_by(MembershipApplication.created_at.desc()).all()
 
     output = io.StringIO()
     writer = csv.writer(output, delimiter=";")

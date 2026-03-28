@@ -165,11 +165,31 @@ function clearDraft() {
 // =============================================
 // MAIN COMPONENT
 // =============================================
+// ---- Test mode helpers ----
+const TEST_DATA_KEY = "svums_test_data";
+
+function loadTestData(): Record<string, any> | null {
+  try {
+    const raw = sessionStorage.getItem(TEST_DATA_KEY);
+    if (!raw) return null;
+    // Remove immediately so refreshing the page doesn't re-load test data
+    sessionStorage.removeItem(TEST_DATA_KEY);
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
+}
+
 export default function ApplicationForm() {
   const navigate = useNavigate();
 
+  // Check for admin test mode data (set via admin dashboard)
+  const [testData] = useState(loadTestData);
+  const isTestMode = testData !== null;
+
   // Restore form draft from sessionStorage (only on initial mount)
-  const [_d] = useState(loadDraft);
+  // Test data takes precedence over draft
+  const [_d] = useState(() => (testData ? null : loadDraft()));
 
   const [step, setStep] = useState<number>(_d?.step ?? 0);
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -248,46 +268,49 @@ export default function ApplicationForm() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fullscreenContainerRef.current]);
 
+  // Source for initial values: test data > draft > empty
+  const _src = testData || _d;
+
   // ---- Gender / salutation (contact person: applicant for Einzel/Familie, guardian for Kind)
-  const [geschlecht, setGeschlecht] = useState<"Herr" | "Frau" | "keine Angabe" | null>(_d?.geschlecht ?? null);
+  const [geschlecht, setGeschlecht] = useState<"Herr" | "Frau" | "keine Angabe" | null>(_src?.geschlecht ?? null);
 
   // ---- Person data (applicant for Einzel, child for Kind, parent for Familie)
-  const [vorname, setVorname] = useState(_d?.vorname ?? "");
-  const [nachname, setNachname] = useState(_d?.nachname ?? "");
-  const [geburtsdatum, setGeburtsdatum] = useState(_d?.geburtsdatum ?? "");
-  const [strasse, setStrasse] = useState(_d?.strasse ?? "");
-  const [plz, setPlz] = useState(_d?.plz ?? "");
-  const [ort, setOrt] = useState(_d?.ort ?? "");
-  const [telefon, setTelefon] = useState(_d?.telefon ?? "");
+  const [vorname, setVorname] = useState(_src?.vorname ?? "");
+  const [nachname, setNachname] = useState(_src?.nachname ?? "");
+  const [geburtsdatum, setGeburtsdatum] = useState(_src?.geburtsdatum ?? "");
+  const [strasse, setStrasse] = useState(_src?.strasse ?? "");
+  const [plz, setPlz] = useState(_src?.plz ?? "");
+  const [ort, setOrt] = useState(_src?.ort ?? "");
+  const [telefon, setTelefon] = useState(_src?.telefon ?? "");
   const [telefonOptOut, setTelefonOptOut] = useState(_d?.telefonOptOut ?? false);
-  const [email, setEmail] = useState(_d?.email ?? "");
-  const [abteilungen, setAbteilungen] = useState<string[]>(_d?.abteilungen ?? []);
+  const [email, setEmail] = useState(_src?.email ?? "");
+  const [abteilungen, setAbteilungen] = useState<string[]>(_src?.abteilungen ?? []);
 
   // ---- Kind-specific: parent/guardian
-  const [erzVorname, setErzVorname] = useState(_d?.erzVorname ?? "");
-  const [erzNachname, setErzNachname] = useState(_d?.erzNachname ?? "");
-  const [elternteilMitglied, setElternteilMitglied] = useState<boolean | null>(_d?.elternteilMitglied ?? null);
+  const [erzVorname, setErzVorname] = useState(_src?.erziehungsberechtigter_vorname ?? _d?.erzVorname ?? "");
+  const [erzNachname, setErzNachname] = useState(_src?.erziehungsberechtigter_nachname ?? _d?.erzNachname ?? "");
+  const [elternteilMitglied, setElternteilMitglied] = useState<boolean | null>(_src?.elternteil_mitglied ?? _d?.elternteilMitglied ?? null);
 
   // ---- Familie-specific: children
   // Filter out empty children from draft (prevents stale draft triggering Familie)
   const [kinder, setKinder] = useState<ChildData[]>(
-    (_d?.kinder ?? []).filter((k: any) => k.vorname || k.nachname || k.geburtsdatum)
+    (_src?.kinder ?? _d?.kinder ?? []).filter((k: any) => k.vorname || k.nachname || k.geburtsdatum)
   );
 
   // ---- Familie: which child card is expanded (-1 = all expanded when <=2)
   const [expandedChild, setExpandedChild] = useState<number | null>(null);
 
   // ---- Familie-specific: partner / second parent (optional)
-  const [partnerVorname, setPartnerVorname] = useState(_d?.partnerVorname ?? "");
-  const [partnerNachname, setPartnerNachname] = useState(_d?.partnerNachname ?? "");
-  const [partnerGeburtsdatum, setPartnerGeburtsdatum] = useState(_d?.partnerGeburtsdatum ?? "");
-  const [partnerAbteilungen, setPartnerAbteilungen] = useState<string[]>(_d?.partnerAbteilungen ?? []);
+  const [partnerVorname, setPartnerVorname] = useState(_src?.partner_vorname ?? _d?.partnerVorname ?? "");
+  const [partnerNachname, setPartnerNachname] = useState(_src?.partner_nachname ?? _d?.partnerNachname ?? "");
+  const [partnerGeburtsdatum, setPartnerGeburtsdatum] = useState(_src?.partner_geburtsdatum ?? _d?.partnerGeburtsdatum ?? "");
+  const [partnerAbteilungen, setPartnerAbteilungen] = useState<string[]>(_src?.partner_abteilungen ?? _d?.partnerAbteilungen ?? []);
 
   // ---- SEPA
-  const [kontoinhaber, setKontoinhaber] = useState(_d?.kontoinhaber ?? "");
-  const [iban, setIban] = useState(_d?.iban ?? "");
-  const [bic, setBic] = useState(_d?.bic ?? "");
-  const [kreditinstitut, setKreditinstitut] = useState(_d?.kreditinstitut ?? "");
+  const [kontoinhaber, setKontoinhaber] = useState(_src?.kontoinhaber ?? _d?.kontoinhaber ?? "");
+  const [iban, setIban] = useState(_src?.iban ? formatIban(_src.iban) : (_d?.iban ?? ""));
+  const [bic, setBic] = useState(_src?.bic ?? _d?.bic ?? "");
+  const [kreditinstitut, setKreditinstitut] = useState(_src?.kreditinstitut ?? _d?.kreditinstitut ?? "");
 
   // ---- IBAN lookup
   const [ibanLookup, setIbanLookup] = useState<{
@@ -817,6 +840,7 @@ export default function ApplicationForm() {
         unterschrift_base64,
         datenschutz_accepted: true,
         satzung_accepted: true,
+        ...(isTestMode ? { is_test: true } : {}),
       };
 
       const result = await submitApplication(payload);
@@ -876,6 +900,16 @@ export default function ApplicationForm() {
           </div>
         </div>
       </header>
+
+      {/* Test mode banner */}
+      {isTestMode && (
+        <div className="bg-orange-100 border-b border-orange-200">
+          <div className="max-w-3xl mx-auto px-4 py-2 flex items-center gap-2 text-orange-800 text-sm font-medium">
+            <span className="text-base">🧪</span>
+            Testmodus — Formulardaten sind vorausgefüllt
+          </div>
+        </div>
+      )}
 
       {/* Stepper */}
       <div className="max-w-3xl mx-auto px-4 mt-8">
