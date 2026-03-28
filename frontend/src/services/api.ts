@@ -80,6 +80,7 @@ export interface ApplicationResponse {
   uploaded_at: string | null;
   admin_decline_reason: string | null;
   admin_approved_file: string | null;
+  mitgliedsnummer: string | null;
   consent_at: string | null;
   created_at: string;
 }
@@ -437,6 +438,7 @@ export async function updateApplication(
     admin_unterschrift_base64?: string | null;
     use_saved_admin_signature?: boolean;
     admin_decline_reason?: string | null;
+    mitgliedsnummer?: string | null;
   }
 ): Promise<ApplicationResponse> {
   return apiRequest(`/api/admin/applications/${id}`, {
