@@ -19,7 +19,18 @@ SVUMS (SV Untereuerheim Mitgliedschaft System) — online membership application
 ## Quick Commands
 
 ```bash
-# Backend (local dev)
+# One-time setup (or run anytime — idempotent)
+make setup           # installs backend venv + frontend node_modules
+
+# Development
+make backend         # start backend on :8000 (env vars pre-set)
+make frontend        # start frontend on :5173 (proxies /api → :8000)
+make test            # run backend pytest (quick, -x stops on first failure)
+make test-v          # verbose test output
+make lint            # TypeScript type-check
+make build           # production frontend build
+
+# Manual alternative (without Make)
 cd backend
 python -m venv venv && source venv/bin/activate
 pip install -r requirements.txt
@@ -28,17 +39,35 @@ ALLOW_INSECURE_DEFAULTS=true ADMIN_PASSWORD=dev COOKIE_SECRET=dev-secret-key-at-
   PUBLIC_BASE_URL=http://localhost:5173 \
   uvicorn app.main:app --reload --port 8000
 
-# Frontend (separate terminal)
 cd frontend
 npm install
 npm run dev          # runs on port 5173, proxies /api → localhost:8000
 
-# Tests
-cd backend && pytest
-
 # Docker build
 docker build -t svums .
 ```
+
+## Claude Code Environment
+
+A `SessionStart` hook in `.claude/settings.json` auto-runs `scripts/dev-setup.sh` when a new session begins. This ensures the venv, node_modules, and data directory are ready before any work starts.
+
+**What the hook sets up:**
+- `backend/venv/` — Python virtual environment with all deps
+- `frontend/node_modules/` — npm packages
+- `backend/data/` — directory for local SQLite database
+
+**Running tests in Claude Code sessions:**
+```bash
+make test                          # quick run, stops on first failure
+make test ARGS="-k test_posthog"   # run specific tests
+make test ARGS="--tb=short"        # shorter tracebacks
+```
+
+**Known environment notes:**
+- The project targets Python 3.14 but the Claude Code environment may have an older Python (3.11+). This is fine — no 3.14-specific syntax is used.
+- WeasyPrint requires system libraries (`libpango`, `libcairo`, etc.). These may not be available in all environments — PDF generation tests may be skipped. The rest of the app works without them.
+- S3/Tigris storage is optional locally. Without `AWS_*` env vars, file upload/download features are no-ops.
+- The `ALLOW_INSECURE_DEFAULTS=true` flag is already set by the Makefile and test conftest — no need to export it manually.
 
 ## Project Structure
 
