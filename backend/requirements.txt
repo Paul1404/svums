@@ -16,4 +16,3 @@ cryptography>=42.0.0
 boto3==1.42.77
 pypdf==6.9.2
 posthog>=3.0.0
-pytest==9.0.2
