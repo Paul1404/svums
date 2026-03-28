@@ -358,13 +358,22 @@
 
 <div class="legal-text">
   Mit Unterzeichnung willigt das Mitglied in die Erhebung, Verarbeitung und Nutzung seiner
-  personenbezogenen Daten zum Zwecke der Mitgliederverwaltung und des Vereinsbetriebs ein.
-  Es gilt die aktuelle Datenschutzerklärung des SVU, die unter
-  <a href="https://sv-untereuerheim.de/datenschutz/">sv-untereuerheim.de/datenschutz</a>
-  eingesehen werden kann.<br>
+  personenbezogenen Daten zum Zwecke der Mitgliederverwaltung und des Vereinsbetriebs ein.<br><br>
+  Datenschutzerklärung: https://sv-untereuerheim.de/datenschutz<br>
+  Satzung: https://sv-untereuerheim.de/satzung<br>
+  Impressum: https://sv-untereuerheim.de/impressum<br><br>
   Ein Austritt ist nur zum Ende eines Kalenderjahres unter Einhaltung einer Frist von sechs Wochen
   in Textform (per E-Mail an mitgliedschaft@sv-untereuerheim.de oder postalisch) zulässig.
 </div>
+
+{% if consent_at_formatted %}
+<div class="legal-text" style="margin-top: 8px; padding: 8px; border: 1px solid #ddd; background: #fafafa;">
+  Der/Die Antragsteller/in hat am {{ consent_at_formatted }} die Datenschutzerklärung
+  (https://sv-untereuerheim.de/datenschutz) und die Satzung
+  (https://sv-untereuerheim.de/satzung) des SV 1945 Untereuerheim e.V. zur Kenntnis genommen
+  und akzeptiert.
+</div>
+{% endif %}
 
 <div class="signature-area">
   <div class="signature-line">Datum: {{ datum }}</div>
@@ -518,7 +527,8 @@
   Triebweg 9 · 97508 Grettstadt/Untereuerheim<br>
   1. Vorsitzender: Alexander Eckert · Tel: 09729/432<br>
   E-Mail: info@sv-untereuerheim.de<br>
-  Registergericht: Amtsgericht Schweinfurt · Registernummer: VR 31 · Steuer-ID: 249/111/20506
+  Registergericht: Amtsgericht Schweinfurt · Registernummer: VR 31 · Steuer-ID: 249/111/20506<br>
+  Impressum: https://sv-untereuerheim.de/impressum · Datenschutz: https://sv-untereuerheim.de/datenschutz
 </div>
 
 </body>

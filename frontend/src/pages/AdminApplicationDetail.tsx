@@ -469,6 +469,26 @@ export default function AdminApplicationDetail() {
                     {new Date(app.created_at).toLocaleString("de-DE")}
                   </span>
                 </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-500">Datenschutz:</span>
+                  <span className={app.datenschutz_accepted ? "text-green-600" : "text-gray-400"}>
+                    {app.datenschutz_accepted ? "Akzeptiert" : app.datenschutz_accepted === false ? "Nicht akzeptiert" : "Vor Einführung der digitalen Einwilligung"}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-500">Satzung:</span>
+                  <span className={app.satzung_accepted ? "text-green-600" : "text-gray-400"}>
+                    {app.satzung_accepted ? "Anerkannt" : app.satzung_accepted === false ? "Nicht anerkannt" : "Vor Einführung der digitalen Einwilligung"}
+                  </span>
+                </div>
+                {app.consent_at && (
+                  <div className="flex justify-between">
+                    <span className="text-gray-500">Einwilligung am:</span>
+                    <span className="text-gray-900">
+                      {new Date(app.consent_at).toLocaleString("de-DE")}
+                    </span>
+                  </div>
+                )}
                 <div className="flex items-center justify-between">
                   <span className="text-gray-500">E-Mail gesendet:</span>
                   <div className="flex items-center gap-2">
