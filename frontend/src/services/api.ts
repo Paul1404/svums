@@ -235,10 +235,11 @@ async function apiRequest<T>(
   const method = (rest.method || "GET").toUpperCase();
   const csrfHeaders: Record<string, string> = {};
   if (method !== "GET" && method !== "HEAD") {
-    const token = getCsrfTokenFromCookie();
-    if (token) {
-      csrfHeaders["X-CSRF-Token"] = token;
+    let token = getCsrfTokenFromCookie();
+    if (!token) {
+      token = await getCsrfToken();
     }
+    csrfHeaders["X-CSRF-Token"] = token;
   }
   const response = await fetch(url, {
     credentials: "include",
