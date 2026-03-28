@@ -92,6 +92,13 @@ export interface ApplicationListResponse {
   per_page: number;
 }
 
+export interface AdminStatsResponse {
+  total: number;
+  by_status: Record<string, number>;
+  revenue_approved: number | string;
+  applications_this_month: number;
+}
+
 export interface StatusLookupResponse {
   antragsnummer: string;
   status: string;
@@ -422,6 +429,10 @@ export async function getApplications(
   if (status) params.set("status", status);
   if (search) params.set("search", search);
   return apiRequest(`/api/admin/applications?${params}`);
+}
+
+export async function getAdminStats(): Promise<AdminStatsResponse> {
+  return apiRequest("/api/admin/stats");
 }
 
 export async function getApplication(
