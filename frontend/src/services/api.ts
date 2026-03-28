@@ -97,6 +97,10 @@ export interface AdminStatsResponse {
   by_status: Record<string, number>;
   revenue_approved: number | string;
   applications_this_month: number;
+  by_abteilung: Record<string, number>;
+  by_age_group: Record<string, number>;
+  by_membership_type: Record<string, number>;
+  by_gender: Record<string, number>;
 }
 
 export interface StatusLookupResponse {
