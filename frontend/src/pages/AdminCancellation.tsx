@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { toast } from "sonner";
-import { ArrowLeft, Download, FileText, Loader2, PenLine, Trash2, Upload } from "lucide-react";
+import { ArrowLeft, Download, FileText, Loader2, PenLine, Plus, Trash2, Upload, Users } from "lucide-react";
 import SignatureCanvasType from "react-signature-canvas";
 // CJS interop: Vite 8/Rolldown may wrap the CJS module so the default import
 // is a namespace object { default: Component } instead of the component itself.
@@ -51,10 +51,21 @@ const EMPTY_FORM: CancellationForm = {
   empfaenger_ort: "",
 };
 
+interface FamilyMember {
+  vorname: string;
+  nachname: string;
+  geburtsdatum: string;
+  mitgliedsnummer: string;
+}
+
+const EMPTY_FAMILY_MEMBER: FamilyMember = { vorname: "", nachname: "", geburtsdatum: "", mitgliedsnummer: "" };
+
 export default function AdminCancellation() {
   const [form, setForm] = useState<CancellationForm>({ ...EMPTY_FORM });
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<Partial<Record<keyof CancellationForm, string>>>({});
+  const [isFamily, setIsFamily] = useState(false);
+  const [familyMembers, setFamilyMembers] = useState<FamilyMember[]>([{ ...EMPTY_FAMILY_MEMBER }]);
   const sigCanvasRef = useRef<SignatureCanvasType | null>(null);
   const [sigEmpty, setSigEmpty] = useState(true);
   const [signatureInputMode, setSignatureInputMode] = useState<"draw" | "upload">("draw");
@@ -173,6 +184,15 @@ export default function AdminCancellation() {
           empfaenger_strasse: form.empfaenger_abweichend ? form.empfaenger_strasse : null,
           empfaenger_plz: form.empfaenger_abweichend ? form.empfaenger_plz : null,
           empfaenger_ort: form.empfaenger_abweichend ? form.empfaenger_ort : null,
+          is_family: isFamily,
+          familienmitglieder: isFamily
+            ? familyMembers.filter((fm) => fm.vorname.trim() || fm.nachname.trim()).map((fm) => ({
+                vorname: fm.vorname.trim(),
+                nachname: fm.nachname.trim(),
+                geburtsdatum: fm.geburtsdatum.trim(),
+                mitgliedsnummer: fm.mitgliedsnummer.trim() || null,
+              }))
+            : [],
         }),
       });
 
@@ -185,7 +205,9 @@ export default function AdminCancellation() {
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `Kuendigungsbestaetigung_${form.nachname}_${form.vorname}.pdf`;
+      a.download = isFamily
+        ? `Kuendigungsbestaetigung_Familie_${form.nachname}.pdf`
+        : `Kuendigungsbestaetigung_${form.nachname}_${form.vorname}.pdf`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
@@ -218,6 +240,8 @@ export default function AdminCancellation() {
     setUploadedSigDataUrl(null);
     setSignatureInputMode("draw");
     setSaveSignatureForFuture(false);
+    setIsFamily(false);
+    setFamilyMembers([{ ...EMPTY_FAMILY_MEMBER }]);
   };
 
   return (
@@ -365,6 +389,103 @@ export default function AdminCancellation() {
                 placeholder="z.B. Fußball, Turnen"
               />
             </div>
+
+            {/* Family membership toggle */}
+            <div className="pt-4 border-t">
+              <label className="flex items-start gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={isFamily}
+                  onChange={(e) => setIsFamily(e.target.checked)}
+                  className="mt-0.5 text-svu-600 focus:ring-svu-500"
+                />
+                <div>
+                  <span className="text-sm font-medium text-gray-700 flex items-center gap-1.5">
+                    <Users className="w-4 h-4 text-svu-600" />
+                    Familienmitgliedschaft
+                  </span>
+                  <p className="text-xs text-gray-500">
+                    Weitere Familienmitglieder hinzufügen (Partner/in, Kinder).
+                  </p>
+                </div>
+              </label>
+            </div>
+
+            {isFamily && (
+              <div className="space-y-4 p-4 bg-purple-50 border border-purple-200 rounded-lg">
+                <h3 className="text-sm font-semibold text-gray-800 uppercase tracking-wide">
+                  Weitere Familienmitglieder
+                </h3>
+                {familyMembers.map((fm, idx) => (
+                  <div key={idx} className="space-y-3 pb-3 border-b border-purple-200 last:border-b-0 last:pb-0">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-medium text-purple-700">
+                        Mitglied {idx + 1}
+                      </span>
+                      {familyMembers.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => setFamilyMembers((prev) => prev.filter((_, i) => i !== idx))}
+                          className="text-xs text-gray-400 hover:text-red-500 transition-colors"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <FormField
+                        label="Vorname"
+                        value={fm.vorname}
+                        onChange={(v) =>
+                          setFamilyMembers((prev) =>
+                            prev.map((m, i) => (i === idx ? { ...m, vorname: v } : m))
+                          )
+                        }
+                      />
+                      <FormField
+                        label="Nachname"
+                        value={fm.nachname}
+                        onChange={(v) =>
+                          setFamilyMembers((prev) =>
+                            prev.map((m, i) => (i === idx ? { ...m, nachname: v } : m))
+                          )
+                        }
+                      />
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <FormField
+                        label="Geburtsdatum"
+                        value={fm.geburtsdatum}
+                        onChange={(v) =>
+                          setFamilyMembers((prev) =>
+                            prev.map((m, i) => (i === idx ? { ...m, geburtsdatum: v } : m))
+                          )
+                        }
+                        placeholder="TT.MM.JJJJ"
+                      />
+                      <FormField
+                        label="Mitgliedsnummer"
+                        value={fm.mitgliedsnummer}
+                        onChange={(v) =>
+                          setFamilyMembers((prev) =>
+                            prev.map((m, i) => (i === idx ? { ...m, mitgliedsnummer: v } : m))
+                          )
+                        }
+                        placeholder="Optional"
+                      />
+                    </div>
+                  </div>
+                ))}
+                <button
+                  type="button"
+                  onClick={() => setFamilyMembers((prev) => [...prev, { ...EMPTY_FAMILY_MEMBER }])}
+                  className="flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-purple-700 bg-white border border-purple-300 rounded-lg hover:bg-purple-50 transition-colors"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  Weiteres Mitglied hinzufügen
+                </button>
+              </div>
+            )}
 
             {/* Separate recipient (parent / payer) */}
             <div className="pt-4 border-t">

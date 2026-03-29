@@ -167,7 +167,9 @@
 </div>
 
 <div class="subject">
-  {% if ist_empfaenger_abweichend %}
+  {% if is_family and familienmitglieder %}
+  Bestätigung des Austritts der Familienmitgliedschaft aus dem Verein
+  {% elif ist_empfaenger_abweichend %}
   Bestätigung des Austritts von {{ vorname }} {{ nachname }} aus dem Verein
   {% else %}
   Bestätigung Ihres Austritts aus dem Verein
@@ -179,7 +181,10 @@
 </div>
 
 <div class="body-text">
-  {% if ist_empfaenger_abweichend %}
+  {% if is_family and familienmitglieder %}
+  hiermit bestätigen wir den Eingang der schriftlichen Austrittserklärung und das Ende der
+  Familienmitgliedschaft beim Sportverein 1945 Untereuerheim e.V.
+  {% elif ist_empfaenger_abweichend %}
   hiermit bestätigen wir den Eingang der schriftlichen Austrittserklärung und das Ende der
   Mitgliedschaft von {{ vorname }} {{ nachname }} beim Sportverein 1945 Untereuerheim e.V.
   {% else %}
@@ -189,6 +194,18 @@
 </div>
 
 <div class="detail-box">
+  {% if is_family and familienmitglieder %}
+  <div class="detail-row">
+    <span class="detail-label">Hauptmitglied: </span>
+    <span class="detail-value">{{ vorname }} {{ nachname }} (geb. {{ geburtsdatum }}){% if mitgliedsnummer %} – Nr. {{ mitgliedsnummer }}{% endif %}</span>
+  </div>
+  {% for fm in familienmitglieder %}
+  <div class="detail-row">
+    <span class="detail-label">{% if loop.index <= familienmitglieder|length %}Familienmitglied {{ loop.index }}: {% endif %}</span>
+    <span class="detail-value">{{ fm.vorname }} {{ fm.nachname }}{% if fm.geburtsdatum %} (geb. {{ fm.geburtsdatum }}){% endif %}{% if fm.mitgliedsnummer %} – Nr. {{ fm.mitgliedsnummer }}{% endif %}</span>
+  </div>
+  {% endfor %}
+  {% else %}
   <div class="detail-row">
     <span class="detail-label">Mitglied: </span>
     <span class="detail-value">{{ vorname }} {{ nachname }}</span>
@@ -202,6 +219,7 @@
     <span class="detail-label">Mitgliedsnummer: </span>
     <span class="detail-value">{{ mitgliedsnummer }}</span>
   </div>
+  {% endif %}
   {% endif %}
   {% if abteilung %}
   <div class="detail-row">
@@ -218,7 +236,13 @@
 <div class="body-text">
   Gemäß § 3 Abs. 2 der Vereinssatzung ist der Austritt nur zum Schluss eines Kalenderjahres unter
   Einhaltung einer Frist von sechs Wochen zulässig.
-  {% if ist_empfaenger_abweichend %}
+  {% if is_family and familienmitglieder %}
+  Die Familienmitgliedschaft endet somit zum oben genannten Datum für alle genannten Mitglieder.
+  Bis dahin bestehende Beitragspflichten bleiben unberührt; der Anspruch des
+  Vereins auf rückständige Beiträge oder sonstige Forderungen bleibt gemäß § 3 Abs. 5 der
+  Satzung auch nach Beendigung der Mitgliedschaft bestehen. Das erteilte SEPA-Lastschriftmandat
+  wird mit Beendigung der Mitgliedschaft ebenfalls widerrufen.
+  {% elif ist_empfaenger_abweichend %}
   Die Mitgliedschaft von {{ vorname }} {{ nachname }} endet somit zum oben
   genannten Datum. Bis dahin bestehende Beitragspflichten bleiben unberührt; der Anspruch des
   Vereins auf rückständige Beiträge oder sonstige Forderungen bleibt gemäß § 3 Abs. 5 der

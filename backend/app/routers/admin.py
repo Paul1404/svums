@@ -1264,6 +1264,12 @@ async def test_smtp(
 
 # --- Cancellation PDF ---
 
+class CancellationFamilyMember(BaseModel):
+    vorname: str
+    nachname: str
+    geburtsdatum: str = ""
+    mitgliedsnummer: str | None = None
+
 class CancellationRequest(BaseModel):
     anrede: str  # "Herr", "Frau", or "keine Angabe"
     vorname: str
@@ -1285,6 +1291,9 @@ class CancellationRequest(BaseModel):
     empfaenger_strasse: str | None = None
     empfaenger_plz: str | None = None
     empfaenger_ort: str | None = None
+    # Family membership: additional members
+    is_family: bool = False
+    familienmitglieder: list[CancellationFamilyMember] = []
 
 
 @router.post("/cancellation-pdf")
@@ -1339,6 +1348,26 @@ async def cancellation_pdf(
         e_anrede, e_vorname, e_nachname
     )
 
+    # Build combined mitgliedsnummer for display and storage
+    all_mitgliedsnummern: list[dict] = []
+    if data.mitgliedsnummer:
+        all_mitgliedsnummern.append({
+            "name": f"{data.vorname} {data.nachname}",
+            "nummer": data.mitgliedsnummer,
+        })
+    for fm in data.familienmitglieder:
+        if fm.mitgliedsnummer:
+            all_mitgliedsnummern.append({
+                "name": f"{fm.vorname} {fm.nachname}",
+                "nummer": fm.mitgliedsnummer,
+            })
+    # For DB storage: combine all numbers into a single string
+    combined_mitgliedsnummer = data.mitgliedsnummer or ""
+    if data.is_family and all_mitgliedsnummern:
+        combined_mitgliedsnummer = ", ".join(
+            f"{m['name']}: {m['nummer']}" for m in all_mitgliedsnummern
+        )
+
     pdf_data = {
         "empfaenger_anrede": empfaenger_anrede_full,
         "empfaenger_anrede_text": empfaenger_anrede_text,
@@ -1359,6 +1388,9 @@ async def cancellation_pdf(
         "austritt_datum": data.austritt_datum,
         "datum": datetime.now().strftime("%d.%m.%Y"),
         "unterschrift_base64": effective_signature,
+        "is_family": data.is_family,
+        "familienmitglieder": [fm.model_dump() for fm in data.familienmitglieder],
+        "all_mitgliedsnummern": all_mitgliedsnummern,
     }
 
     pdf_bytes = generate_cancellation_pdf(pdf_data)
@@ -1368,6 +1400,15 @@ async def cancellation_pdf(
     )
     storage.upload_file(stored_filename, pdf_bytes, content_type="application/pdf")
 
+    # Build display name: for family, include all member names
+    if data.is_family and data.familienmitglieder:
+        all_names = [f"{data.nachname}, {data.vorname}"]
+        for fm in data.familienmitglieder:
+            all_names.append(f"{fm.nachname}, {fm.vorname}")
+        display_name = " | ".join(all_names) + " (Familie)"
+    else:
+        display_name = f"{data.nachname}, {data.vorname}"
+
     letter = CancellationLetter(
         anrede=data.anrede,
         vorname=data.vorname,
@@ -1376,12 +1417,12 @@ async def cancellation_pdf(
         plz=data.plz,
         ort=data.ort,
         geburtsdatum=data.geburtsdatum,
-        mitgliedsnummer=data.mitgliedsnummer,
+        mitgliedsnummer=combined_mitgliedsnummer or None,
         abteilung=data.abteilung,
         austritt_datum=data.austritt_datum,
         signature_source=signature_source,
         filename=stored_filename,
-        display_name=f"{data.nachname}, {data.vorname}",
+        display_name=display_name,
     )
     db.add(letter)
     try:
@@ -1402,7 +1443,10 @@ async def cancellation_pdf(
         },
     )
 
-    filename = f"Kuendigungsbestaetigung_{data.nachname}_{data.vorname}.pdf"
+    if data.is_family and data.familienmitglieder:
+        filename = f"Kuendigungsbestaetigung_Familie_{data.nachname}.pdf"
+    else:
+        filename = f"Kuendigungsbestaetigung_{data.nachname}_{data.vorname}.pdf"
     return Response(
         content=pdf_bytes,
         media_type="application/pdf",

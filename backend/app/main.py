@@ -104,7 +104,11 @@ async def lifespan(app: FastAPI):
                 ))
                 conn.execute(__import__("sqlalchemy").text(
                     "ALTER TABLE membership_applications "
-                    "ADD COLUMN IF NOT EXISTS mitgliedsnummer VARCHAR(50)"
+                    "ADD COLUMN IF NOT EXISTS mitgliedsnummer VARCHAR(500)"
+                ))
+                conn.execute(__import__("sqlalchemy").text(
+                    "ALTER TABLE membership_applications "
+                    "ALTER COLUMN mitgliedsnummer TYPE VARCHAR(500)"
                 ))
                 conn.execute(__import__("sqlalchemy").text(
                     "ALTER TABLE membership_applications "
