@@ -16,7 +16,7 @@ class CancellationLetter(Base):
     plz = Column(String(10), nullable=False)
     ort = Column(String(100), nullable=False)
     geburtsdatum = Column(String(20), nullable=False)
-    mitgliedsnummer = Column(String(50), nullable=True)
+    mitgliedsnummer = Column(String(500), nullable=True)
     abteilung = Column(String(200), nullable=True)
     austritt_datum = Column(String(20), nullable=False)
     signature_source = Column(String(30), nullable=False, default="none")
