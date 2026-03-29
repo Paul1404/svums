@@ -208,6 +208,7 @@ export default function ApplicationForm() {
   // matches its CSS size — prevents the touch-offset bug on mobile.
   const sigContainerRef = useRef<HTMLDivElement | null>(null);
   const [canvasWidth, setCanvasWidth] = useState(600);
+  const canvasWidthRef = useRef(600);
 
   // Keep canvas internal width in sync with its rendered container width.
   useEffect(() => {
@@ -215,7 +216,8 @@ export default function ApplicationForm() {
     if (!el) return;
     const observer = new ResizeObserver((entries) => {
       const w = Math.floor(entries[0].contentRect.width);
-      if (w > 0 && w !== canvasWidth) {
+      if (w > 0 && w !== canvasWidthRef.current) {
+        canvasWidthRef.current = w;
         setCanvasWidth(w);
         // Clear on resize — a stretched signature would look wrong.
         sigCanvasRef.current?.clear();
@@ -237,6 +239,8 @@ export default function ApplicationForm() {
   const fullscreenContainerRef = useRef<HTMLDivElement | null>(null);
   const [fsCanvasWidth, setFsCanvasWidth] = useState(800);
   const [fsCanvasHeight, setFsCanvasHeight] = useState(400);
+  const fsCanvasWidthRef = useRef(800);
+  const fsCanvasHeightRef = useRef(400);
   // Stores the data-URL captured from the fullscreen canvas after confirmation.
   const [capturedSigDataUrl, setCapturedSigDataUrl] = useState<string | null>(null);
   const [uploadedSignatureDataUrl, setUploadedSignatureDataUrl] = useState<string | null>(null);
@@ -259,9 +263,18 @@ export default function ApplicationForm() {
       const { width, height } = entries[0].contentRect;
       const w = Math.floor(width);
       const h = Math.floor(height);
-      if (w > 0) setFsCanvasWidth(w);
-      if (h > 0) setFsCanvasHeight(h);
-      fullscreenCanvasRef.current?.clear();
+      let changed = false;
+      if (w > 0 && w !== fsCanvasWidthRef.current) {
+        fsCanvasWidthRef.current = w;
+        setFsCanvasWidth(w);
+        changed = true;
+      }
+      if (h > 0 && h !== fsCanvasHeightRef.current) {
+        fsCanvasHeightRef.current = h;
+        setFsCanvasHeight(h);
+        changed = true;
+      }
+      if (changed) fullscreenCanvasRef.current?.clear();
     });
     observer.observe(el);
     return () => observer.disconnect();

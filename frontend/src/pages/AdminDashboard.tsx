@@ -33,6 +33,8 @@ import {
   Euro,
   Users,
   FlaskConical,
+  Menu,
+  X,
 } from "lucide-react";
 
 const STATUS_LABELS: Record<string, { label: string; color: string }> = {
@@ -57,6 +59,7 @@ export default function AdminDashboard() {
   const [showTestFilter, setShowTestFilter] = useState<boolean | null>(null); // null = show all, true = only test, false = hide test
   const [testModeType, setTestModeType] = useState<"einzel" | "kind" | "familie">("einzel");
   const [launchingTest, setLaunchingTest] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -128,7 +131,9 @@ export default function AdminDashboard() {
             </h1>
             <p className="text-xs text-gray-500">Mitgliederverwaltung</p>
           </div>
-          <div className="flex items-center gap-2">
+
+          {/* Desktop nav */}
+          <div className="hidden lg:flex items-center gap-2">
             {/* Test Application */}
             <div className="flex items-center gap-1.5 border-r pr-2 mr-1">
               <select
@@ -192,7 +197,91 @@ export default function AdminDashboard() {
               <LogOut className="w-4 h-4" /> Abmelden
             </button>
           </div>
+
+          {/* Mobile: key actions + hamburger */}
+          <div className="flex lg:hidden items-center gap-1.5">
+            <button
+              onClick={fetchData}
+              className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+              title="Aktualisieren"
+            >
+              <RefreshCw className={`w-5 h-5 ${loading ? "animate-spin" : ""}`} />
+            </button>
+            <button
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+              className="p-2 text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-colors"
+            >
+              {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+            </button>
+          </div>
         </div>
+
+        {/* Mobile dropdown menu */}
+        {mobileMenuOpen && (
+          <div className="lg:hidden border-t bg-white px-4 py-3 space-y-1">
+            <Link
+              to="/admin/documents"
+              className="flex items-center gap-2 px-3 py-2.5 text-sm text-gray-700 hover:bg-gray-100 rounded-lg"
+              onClick={() => setMobileMenuOpen(false)}
+            >
+              <FileText className="w-4 h-4" /> Dokumente
+            </Link>
+            <Link
+              to="/admin/email-log"
+              className="flex items-center gap-2 px-3 py-2.5 text-sm text-gray-700 hover:bg-gray-100 rounded-lg"
+              onClick={() => setMobileMenuOpen(false)}
+            >
+              <Mail className="w-4 h-4" /> E-Mail-Log
+            </Link>
+            <Link
+              to="/admin/cancellation"
+              className="flex items-center gap-2 px-3 py-2.5 text-sm text-gray-700 hover:bg-gray-100 rounded-lg"
+              onClick={() => setMobileMenuOpen(false)}
+            >
+              <UserX className="w-4 h-4" /> Kündigung
+            </Link>
+            <Link
+              to="/admin/settings"
+              className="flex items-center gap-2 px-3 py-2.5 text-sm text-gray-700 hover:bg-gray-100 rounded-lg"
+              onClick={() => setMobileMenuOpen(false)}
+            >
+              <Settings className="w-4 h-4" /> Einstellungen
+            </Link>
+            <a
+              href="/api/admin/export"
+              className="flex items-center gap-2 px-3 py-2.5 text-sm text-gray-700 hover:bg-gray-100 rounded-lg"
+            >
+              <Download className="w-4 h-4" /> CSV Export
+            </a>
+            <div className="border-t my-2" />
+            <div className="flex items-center gap-2 px-3 py-2">
+              <select
+                value={testModeType}
+                onChange={(e) => setTestModeType(e.target.value as "einzel" | "kind" | "familie")}
+                className="text-xs border border-gray-300 rounded px-1.5 py-1.5 bg-white"
+              >
+                <option value="einzel">Einzel</option>
+                <option value="kind">Kind</option>
+                <option value="familie">Familie</option>
+              </select>
+              <button
+                onClick={() => { handleLaunchTestMode(); setMobileMenuOpen(false); }}
+                disabled={launchingTest}
+                className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-orange-700 bg-orange-50 border border-orange-200 rounded-lg hover:bg-orange-100 transition-colors disabled:opacity-50"
+              >
+                <FlaskConical className="w-3.5 h-3.5" />
+                {launchingTest ? "Laden..." : "Testantrag"}
+              </button>
+            </div>
+            <div className="border-t my-2" />
+            <button
+              onClick={() => { handleLogout(); setMobileMenuOpen(false); }}
+              className="flex items-center gap-2 px-3 py-2.5 text-sm text-red-600 hover:bg-red-50 rounded-lg w-full"
+            >
+              <LogOut className="w-4 h-4" /> Abmelden
+            </button>
+          </div>
+        )}
       </header>
 
       <div className="max-w-7xl mx-auto px-4 py-6">
@@ -217,7 +306,7 @@ export default function AdminDashboard() {
             </button>
           </form>
 
-          <div className="flex gap-2 flex-wrap">
+          <div className="flex gap-2 flex-nowrap overflow-x-auto pb-1 sm:flex-wrap sm:overflow-visible sm:pb-0">
             {["", "neu", "dokument_hochgeladen", "in_bearbeitung", "genehmigt", "abgelehnt"].map((s) => (
               <button
                 key={s}
@@ -225,7 +314,7 @@ export default function AdminDashboard() {
                   setStatusFilter(s);
                   setPage(1);
                 }}
-                className={`px-3 py-2 text-sm rounded-lg border transition-colors ${
+                className={`px-3 py-2 text-sm rounded-lg border transition-colors whitespace-nowrap shrink-0 ${
                   statusFilter === s
                     ? "bg-svu-600 text-white border-svu-600"
                     : "bg-white text-gray-600 border-gray-300 hover:bg-gray-50"
@@ -268,7 +357,7 @@ export default function AdminDashboard() {
 
           <button
             onClick={fetchData}
-            className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+            className="hidden lg:block p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
             title="Aktualisieren"
           >
             <RefreshCw className={`w-5 h-5 ${loading ? "animate-spin" : ""}`} />
@@ -431,7 +520,7 @@ export default function AdminDashboard() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-gray-50 border-b">
-                  <th className="text-left px-4 py-3 font-medium text-gray-500">
+                  <th className="text-left px-4 py-3 font-medium text-gray-500 hidden sm:table-cell">
                     #
                   </th>
                   <th className="text-left px-4 py-3 font-medium text-gray-500">
@@ -443,7 +532,7 @@ export default function AdminDashboard() {
                   <th className="text-left px-4 py-3 font-medium text-gray-500 hidden lg:table-cell">
                     Abteilung
                   </th>
-                  <th className="text-left px-4 py-3 font-medium text-gray-500">
+                  <th className="text-left px-4 py-3 font-medium text-gray-500 hidden sm:table-cell">
                     Beitrag
                   </th>
                   <th className="text-left px-4 py-3 font-medium text-gray-500">
@@ -485,7 +574,7 @@ export default function AdminDashboard() {
                         app.is_test ? "bg-orange-50/60" : ""
                       }`}
                     >
-                      <td className="px-4 py-3 text-gray-500 font-mono">
+                      <td className="px-4 py-3 text-gray-500 font-mono hidden sm:table-cell">
                         {app.id}
                       </td>
                       <td className="px-4 py-3 font-medium text-gray-900">
@@ -504,7 +593,7 @@ export default function AdminDashboard() {
                       <td className="px-4 py-3 text-gray-600 hidden lg:table-cell">
                         {app.abteilungen.join(", ")}
                       </td>
-                      <td className="px-4 py-3 font-medium text-gray-900">
+                      <td className="px-4 py-3 font-medium text-gray-900 hidden sm:table-cell">
                         {formatFee(app.jahresbeitrag)}
                       </td>
                       <td className="px-4 py-3">
