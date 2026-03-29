@@ -87,6 +87,7 @@ export default function AdminApplicationDetail() {
   const [useSavedAdminSignature, setUseSavedAdminSignature] = useState(true);
   const [saveSignatureForFuture, setSaveSignatureForFuture] = useState(false);
   const [mitgliedsnummer, setMitgliedsnummer] = useState("");
+  const [familyMitgliedsnummern, setFamilyMitgliedsnummern] = useState<Record<string, string>>({});
 
   const handleAdminUpload = async (file: File) => {
     if (!app) return;
@@ -215,10 +216,28 @@ export default function AdminApplicationDetail() {
       toast.error("Bitte Signatur eingeben oder gespeicherte Admin-Signatur verwenden.");
       return;
     }
+    // For family memberships, combine all membership numbers into a structured string
+    let effectiveMitgliedsnummer: string | null = null;
+    if (app?.antragstyp === "familie") {
+      const parts: string[] = [];
+      if (mitgliedsnummer.trim()) {
+        parts.push(`${app.vorname} ${app.nachname}: ${mitgliedsnummer.trim()}`);
+      }
+      if (app.partner_vorname && familyMitgliedsnummern["partner"]?.trim()) {
+        parts.push(`${app.partner_vorname} ${app.partner_nachname || ""}: ${familyMitgliedsnummern["partner"].trim()}`);
+      }
+      (app.kinder || []).forEach((kind, i) => {
+        const nr = familyMitgliedsnummern[`kind_${i}`]?.trim();
+        if (nr) parts.push(`${kind.vorname} ${kind.nachname}: ${nr}`);
+      });
+      effectiveMitgliedsnummer = parts.length > 0 ? parts.join(", ") : null;
+    } else {
+      effectiveMitgliedsnummer = mitgliedsnummer.trim() || null;
+    }
     await doSave({
       admin_unterschrift_base64: unterschrift_base64 || undefined,
       use_saved_admin_signature: useSavedAdminSignature,
-      mitgliedsnummer: mitgliedsnummer.trim() || null,
+      mitgliedsnummer: effectiveMitgliedsnummer,
     });
     if (saveSignatureForFuture && unterschrift_base64) {
       try {
@@ -285,18 +304,20 @@ export default function AdminApplicationDetail() {
               </p>
             </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5">
             <a
               href={`/api/admin/applications/${app.id}/pdf`}
-              className="flex items-center gap-1.5 px-3 py-2 text-sm text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-colors"
+              className="flex items-center gap-1.5 px-2.5 py-2 text-sm text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-colors"
+              title="PDF herunterladen"
             >
-              <Download className="w-4 h-4" /> PDF
+              <Download className="w-4 h-4" /> <span className="hidden sm:inline">PDF</span>
             </a>
             <button
               onClick={handleDelete}
-              className="flex items-center gap-1.5 px-3 py-2 text-sm text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors"
+              className="flex items-center gap-1.5 px-2.5 py-2 text-sm text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors"
+              title="Antrag löschen"
             >
-              <Trash2 className="w-4 h-4" /> Löschen
+              <Trash2 className="w-4 h-4" /> <span className="hidden sm:inline">Löschen</span>
             </button>
           </div>
         </div>
@@ -674,19 +695,70 @@ export default function AdminApplicationDetail() {
               </button>
             </div>
             <div className="p-5 space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Mitgliedsnummer (aus Linear Webverein)
-                </label>
-                <input
-                  type="text"
-                  value={mitgliedsnummer}
-                  onChange={(e) => setMitgliedsnummer(e.target.value)}
-                  placeholder="z.B. 12345"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-svu-500 focus:border-svu-500"
-                />
-                <p className="text-xs text-gray-400 mt-1">Optional – wird in der Bestätigung und E-Mail an das Mitglied übermittelt.</p>
-              </div>
+              {app?.antragstyp === "familie" ? (
+                <div className="space-y-3">
+                  <label className="block text-sm font-medium text-gray-700">
+                    Mitgliedsnummern (aus Linear Webverein)
+                  </label>
+                  <div className="space-y-2">
+                    <div>
+                      <label className="block text-xs text-gray-500 mb-0.5">
+                        {app.vorname} {app.nachname} (Hauptmitglied)
+                      </label>
+                      <input
+                        type="text"
+                        value={mitgliedsnummer}
+                        onChange={(e) => setMitgliedsnummer(e.target.value)}
+                        placeholder="z.B. 12345"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-svu-500 focus:border-svu-500"
+                      />
+                    </div>
+                    {app.partner_vorname && (
+                      <div>
+                        <label className="block text-xs text-gray-500 mb-0.5">
+                          {app.partner_vorname} {app.partner_nachname} (Partner/in)
+                        </label>
+                        <input
+                          type="text"
+                          value={familyMitgliedsnummern["partner"] || ""}
+                          onChange={(e) => setFamilyMitgliedsnummern((prev) => ({ ...prev, partner: e.target.value }))}
+                          placeholder="z.B. 12346"
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-svu-500 focus:border-svu-500"
+                        />
+                      </div>
+                    )}
+                    {(app.kinder || []).map((kind, i) => (
+                      <div key={i}>
+                        <label className="block text-xs text-gray-500 mb-0.5">
+                          {kind.vorname} {kind.nachname} (Kind)
+                        </label>
+                        <input
+                          type="text"
+                          value={familyMitgliedsnummern[`kind_${i}`] || ""}
+                          onChange={(e) => setFamilyMitgliedsnummern((prev) => ({ ...prev, [`kind_${i}`]: e.target.value }))}
+                          placeholder={`z.B. ${12347 + i}`}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-svu-500 focus:border-svu-500"
+                        />
+                      </div>
+                    ))}
+                  </div>
+                  <p className="text-xs text-gray-400">Optional – wird in der Bestätigung und E-Mail an die Mitglieder übermittelt.</p>
+                </div>
+              ) : (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Mitgliedsnummer (aus Linear Webverein)
+                  </label>
+                  <input
+                    type="text"
+                    value={mitgliedsnummer}
+                    onChange={(e) => setMitgliedsnummer(e.target.value)}
+                    placeholder="z.B. 12345"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-svu-500 focus:border-svu-500"
+                  />
+                  <p className="text-xs text-gray-400 mt-1">Optional – wird in der Bestätigung und E-Mail an das Mitglied übermittelt.</p>
+                </div>
+              )}
               <p className="text-sm text-gray-600">
                 Bitte signieren Sie die Genehmigung (wird dem Antragsteller zugestellt).
               </p>
