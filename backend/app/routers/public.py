@@ -411,7 +411,11 @@ async def calculate_membership_fee(
             label=fee_label,
         )
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        logger.warning("Fee calculation error: %s", e)
+        raise HTTPException(
+            status_code=400,
+            detail="Beitrag konnte nicht berechnet werden. Bitte überprüfen Sie Ihre Angaben.",
+        )
 
 
 @router.get("/iban/lookup")

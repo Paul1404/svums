@@ -60,6 +60,7 @@ export default function AdminDashboard() {
   const [testModeType, setTestModeType] = useState<"einzel" | "kind" | "familie">("einzel");
   const [launchingTest, setLaunchingTest] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [showExportDialog, setShowExportDialog] = useState(false);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -183,13 +184,13 @@ export default function AdminDashboard() {
             >
               <Settings className="w-5 h-5" />
             </Link>
-            <a
-              href="/api/admin/export"
+            <button
+              onClick={() => setShowExportDialog(true)}
               className="flex items-center gap-1.5 px-3 py-2 text-sm text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-colors"
               title="CSV Export"
             >
               <Download className="w-4 h-4" /> Export
-            </a>
+            </button>
             <button
               onClick={handleLogout}
               className="flex items-center gap-1.5 px-3 py-2 text-sm text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors"
@@ -247,12 +248,12 @@ export default function AdminDashboard() {
             >
               <Settings className="w-4 h-4" /> Einstellungen
             </Link>
-            <a
-              href="/api/admin/export"
-              className="flex items-center gap-2 px-3 py-2.5 text-sm text-gray-700 hover:bg-gray-100 rounded-lg"
+            <button
+              onClick={() => { setShowExportDialog(true); setMobileMenuOpen(false); }}
+              className="flex items-center gap-2 px-3 py-2.5 text-sm text-gray-700 hover:bg-gray-100 rounded-lg w-full"
             >
               <Download className="w-4 h-4" /> CSV Export
-            </a>
+            </button>
             <div className="border-t my-2" />
             <div className="flex items-center gap-2 px-3 py-2">
               <select
@@ -653,6 +654,47 @@ export default function AdminDashboard() {
           )}
         </div>
       </div>
+
+      {showExportDialog && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-xl max-w-md w-full">
+            <div className="p-5 border-b flex items-center justify-between">
+              <h3 className="font-semibold text-gray-900">CSV-Export</h3>
+              <button
+                onClick={() => setShowExportDialog(false)}
+                className="p-1 text-gray-400 hover:text-gray-600 rounded"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-5">
+              <p className="text-sm text-gray-700">
+                <strong>{stats?.total ?? "Alle"} Anträge</strong> werden exportiert.
+                Die Datei enthält sensible Daten (IBAN, Adresse, Telefonnummer).
+              </p>
+              <p className="text-xs text-gray-500 mt-2">
+                Bitte stellen Sie sicher, dass die Datei sicher gespeichert wird.
+              </p>
+            </div>
+            <div className="p-5 border-t flex gap-3">
+              <button
+                onClick={() => setShowExportDialog(false)}
+                className="flex-1 px-4 py-2.5 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200"
+              >
+                Abbrechen
+              </button>
+              <a
+                href="/api/admin/export"
+                onClick={() => setShowExportDialog(false)}
+                className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium text-white bg-svu-600 rounded-lg hover:bg-svu-700"
+              >
+                <Download className="w-4 h-4" />
+                Exportieren
+              </a>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
