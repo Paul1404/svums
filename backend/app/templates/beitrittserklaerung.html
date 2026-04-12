@@ -371,7 +371,7 @@
 </div>
 
 {% if consent_at_formatted %}
-<div class="legal-text" style="margin-top: 8px; padding: 8px; border: 1px solid #ddd; background: #fafafa;">
+<div class="legal-text" style="margin-top: 8px; padding: 8px; border: 1px solid #ddd; background: #fafafa; page-break-inside: avoid; break-inside: avoid;">
   Der/Die Antragsteller/in hat am {{ consent_at_formatted }} die Datenschutzerklärung
   (https://sv-untereuerheim.de/datenschutz) und die Satzung
   (https://sv-untereuerheim.de/satzung) des SV 1945 Untereuerheim e.V. zur Kenntnis genommen
@@ -380,7 +380,11 @@
 {% endif %}
 
 <div class="signature-area">
-  <div class="signature-line">Datum: {{ datum }}</div>
+  {% if unterschrift_base64 %}
+  <div class="signature-line">Ort und Datum: {{ ort }}, {{ datum }}</div>
+  {% else %}
+  <div class="signature-line">Ort und Datum:</div>
+  {% endif %}
   {% if unterschrift_base64 %}
   <div class="sig-img-line">
     <img src="{{ unterschrift_base64 }}" alt="Unterschrift">
@@ -494,7 +498,7 @@
 </div>
 
 {% if unterschrift_base64 %}
-<div style="margin-top: 25px; border: 1px solid #ccc; border-radius: 4px; padding: 12px; background: #fff;">
+<div style="margin-top: 25px; border: 1px solid #ccc; border-radius: 4px; padding: 12px; background: #fff; page-break-inside: avoid; break-inside: avoid;">
   <p style="font-size: 10pt; font-weight: bold; color: #333; margin: 0 0 6px 0;">✓ Antrag digital unterzeichnet</p>
   <p style="font-size: 9pt; color: #333; margin: 0; line-height: 1.5;">
     Ihr Antrag wurde mit digitaler Unterschrift eingereicht und wird zeitnah bearbeitet.
@@ -502,7 +506,7 @@
   </p>
 </div>
 {% else %}
-<div style="margin-top: 25px; border: 2px solid #b91c1c; border-radius: 4px; padding: 12px; background: #fef2f2;">
+<div style="margin-top: 25px; border: 2px solid #b91c1c; border-radius: 4px; padding: 12px; background: #fef2f2; page-break-inside: avoid; break-inside: avoid;">
   <p style="font-size: 10pt; font-weight: bold; color: #b91c1c; margin: 0 0 6px 0;">Wichtig – Nächste Schritte:</p>
   <ol style="font-size: 9pt; color: #333; margin: 0; padding-left: 18px; line-height: 1.5;">
     <li>Bitte drucken Sie dieses Dokument aus.</li>
@@ -534,7 +538,7 @@
   1. Vorsitzender: Alexander Eckert · Tel: 09729/432<br>
   E-Mail: info@sv-untereuerheim.de<br>
   Registergericht: Amtsgericht Schweinfurt · Registernummer: VR 31 · Steuer-ID: 249/111/20506<br>
-  Impressum: https://sv-untereuerheim.de/impressum · Datenschutz: https://sv-untereuerheim.de/datenschutz
+  Datenschutz: https://sv-untereuerheim.de/datenschutz · Satzung: https://sv-untereuerheim.de/satzung · Impressum: https://sv-untereuerheim.de/impressum
 </div>
 
 </body>
