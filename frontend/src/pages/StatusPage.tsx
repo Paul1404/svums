@@ -144,7 +144,7 @@ export default function StatusPage() {
               type="text"
               value={input}
               onChange={(e) => setInput(e.target.value.toUpperCase())}
-              placeholder="z.B. ANT-2026-00001"
+              placeholder="ANT-2026-XXXXXX"
               className="flex-1 px-4 py-2.5 border border-gray-300 rounded-lg text-sm font-mono focus:ring-2 focus:ring-svu-500 focus:border-svu-500 outline-none"
             />
             <button
@@ -160,6 +160,9 @@ export default function StatusPage() {
               Suchen
             </button>
           </form>
+          <p className="text-xs text-gray-400 mt-2">
+            Die Antragsnummer finden Sie in Ihrer Bestätigungs-E-Mail (Format: ANT-JJJJ-XXXXXX).
+          </p>
         </div>
 
         {/* Error */}

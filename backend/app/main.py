@@ -262,7 +262,7 @@ async def csrf_middleware(request: Request, call_next):
             )
             return JSONResponse(
                 status_code=403,
-                content={"detail": "Ungültiges CSRF-Token. Bitte laden Sie die Seite neu."},
+                content={"detail": "Die Sitzung ist abgelaufen oder ungültig. Bitte laden Sie die Seite neu."},
             )
     response = await call_next(request)
     return response

@@ -201,7 +201,7 @@ export default function ApplicationForm() {
   const [duplicateChecked, setDuplicateChecked] = useState(false);
 
   // ---- Signature flow: "upload" (Option A, default) or "inline" (Option B)
-  const [signatureMode, setSignatureMode] = useState<"upload" | "inline">("upload");
+  const [signatureMode, setSignatureMode] = useState<"upload" | "inline">(_d?.signatureMode ?? "upload");
   const [sigEmpty, setSigEmpty] = useState(true);
   const sigCanvasRef = useRef<SignatureCanvasType | null>(null);
   // Container ref + dynamic width so the canvas internal resolution always
@@ -231,6 +231,8 @@ export default function ApplicationForm() {
           // Clear on resize — a stretched signature would look wrong.
           sigCanvasRef.current?.clear();
           setSigEmpty(true);
+          setCapturedSigDataUrl(null);
+          toast.info("Die Unterschrift wurde aufgrund einer Größenänderung zurückgesetzt. Bitte erneut unterschreiben.");
         }
       }
       isFirstObservation = false;
@@ -253,8 +255,8 @@ export default function ApplicationForm() {
   const fsCanvasHeightRef = useRef(400);
   const fsObserverRef = useRef<ResizeObserver | null>(null);
   // Stores the data-URL captured from the fullscreen canvas after confirmation.
-  const [capturedSigDataUrl, setCapturedSigDataUrl] = useState<string | null>(null);
-  const [uploadedSignatureDataUrl, setUploadedSignatureDataUrl] = useState<string | null>(null);
+  const [capturedSigDataUrl, setCapturedSigDataUrl] = useState<string | null>(_d?.capturedSigDataUrl ?? null);
+  const [uploadedSignatureDataUrl, setUploadedSignatureDataUrl] = useState<string | null>(_d?.uploadedSignatureDataUrl ?? null);
   const formStartedTrackedRef = useRef(false);
   const lastFeeEventKeyRef = useRef<string | null>(null);
 
@@ -501,6 +503,10 @@ export default function ApplicationForm() {
         telefon, telefonOptOut, email, abteilungen, erzVorname, erzNachname, elternteilMitglied,
         kinder, partnerVorname, partnerNachname, partnerGeburtsdatum, partnerAbteilungen,
         kontoinhaber, iban, bic, kreditinstitut,
+        signatureMode,
+        // Persist signature data if small enough for sessionStorage (<500KB)
+        capturedSigDataUrl: capturedSigDataUrl && capturedSigDataUrl.length < 500_000 ? capturedSigDataUrl : null,
+        uploadedSignatureDataUrl: uploadedSignatureDataUrl && uploadedSignatureDataUrl.length < 500_000 ? uploadedSignatureDataUrl : null,
       });
     }, 500);
     return () => clearTimeout(timer);
@@ -509,6 +515,7 @@ export default function ApplicationForm() {
     telefon, telefonOptOut, email, abteilungen, erzVorname, erzNachname, elternteilMitglied,
     kinder, partnerVorname, partnerNachname, partnerGeburtsdatum, partnerAbteilungen,
     kontoinhaber, iban, bic, kreditinstitut,
+    signatureMode, capturedSigDataUrl, uploadedSignatureDataUrl,
   ]);
 
   // ---- Warn user before leaving page with unsaved form data
@@ -903,7 +910,19 @@ export default function ApplicationForm() {
             : "server_error",
         signature_mode: signatureMode === "inline" ? "inline" : "paper_upload",
       });
-      toast.error(err.message || "Fehler beim Absenden");
+      if (err instanceof TypeError && err.message === "Failed to fetch") {
+        toast.error("Keine Internetverbindung. Bitte prüfen Sie Ihre Verbindung und versuchen Sie es erneut.");
+      } else if (err instanceof ApiError) {
+        if (err.status >= 500) {
+          toast.error("Ein Serverfehler ist aufgetreten. Ihre Daten wurden als Entwurf gespeichert – bitte versuchen Sie es in einigen Minuten erneut.");
+        } else if (err.status === 429) {
+          toast.error("Zu viele Anfragen. Bitte warten Sie einige Minuten.");
+        } else {
+          toast.error(err.message || "Fehler beim Absenden. Bitte versuchen Sie es erneut.");
+        }
+      } else {
+        toast.error(err.message || "Fehler beim Absenden. Bitte versuchen Sie es erneut.");
+      }
     } finally {
       setSubmitting(false);
     }
@@ -1047,7 +1066,7 @@ export default function ApplicationForm() {
               </div>
 
               <AbteilungenPicker
-                label="Abteilung(en) *"
+                label="Abteilungen *"
                 selected={abteilungen}
                 error={errors.abteilungen}
                 onToggle={(abt) => {
@@ -1162,7 +1181,7 @@ export default function ApplicationForm() {
                           </div>
                           {(partnerVorname.trim() || partnerNachname.trim() || partnerGeburtsdatum) && (
                             <AbteilungenPicker
-                              label="Abteilung(en) Partner"
+                              label="Abteilungen Partner"
                               selected={partnerAbteilungen}
                               error={errors.partnerAbteilungen}
                               onToggle={(abt) => {
@@ -1258,7 +1277,7 @@ export default function ApplicationForm() {
                                   <div />
                                 </div>
                                 <AbteilungenPicker
-                                  label="Abteilung(en) *"
+                                  label="Abteilungen *"
                                   selected={kind.abteilungen}
                                   error={errors[`kind_${i}_abteilungen`]}
                                   onToggle={(abt) => {
@@ -1442,11 +1461,11 @@ export default function ApplicationForm() {
 
               <div className="bg-gray-50 rounded-lg p-4 mb-6 text-sm text-gray-600">
                 <div className="flex justify-between mb-1">
-                  <span className="font-medium">Gläubiger-ID:</span>
+                  <span className="font-medium">Gläubiger-ID <span className="text-xs font-normal text-gray-400">(Vereins-Kennung für den Bankeinzug)</span>:</span>
                   <span className="font-mono">DE71ZZZ00000901082</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="font-medium">Mandatsreferenz:</span>
+                  <span className="font-medium">Mandatsreferenz <span className="text-xs font-normal text-gray-400">(Ihre Referenznummer)</span>:</span>
                   <span className="italic text-gray-400">wird automatisch vergeben</span>
                 </div>
               </div>
@@ -1514,7 +1533,7 @@ export default function ApplicationForm() {
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <Field
-                    label={`BIC${ibanLookup.autoFilled ? " ✓" : ""}`}
+                    label={`BIC (Bank-Identifikationscode)${ibanLookup.autoFilled ? " ✓" : ""}`}
                     error={errors.bic}
                     value={bic}
                     onChange={setBic}
@@ -1552,7 +1571,7 @@ export default function ApplicationForm() {
                     <SummaryRow label="Adresse" value={`${strasse}, ${plz} ${ort}`} />
                     {telefon && <SummaryRow label="Telefon" value={telefon} />}
                     <SummaryRow label="E-Mail" value={email} />
-                    <SummaryRow label="Abteilung(en)" value={abteilungen.join(", ")} />
+                    <SummaryRow label="Abteilungen" value={abteilungen.join(", ")} />
                   </SummarySection>
                 )}
 
@@ -1563,7 +1582,7 @@ export default function ApplicationForm() {
                       <SummaryRow label="Geburtsdatum"
                         value={new Date(geburtsdatum).toLocaleDateString("de-DE")} />
                       <SummaryRow label="Kategorie" value={typLabel[mitgliedschaftTyp] || ""} />
-                      <SummaryRow label="Abteilung(en)" value={abteilungen.join(", ")} />
+                      <SummaryRow label="Abteilungen" value={abteilungen.join(", ")} />
                       {isChildType && (
                         <SummaryRow label="Elternteil Mitglied"
                           value={elternteilMitglied ? "Ja" : "Nein"} />
@@ -1589,7 +1608,7 @@ export default function ApplicationForm() {
                       <SummaryRow label="Adresse" value={`${strasse}, ${plz} ${ort}`} />
                       {telefon && <SummaryRow label="Telefon" value={telefon} />}
                       <SummaryRow label="E-Mail" value={email} />
-                      <SummaryRow label="Abteilung(en)" value={abteilungen.join(", ")} />
+                      <SummaryRow label="Abteilungen" value={abteilungen.join(", ")} />
                     </SummarySection>
                     {partnerVorname.trim() && partnerNachname.trim() && (
                       <SummarySection title="Partner / 2. Elternteil" onEdit={() => goToStep(0)}>
@@ -1599,7 +1618,7 @@ export default function ApplicationForm() {
                             value={new Date(partnerGeburtsdatum).toLocaleDateString("de-DE")} />
                         )}
                         {partnerAbteilungen.length > 0 && (
-                          <SummaryRow label="Abteilung(en)" value={partnerAbteilungen.join(", ")} />
+                          <SummaryRow label="Abteilungen" value={partnerAbteilungen.join(", ")} />
                         )}
                       </SummarySection>
                     )}
@@ -1611,7 +1630,7 @@ export default function ApplicationForm() {
                           <SummaryRow label="Geburtsdatum"
                             value={k.geburtsdatum ?
                               `${new Date(k.geburtsdatum).toLocaleDateString("de-DE")} (${calculateAge(k.geburtsdatum)} J.)` : "–"} />
-                          <SummaryRow label="Abteilung(en)"
+                          <SummaryRow label="Abteilungen"
                             value={k.abteilungen.join(", ")} />
                         </div>
                       ))}

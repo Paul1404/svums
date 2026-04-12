@@ -5,8 +5,9 @@ import React, {
   useEffect,
   useCallback,
 } from "react";
-import { adminCheck, adminLogin, adminLogout } from "../services/api";
+import { adminCheck, adminLogin, adminLogout, setSessionExpiredHandler } from "../services/api";
 import { identifyAdmin, resetAnalyticsIdentity } from "../lib/analytics";
+import { toast } from "sonner";
 
 interface AdminContextType {
   isAuthenticated: boolean;
@@ -29,6 +30,14 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
       })
       .catch(() => setIsAuthenticated(false))
       .finally(() => setIsLoading(false));
+  }, []);
+
+  useEffect(() => {
+    setSessionExpiredHandler(() => {
+      toast.error("Ihre Sitzung ist abgelaufen. Bitte melden Sie sich erneut an.");
+      setIsAuthenticated(false);
+    });
+    return () => setSessionExpiredHandler(null);
   }, []);
 
   const login = useCallback(async (password: string) => {

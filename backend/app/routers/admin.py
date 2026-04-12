@@ -1259,7 +1259,11 @@ async def test_smtp(
             get_admin_distinct_id(request),
             properties={"app_area": "admin", "source": "backend", "result": "failed"},
         )
-        raise HTTPException(status_code=500, detail=f"SMTP-Fehler: {str(e)}")
+        logger.error("SMTP test failed: %s", e, exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail="E-Mail-Versand fehlgeschlagen. Bitte überprüfen Sie die SMTP-Einstellungen.",
+        )
 
 
 # --- Cancellation PDF ---
