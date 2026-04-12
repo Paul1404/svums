@@ -209,25 +209,35 @@ export default function ApplicationForm() {
   const sigContainerRef = useRef<HTMLDivElement | null>(null);
   const [canvasWidth, setCanvasWidth] = useState(600);
   const canvasWidthRef = useRef(600);
+  const sigObserverRef = useRef<ResizeObserver | null>(null);
 
-  // Keep canvas internal width in sync with its rendered container width.
-  useEffect(() => {
-    const el = sigContainerRef.current;
+  // Callback ref: set up ResizeObserver when the container mounts, tear down on unmount.
+  // Using a callback ref instead of useEffect+ref.current avoids the first-draw-disappears
+  // bug caused by the observer's initial fire clearing the canvas.
+  const sigContainerCallbackRef = useCallback((el: HTMLDivElement | null) => {
+    if (sigObserverRef.current) {
+      sigObserverRef.current.disconnect();
+      sigObserverRef.current = null;
+    }
+    sigContainerRef.current = el;
     if (!el) return;
+    let isFirstObservation = true;
     const observer = new ResizeObserver((entries) => {
       const w = Math.floor(entries[0].contentRect.width);
       if (w > 0 && w !== canvasWidthRef.current) {
         canvasWidthRef.current = w;
         setCanvasWidth(w);
-        // Clear on resize — a stretched signature would look wrong.
-        sigCanvasRef.current?.clear();
-        setSigEmpty(true);
+        if (!isFirstObservation) {
+          // Clear on resize — a stretched signature would look wrong.
+          sigCanvasRef.current?.clear();
+          setSigEmpty(true);
+        }
       }
+      isFirstObservation = false;
     });
+    sigObserverRef.current = observer;
     observer.observe(el);
-    return () => observer.disconnect();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sigContainerRef.current]);
+  }, []);
 
   // ---- Fullscreen mobile signing
   const isMobile = typeof window !== "undefined" && window.matchMedia("(pointer: coarse)").matches;
@@ -241,6 +251,7 @@ export default function ApplicationForm() {
   const [fsCanvasHeight, setFsCanvasHeight] = useState(400);
   const fsCanvasWidthRef = useRef(800);
   const fsCanvasHeightRef = useRef(400);
+  const fsObserverRef = useRef<ResizeObserver | null>(null);
   // Stores the data-URL captured from the fullscreen canvas after confirmation.
   const [capturedSigDataUrl, setCapturedSigDataUrl] = useState<string | null>(null);
   const [uploadedSignatureDataUrl, setUploadedSignatureDataUrl] = useState<string | null>(null);
@@ -255,10 +266,15 @@ export default function ApplicationForm() {
     return () => mq.removeEventListener("change", handler);
   }, []);
 
-  // Keep the fullscreen canvas dimensions in sync with its container.
-  useEffect(() => {
-    const el = fullscreenContainerRef.current;
+  // Callback ref for the fullscreen canvas container.
+  const fullscreenContainerCallbackRef = useCallback((el: HTMLDivElement | null) => {
+    if (fsObserverRef.current) {
+      fsObserverRef.current.disconnect();
+      fsObserverRef.current = null;
+    }
+    fullscreenContainerRef.current = el;
     if (!el) return;
+    let isFirstObservation = true;
     const observer = new ResizeObserver((entries) => {
       const { width, height } = entries[0].contentRect;
       const w = Math.floor(width);
@@ -274,12 +290,14 @@ export default function ApplicationForm() {
         setFsCanvasHeight(h);
         changed = true;
       }
-      if (changed) fullscreenCanvasRef.current?.clear();
+      if (changed && !isFirstObservation) {
+        fullscreenCanvasRef.current?.clear();
+      }
+      isFirstObservation = false;
     });
+    fsObserverRef.current = observer;
     observer.observe(el);
-    return () => observer.disconnect();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [fullscreenContainerRef.current]);
+  }, []);
 
   // Source for initial values: test data > draft > empty
   const _src = testData || _d;
@@ -1823,7 +1841,7 @@ export default function ApplicationForm() {
                       </div>
                     ) : (
                       <div
-                        ref={sigContainerRef}
+                        ref={sigContainerCallbackRef}
                         className="border-2 border-gray-300 rounded-lg bg-white overflow-hidden touch-none"
                       >
                         <SignatureCanvas
@@ -2007,7 +2025,7 @@ export default function ApplicationForm() {
 
           {/* Canvas area – fills all remaining space */}
           <div
-            ref={fullscreenContainerRef}
+            ref={fullscreenContainerCallbackRef}
             className="flex-1 overflow-hidden touch-none relative"
           >
             <SignatureCanvas

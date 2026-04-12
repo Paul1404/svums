@@ -16,15 +16,21 @@
     padding: 0;
   }
   .header {
-    text-align: center;
+    display: flex;
+    align-items: flex-start;
     margin-bottom: 25px;
     padding-bottom: 12px;
     border-bottom: 2px solid #b91c1c;
   }
+  .header-text {
+    flex: 1;
+    text-align: center;
+  }
   .header img {
     height: 60px;
     width: auto;
-    margin-bottom: 6px;
+    margin-left: 15px;
+    flex-shrink: 0;
   }
   .header h1 {
     font-size: 15pt;
@@ -136,8 +142,10 @@
 <body>
 
 <div class="header">
+  <div class="header-text">
+    <h1>Sportverein 1945 Untereuerheim e.V.</h1>
+  </div>
   <img src="logo_svu.png" alt="SVU Logo">
-  <h1>Sportverein 1945 Untereuerheim e.V.</h1>
 </div>
 
 <div class="recipient">

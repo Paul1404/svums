@@ -16,15 +16,21 @@
     padding: 0;
   }
   .header {
-    text-align: center;
+    display: flex;
+    align-items: flex-start;
     margin-bottom: 20px;
     padding-bottom: 10px;
     border-bottom: 2px solid #b91c1c;
   }
+  .header-text {
+    flex: 1;
+    text-align: center;
+  }
   .header img {
     height: 60px;
     width: auto;
-    margin-bottom: 6px;
+    margin-left: 15px;
+    flex-shrink: 0;
   }
   .header h1 {
     font-size: 16pt;
@@ -162,10 +168,12 @@
 <body>
 
 <div class="header">
+  <div class="header-text">
+    <h1>Sportverein 1945 Untereuerheim e.V.</h1>
+    <h2>Beitrittserklärung</h2>
+    <p style="font-size: 10pt; color: #888; margin-top: 4px;">Antragsnummer: <strong style="color: #333; font-family: monospace;">{{ antragsnummer }}</strong></p>
+  </div>
   <img src="logo_svu.png" alt="SVU Logo">
-  <h1>Sportverein 1945 Untereuerheim e.V.</h1>
-  <h2>Beitrittserklärung</h2>
-  <p style="font-size: 10pt; color: #888; margin-top: 4px;">Antragsnummer: <strong style="color: #333; font-family: monospace;">{{ antragsnummer }}</strong></p>
 </div>
 
 {% set antragstyp = antragstyp or 'einzel' %}
@@ -358,8 +366,8 @@
   Datenschutzerklärung: https://sv-untereuerheim.de/datenschutz<br>
   Satzung: https://sv-untereuerheim.de/satzung<br>
   Impressum: https://sv-untereuerheim.de/impressum<br><br>
-  Ein Austritt ist nur zum Ende eines Kalenderjahres unter Einhaltung einer Frist von sechs Wochen
-  in Textform (per E-Mail an mitgliedschaft@sv-untereuerheim.de oder postalisch) zulässig.
+  Wenn Sie den Verein verlassen möchten, ist das zum Ende jedes Kalenderjahres möglich –
+  bitte melden Sie sich dafür mindestens sechs Wochen vorher per E-Mail an mitgliedschaft@sv-untereuerheim.de oder per Post.
 </div>
 
 {% if consent_at_formatted %}
@@ -386,10 +394,12 @@
 <div style="page-break-before: always;"></div>
 
 <div class="header">
+  <div class="header-text">
+    <h1>Sportverein 1945 Untereuerheim e.V.</h1>
+    <h2>SEPA-Lastschriftmandat</h2>
+    <p style="font-size: 10pt; color: #888; margin-top: 4px;">Antragsnummer: <strong style="color: #333; font-family: monospace;">{{ antragsnummer }}</strong></p>
+  </div>
   <img src="logo_svu.png" alt="SVU Logo">
-  <h1>Sportverein 1945 Untereuerheim e.V.</h1>
-  <h2>SEPA-Lastschriftmandat</h2>
-  <p style="font-size: 10pt; color: #888; margin-top: 4px;">Antragsnummer: <strong style="color: #333; font-family: monospace;">{{ antragsnummer }}</strong></p>
 </div>
 
 <div class="sepa-box">
