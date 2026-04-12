@@ -76,11 +76,15 @@ def _compute_anrede(app: MembershipApplication) -> str:
     return f"{prefix} {last_name}"
 
 
-def _build_application_data(app: MembershipApplication) -> dict:
+def _build_application_data(app: MembershipApplication, club_config: dict | None = None) -> dict:
     """Build template data dict from application model."""
     fee_amount, fee_label = calculate_fee(
         app.mitgliedschaft_typ, app.elternteil_mitglied
     )
+
+    if club_config is None:
+        from app.schemas.club_config import ClubConfig
+        club_config = ClubConfig().to_template_dict()
 
     antragstyp = app.antragstyp or "einzel"
 
@@ -91,12 +95,13 @@ def _build_application_data(app: MembershipApplication) -> dict:
         "geschlecht": app.geschlecht or "",
         "anrede": _compute_anrede(app),
         "mandatsreferenz": app.mandatsreferenz or "",
-        "glaeubiger_id": "DE71ZZZ00000901082",
+        "glaeubiger_id": club_config.get("sepa_glaeubiger_id", ""),
         "upload_token": app.upload_token or "",
         "upload_url": build_public_url(f"/upload/{app.upload_token}") if app.upload_token else "",
         "status_url": build_public_url(f"/status?nr={app.antragsnummer}") if app.antragsnummer else "",
         "logo_url": build_public_url("/logo_svu-241x300.png"),
         "site_host_display": public_host_display(),
+        "club": club_config,
         "vorname": app.vorname,
         "nachname": app.nachname,
         "geburtsdatum": app.geburtsdatum,
@@ -184,7 +189,11 @@ async def _send_email_task(application_id: int, db_url: str, unterschrift_base64
             logger.warning("SMTP not configured, skipping email")
             return
 
-        data = _build_application_data(app)
+        club = settings.get_club_config()
+        club_dict = club.to_template_dict()
+
+        data = _build_application_data(app, club_config=club_dict)
+        data["notification_email"] = settings.notification_email
 
         # Detect online-signed: either the caller passes the raw base64 (fresh submission),
         # or the stored filename ends with "_signed.pdf" (resend after the fact).
@@ -208,7 +217,7 @@ async def _send_email_task(application_id: int, db_url: str, unterschrift_base64
         club_subject = (
             f"Neue Beitrittserklärung: {app.nachname}, {app.vorname}"
         )
-        applicant_subject = "Ihre Beitrittserklärung – Sportverein 1945 Untereuerheim e.V."
+        applicant_subject = f"Ihre Beitrittserklärung – {club.email_subject_prefix}"
         send_error: Exception | None = None
         success = False
         try:
@@ -317,9 +326,15 @@ async def submit_application(
     # Generate upload token
     application.upload_token = str(uuid.uuid4())
 
+    # Load club config for mandate prefix and template data
+    _app_settings = db.query(AppSettings).filter(AppSettings.id == 1).first()
+    _club = _app_settings.get_club_config() if _app_settings else __import__("app.schemas.club_config", fromlist=["ClubConfig"]).ClubConfig()
+    _club_dict = _club.to_template_dict()
+
     # Generate Mandatsreferenz using the DB row id to avoid concurrency races.
     year = date.today().year
-    application.mandatsreferenz = f"SVU1945-{year}-{application.id:05d}"
+    mandate_prefix = _club.sepa_mandate_prefix
+    application.mandatsreferenz = f"{mandate_prefix}{year}-{application.id:05d}"
 
     try:
         db.commit()
@@ -335,7 +350,8 @@ async def submit_application(
     # and advance status to "dokument_hochgeladen" immediately.
     if data.unterschrift_base64:
         try:
-            app_data = _build_application_data(application)
+            app_data = _build_application_data(application, club_config=_club_dict)
+            app_data["notification_email"] = _app_settings.notification_email if _app_settings else ""
             app_data["unterschrift_base64"] = data.unterschrift_base64
             pdf_bytes = generate_pdf(app_data)
 
@@ -460,14 +476,29 @@ def health_check(db: Session = Depends(get_db)):
 
 
 @router.get("/client-config")
-async def client_config():
-    settings = get_settings()
-    enabled = bool(settings.posthog_key)
+async def client_config(db: Session = Depends(get_db)):
+    env = get_settings()
+    posthog_enabled = bool(env.posthog_key)
+
+    app_settings = db.query(AppSettings).filter(AppSettings.id == 1).first()
+    club = app_settings.get_club_config() if app_settings else __import__("app.schemas.club_config", fromlist=["ClubConfig"]).ClubConfig()
+
     return {
-        "posthog_enabled": enabled,
-        "posthog_key": settings.posthog_key if enabled else None,
-        "posthog_host": settings.posthog_host if enabled else None,
+        "posthog_enabled": posthog_enabled,
+        "posthog_key": env.posthog_key if posthog_enabled else None,
+        "posthog_host": env.posthog_host if posthog_enabled else None,
+        "club": club.to_template_dict(),
     }
+
+
+@router.get("/club-config")
+async def get_club_config(db: Session = Depends(get_db)):
+    """Public endpoint returning club configuration (non-sensitive)."""
+    from app.schemas.club_config import ClubConfig
+
+    app_settings = db.query(AppSettings).filter(AppSettings.id == 1).first()
+    club = app_settings.get_club_config() if app_settings else ClubConfig()
+    return club.to_template_dict()
 
 
 @router.get("/check-duplicate")

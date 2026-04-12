@@ -20,6 +20,7 @@ import {
   identifyApplicant,
   normalizeFailureReason,
 } from "../lib/analytics";
+import { useClubConfig } from "../context/ClubConfigContext";
 import {
   AlertCircle,
   CheckCircle2,
@@ -37,20 +38,6 @@ import {
   Upload,
   User,
 } from "lucide-react";
-
-const ABTEILUNGEN = [
-  "Fußball",
-  "Gymnastik",
-  "Combo",
-  "Kinderturnen",
-  "Korbball",
-  "Tischtennis",
-  "Yoga",
-  "Dart",
-  "Lauftreff",
-  "PingPongParkinson",
-  "Keine Abteilung",
-];
 
 type Antragstyp = "einzel" | "kind" | "familie";
 
@@ -182,6 +169,7 @@ function loadTestData(): Record<string, any> | null {
 
 export default function ApplicationForm() {
   const navigate = useNavigate();
+  const club = useClubConfig();
 
   // Check for admin test mode data (set via admin dashboard)
   const [testData] = useState(loadTestData);
@@ -941,11 +929,11 @@ export default function ApplicationForm() {
         <div className="max-w-3xl mx-auto px-4 py-5 flex items-center gap-4">
           <img
             src="/logo_svu-241x300.png"
-            alt="Sportverein 1945 Untereuerheim e.V."
+            alt={club.club_name}
             className="h-14 w-auto drop-shadow-md"
           />
           <div>
-            <h1 className="text-2xl font-bold">Sportverein 1945 Untereuerheim e.V.</h1>
+            <h1 className="text-2xl font-bold">{club.club_name}</h1>
             <p className="text-svu-200 mt-0.5 text-sm">Online Beitrittserklärung</p>
           </div>
         </div>
@@ -1074,6 +1062,7 @@ export default function ApplicationForm() {
                   clearError("abteilungen");
                 }}
                 hint='Wählen Sie „Keine Abteilung", wenn Sie den Verein nur passiv unterstützen möchten. Mehrfachauswahl ist möglich.'
+                departments={club.departments}
               />
 
               {/* ============ ADULT PATH (>= 18) ============ */}
@@ -1188,6 +1177,7 @@ export default function ApplicationForm() {
                                 toggleAbteilung(abt, partnerAbteilungen, setPartnerAbteilungen);
                                 clearError("partnerAbteilungen");
                               }}
+                              departments={club.departments}
                               compact
                             />
                           )}
@@ -1295,6 +1285,7 @@ export default function ApplicationForm() {
                                     clearError(`kind_${i}_abteilungen`);
                                   }}
                                   compact
+                                  departments={club.departments}
                                 />
                                   </>
                                 )}
@@ -1462,7 +1453,7 @@ export default function ApplicationForm() {
               <div className="bg-gray-50 rounded-lg p-4 mb-6 text-sm text-gray-600">
                 <div className="flex justify-between mb-1">
                   <span className="font-medium">Gläubiger-ID <span className="text-xs font-normal text-gray-400">(Vereins-Kennung für den Bankeinzug)</span>:</span>
-                  <span className="font-mono">DE71ZZZ00000901082</span>
+                  <span className="font-mono">{club.sepa_glaeubiger_id}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="font-medium">Mandatsreferenz <span className="text-xs font-normal text-gray-400">(Ihre Referenznummer)</span>:</span>
@@ -1471,11 +1462,11 @@ export default function ApplicationForm() {
               </div>
 
               <p className="text-xs text-gray-500 mb-6 leading-relaxed">
-                Ich ermächtige den Zahlungsempfänger Sportverein 1945 Untereuerheim e.V.
+                Ich ermächtige den Zahlungsempfänger {club.club_name}{" "}
                 widerruflich, die von mir zu entrichtenden Zahlungen von meinem
                 Konto mittels Lastschrift einzuziehen. Zugleich weise ich mein
-                Kreditinstitut an, die vom Zahlungsempfänger Sportverein 1945
-                Untereuerheim e.V. auf mein Konto gezogenen Lastschriften
+                Kreditinstitut an, die vom Zahlungsempfänger {club.club_name}{" "}
+                auf mein Konto gezogenen Lastschriften
                 einzulösen.
                 <br /><br />
                 <strong>Hinweis:</strong> Ich kann innerhalb von acht Wochen,
@@ -1648,7 +1639,7 @@ export default function ApplicationForm() {
                 )}
 
                 <SummarySection title="SEPA-Lastschrift" onEdit={() => goToStep(1)}>
-                  <SummaryRow label="Gläubiger-ID" value="DE71ZZZ00000901082" />
+                  <SummaryRow label="Gläubiger-ID" value={club.sepa_glaeubiger_id} />
                   <SummaryRow label="Mandatsreferenz" value="wird automatisch vergeben" />
                   <SummaryRow label="Kontoinhaber"
                     value={kontoinhaber || payerName} />
@@ -1680,7 +1671,7 @@ export default function ApplicationForm() {
                     <span className="text-sm text-gray-700">
                       Ich habe die{" "}
                       <a
-                        href="https://sv-untereuerheim.de/datenschutz"
+                        href={club.datenschutz_url}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="text-svu-600 underline hover:text-svu-700"
@@ -1709,20 +1700,20 @@ export default function ApplicationForm() {
                     <span className="text-sm text-gray-700">
                       Ich habe die{" "}
                       <a
-                        href="https://sv-untereuerheim.de/satzung"
+                        href={club.satzung_url}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="text-svu-600 underline hover:text-svu-700"
                       >
                         Satzung
                       </a>{" "}
-                      des SV 1945 Untereuerheim e.V. gelesen und erkenne diese an.
+                      des {club.club_short_name} gelesen und erkenne diese an.
                     </span>
                   </label>
                 </div>
                 <p className="text-xs text-gray-500 px-1">
                   Ein Austritt ist nur zum Ende eines Kalenderjahres unter Einhaltung einer Frist von sechs Wochen
-                  in Textform (per E-Mail an mitgliedschaft@sv-untereuerheim.de oder postalisch) zulässig.
+                  in Textform (per E-Mail an {club.contact_email} oder postalisch) zulässig.
                 </p>
               </div>
 
@@ -1842,7 +1833,7 @@ export default function ApplicationForm() {
 
                     {/* Confirmation text – non-skippable, always shown */}
                     <p className="text-sm text-green-900 leading-relaxed mb-4 border-l-4 border-green-400 pl-3">
-                      Mit meiner Unterschrift erkläre ich meinen Beitritt zum SV Untereuerheim e.V. und erteile das SEPA-Lastschriftmandat zur Einziehung des Mitgliedsbeitrags.
+                      Mit meiner Unterschrift erkläre ich meinen Beitritt zum {club.club_short_name} und erteile das SEPA-Lastschriftmandat zur Einziehung des Mitgliedsbeitrags.
                     </p>
 
                     <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -1967,19 +1958,19 @@ export default function ApplicationForm() {
 
         {/* Footer / Impressum */}
         <footer className="text-center text-xs text-gray-400 py-8 space-y-1">
-          <p className="font-medium text-gray-500">Sportverein 1945 Untereuerheim e.V.</p>
-          <p>Triebweg 9 · 97508 Grettstadt/Untereuerheim</p>
-          <p>1. Vorsitzender: Alexander Eckert · Tel: 09729/432</p>
+          <p className="font-medium text-gray-500">{club.club_name}</p>
+          <p>{club.club_address}</p>
+          <p>{club.contact_role}: {club.contact_name} · Tel: {club.contact_phone}</p>
           <p>
             E-Mail:{" "}
-            <a href="mailto:info@sv-untereuerheim.de" className="hover:text-svu-600">
-              info@sv-untereuerheim.de
+            <a href={`mailto:${club.contact_email}`} className="hover:text-svu-600">
+              {club.contact_email}
             </a>
           </p>
-          <p>Registergericht: Amtsgericht Schweinfurt · Registernummer: VR 31 · Steuer-ID: 249/111/20506</p>
+          <p>Registergericht: {club.registergericht} · Registernummer: {club.registernummer} · Steuer-ID: {club.steuernummer}</p>
           <p className="pt-2 space-x-3">
             <a
-              href="https://sv-untereuerheim.de/impressum/"
+              href={club.impressum_url}
               target="_blank"
               rel="noopener noreferrer"
               className="text-gray-500 hover:text-svu-600 underline"
@@ -1987,7 +1978,7 @@ export default function ApplicationForm() {
               Impressum
             </a>
             <a
-              href="https://sv-untereuerheim.de/datenschutz/"
+              href={club.datenschutz_url}
               target="_blank"
               rel="noopener noreferrer"
               className="text-gray-500 hover:text-svu-600 underline"
@@ -1995,7 +1986,7 @@ export default function ApplicationForm() {
               Datenschutz
             </a>
             <a
-              href="https://sv-untereuerheim.de/satzung/"
+              href={club.satzung_url}
               target="_blank"
               rel="noopener noreferrer"
               className="text-gray-500 hover:text-svu-600 underline"
@@ -2153,6 +2144,7 @@ function AbteilungenPicker({
   onToggle,
   compact = false,
   hint,
+  departments,
 }: {
   label: string;
   selected: string[];
@@ -2160,6 +2152,7 @@ function AbteilungenPicker({
   onToggle: (abt: string) => void;
   compact?: boolean;
   hint?: string;
+  departments: string[];
 }) {
   return (
     <div className={compact ? "mt-3" : "mt-6 mb-4"}>
@@ -2168,7 +2161,7 @@ function AbteilungenPicker({
       </label>
       {hint && <p className="text-xs text-gray-500 mb-2">{hint}</p>}
       <div className={`grid ${compact ? "grid-cols-2 sm:grid-cols-3" : "grid-cols-1 sm:grid-cols-2"} gap-2`}>
-        {ABTEILUNGEN.map((abt) => (
+        {departments.map((abt) => (
           <label
             key={abt}
             className={`flex items-center ${compact ? "p-2" : "p-3"} rounded-lg border cursor-pointer transition-colors ${

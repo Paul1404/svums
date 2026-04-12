@@ -17,7 +17,7 @@ router = APIRouter(prefix="/api/address", tags=["address"])
 # --- Configuration ---
 NOMINATIM_URL = "https://nominatim.openstreetmap.org/search"
 NOMINATIM_HEADERS = {
-    "User-Agent": "SVUMS/1.0 (SV Untereuerheim Mitgliedschaft; contact: mitgliedschaft@sv-untereuerheim.de)",
+    "User-Agent": "SVUMS/1.0 (Vereins-Mitgliedschaft)",
     "Accept-Language": "de",
 }
 # Rate limiting: Nominatim allows max 1 req/sec. We enforce this globally.

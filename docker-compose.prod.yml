@@ -1,0 +1,52 @@
+# Production docker-compose with Traefik reverse proxy + HTTPS
+# Usage: docker compose -f docker-compose.prod.yml up -d
+#
+# Requires:
+#   - A running Traefik container on the "traefik" network
+#   - DNS pointing your domain to this server
+#   - .env file with all required variables
+
+services:
+  svums:
+    build: .
+    container_name: svums
+    restart: always
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=traefik"
+      - "traefik.http.routers.svums.rule=Host(`${PUBLIC_HOSTNAME}`)"
+      - "traefik.http.routers.svums.entrypoints=websecure"
+      - "traefik.http.routers.svums.tls.certresolver=letsencrypt"
+      - "traefik.http.services.svums.loadbalancer.server.port=8000"
+    environment:
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD}
+      - COOKIE_SECRET=${COOKIE_SECRET}
+      - DATABASE_URL=${DATABASE_URL}
+      - PUBLIC_BASE_URL=${PUBLIC_BASE_URL}
+      - CORS_ORIGINS=${PUBLIC_BASE_URL}
+      - COOKIE_SECURE=true
+      - FORWARDED_ALLOW_IPS=${FORWARDED_ALLOW_IPS:-127.0.0.1,::1}
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+      - AWS_ENDPOINT_URL_S3=${AWS_ENDPOINT_URL_S3}
+      - AWS_REGION=${AWS_REGION:-auto}
+      - BUCKET_NAME=${BUCKET_NAME:-svums-uploads}
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+    volumes:
+      - data:/app/data
+    networks:
+      - traefik
+
+volumes:
+  data:
+    name: svums_data
+
+networks:
+  traefik:
+    name: traefik
+    external: true
