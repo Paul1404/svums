@@ -78,6 +78,7 @@ export default function AdminApplicationDetail() {
   const uploadInputRef = useRef<HTMLInputElement>(null);
   const [showApproveModal, setShowApproveModal] = useState(false);
   const [showDenyModal, setShowDenyModal] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [adminDeclineReason, setAdminDeclineReason] = useState("");
   const sigCanvasRef = useRef<SignatureCanvasType | null>(null);
   const [sigEmpty, setSigEmpty] = useState(true);
@@ -262,15 +263,21 @@ export default function AdminApplicationDetail() {
     });
   };
 
-  const handleDelete = async () => {
+  const handleDelete = () => {
     if (!app) return;
-    if (!window.confirm("Antrag wirklich löschen? Dies kann nicht rückgängig gemacht werden.")) return;
+    setShowDeleteModal(true);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!app) return;
     try {
       await deleteApplication(app.id);
       toast.success("Antrag gelöscht");
       navigate("/admin");
     } catch (err: any) {
       toast.error(err.message);
+    } finally {
+      setShowDeleteModal(false);
     }
   };
 
@@ -913,6 +920,43 @@ export default function AdminApplicationDetail() {
               >
                 {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
                 Bestätigen und speichern
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showDeleteModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-xl max-w-md w-full">
+            <div className="p-5 border-b flex items-center justify-between">
+              <h3 className="font-semibold text-gray-900">Antrag löschen</h3>
+              <button
+                onClick={() => setShowDeleteModal(false)}
+                className="p-1 text-gray-400 hover:text-gray-600 rounded"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-5">
+              <p className="text-sm text-gray-700">
+                Möchten Sie den Antrag von <strong>{app?.vorname} {app?.nachname}</strong> wirklich
+                löschen? Diese Aktion kann nicht rückgängig gemacht werden.
+              </p>
+            </div>
+            <div className="p-5 border-t flex gap-3">
+              <button
+                onClick={() => setShowDeleteModal(false)}
+                className="flex-1 px-4 py-2.5 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200"
+              >
+                Abbrechen
+              </button>
+              <button
+                onClick={handleConfirmDelete}
+                className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700"
+              >
+                <Trash2 className="w-4 h-4" />
+                Endgültig löschen
               </button>
             </div>
           </div>

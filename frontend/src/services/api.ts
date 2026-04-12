@@ -197,6 +197,29 @@ export function formatFee(amount: number | string): string {
 
 // ---- API helpers ----
 
+/** Human-readable fallback messages for HTTP status codes (German). */
+const HTTP_ERROR_MESSAGES: Record<number, string> = {
+  400: "Die Anfrage war ungültig. Bitte überprüfen Sie Ihre Eingaben.",
+  401: "Sie sind nicht angemeldet oder Ihre Sitzung ist abgelaufen.",
+  403: "Zugriff verweigert. Sie haben keine Berechtigung für diese Aktion.",
+  404: "Die angeforderte Seite wurde nicht gefunden.",
+  408: "Die Anfrage hat zu lange gedauert. Bitte versuchen Sie es erneut.",
+  409: "Ein Konflikt ist aufgetreten. Bitte laden Sie die Seite neu.",
+  410: "Diese Ressource ist nicht mehr verfügbar.",
+  413: "Die Datei ist zu groß.",
+  422: "Die Eingabedaten sind ungültig. Bitte überprüfen Sie Ihre Angaben.",
+  429: "Zu viele Anfragen. Bitte warten Sie einen Moment und versuchen Sie es erneut.",
+  500: "Ein unerwarteter Fehler ist aufgetreten. Bitte versuchen Sie es später erneut.",
+  502: "Der Server ist vorübergehend nicht erreichbar. Bitte versuchen Sie es später erneut.",
+  503: "Der Dienst ist vorübergehend nicht verfügbar. Bitte versuchen Sie es später erneut.",
+  504: "Der Server hat zu lange nicht geantwortet. Bitte versuchen Sie es später erneut.",
+};
+
+function httpErrorFallback(status: number): string {
+  return HTTP_ERROR_MESSAGES[status]
+    ?? "Ein unerwarteter Fehler ist aufgetreten. Bitte versuchen Sie es später erneut.";
+}
+
 /**
  * Extracts a human-readable error message from a FastAPI error response body.
  * FastAPI can return `detail` as a plain string (most errors) or as an array
@@ -213,11 +236,16 @@ export function extractApiError(
   if (Array.isArray(detail)) {
     // Pydantic v1/v2 validation errors: [{loc, msg, type}, ...]
     const messages = detail
-      .map((e) =>
-        e && typeof e === "object" && typeof (e as Record<string, unknown>).msg === "string"
-          ? (e as Record<string, unknown>).msg as string
-          : JSON.stringify(e)
-      )
+      .map((e) => {
+        if (!e || typeof e !== "object") return null;
+        const obj = e as Record<string, unknown>;
+        if (typeof obj.msg === "string") return obj.msg;
+        if (Array.isArray(obj.loc) && obj.loc.length > 0) {
+          const field = obj.loc[obj.loc.length - 1];
+          return `Ungültige Eingabe im Feld "${field}"`;
+        }
+        return "Ungültige Eingabe";
+      })
       .filter(Boolean);
     return messages.length > 0 ? messages.join("; ") : fallback;
   }
@@ -233,6 +261,14 @@ export class ApiError extends Error {
     this.name = "ApiError";
     this.status = status;
   }
+}
+
+// ---- Session expiry callback ----
+
+let _onSessionExpired: (() => void) | null = null;
+
+export function setSessionExpiredHandler(handler: (() => void) | null) {
+  _onSessionExpired = handler;
 }
 
 export function getCsrfTokenFromCookie(): string | null {
@@ -275,9 +311,12 @@ async function apiRequest<T>(
   });
 
   if (!response.ok) {
+    if (response.status === 401 && url.startsWith("/api/admin")) {
+      _onSessionExpired?.();
+    }
     const errorData = await response.json().catch(() => ({}));
     throw new ApiError(
-      extractApiError(errorData, `Fehler: ${response.status}`),
+      extractApiError(errorData, httpErrorFallback(response.status)),
       response.status
     );
   }
