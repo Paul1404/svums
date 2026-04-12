@@ -16,15 +16,21 @@
     padding: 0;
   }
   .header {
-    text-align: center;
+    display: flex;
+    align-items: flex-start;
     margin-bottom: 24px;
     padding-bottom: 12px;
     border-bottom: 2px solid #b91c1c;
   }
+  .header-text {
+    flex: 1;
+    text-align: center;
+  }
   .header img {
     height: 50px;
     width: auto;
-    margin-bottom: 6px;
+    margin-left: 15px;
+    flex-shrink: 0;
   }
   .confirmation-page {
     page-break-inside: avoid;
@@ -116,9 +122,11 @@
 
 <div class="confirmation-page">
 <div class="header">
+  <div class="header-text">
+    <h1 style="font-size: 14pt; color: #b91c1c; margin: 0;">Sportverein 1945 Untereuerheim e.V.</h1>
+    <p style="font-size: 10pt; color: #666; margin: 4px 0 0 0;">Antragsnummer: {{ antragsnummer }}</p>
+  </div>
   <img src="logo_svu.png" alt="SVU Logo">
-  <h1 style="font-size: 14pt; color: #b91c1c; margin: 0;">Sportverein 1945 Untereuerheim e.V.</h1>
-  <p style="font-size: 10pt; color: #666; margin: 4px 0 0 0;">Antragsnummer: {{ antragsnummer }}</p>
 </div>
 
 <div class="confirmation-body">
