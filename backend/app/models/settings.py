@@ -19,7 +19,16 @@ class AppSettings(Base):
     notification_email = Column(
         String(200),
         nullable=False,
-        default="mitgliedschaft@sv-untereuerheim.de",
+        default="",
     )
     # Reusable admin signature as PNG/JPEG data URL.
     admin_signature_base64 = Column(Text, nullable=True, default=None)
+
+    # Club configuration — JSON blob validated by ClubConfig schema.
+    # NULL means "use all defaults".
+    club_config = Column(Text, nullable=True, default=None)
+
+    def get_club_config(self):
+        """Parse club_config JSON into a ClubConfig instance (defaults if empty)."""
+        from app.schemas.club_config import ClubConfig
+        return ClubConfig.from_json(self.club_config)

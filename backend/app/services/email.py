@@ -68,7 +68,9 @@ async def send_application_email(
         confirm_msg = MIMEMultipart()
         confirm_msg["From"] = smtp_from
         confirm_msg["To"] = applicant_email
-        confirm_msg["Subject"] = "Ihre Beitrittserklärung – Sportverein 1945 Untereuerheim e.V."
+        club = application_data.get("club", {})
+        subject_prefix = club.get("email_subject_prefix", "Verein")
+        confirm_msg["Subject"] = f"Ihre Beitrittserklärung – {subject_prefix}"
         confirm_msg.attach(MIMEText(confirmation_html, "html", "utf-8"))
 
         # Attach PDF copy to applicant
@@ -194,9 +196,14 @@ async def send_status_email(
     pdf_bytes: bytes | None = None,
     pdf_filename: str | None = None,
     mitgliedsnummer: str | None = None,
+    club_config: dict | None = None,
+    notification_email: str = "",
 ) -> bool:
     """Send status update email to applicant (upload confirmed, approved, declined)."""
     try:
+        if club_config is None:
+            from app.schemas.club_config import ClubConfig
+            club_config = ClubConfig().to_template_dict()
         template = _env.get_template("email_status.html")
         html_body = template.render(
             vorname=vorname,
@@ -209,6 +216,8 @@ async def send_status_email(
             logo_url=build_public_url("/logo_svu-241x300.png"),
             site_host_display=public_host_display(),
             mitgliedsnummer=mitgliedsnummer or "",
+            club=club_config,
+            notification_email=notification_email,
         )
 
         subject_map = {

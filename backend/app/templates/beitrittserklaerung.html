@@ -169,7 +169,7 @@
 
 <div class="header">
   <div class="header-text">
-    <h1>Sportverein 1945 Untereuerheim e.V.</h1>
+    <h1>{{ club.club_name }}</h1>
     <h2>Beitrittserklärung</h2>
     <p style="font-size: 10pt; color: #888; margin-top: 4px;">Antragsnummer: <strong style="color: #333; font-family: monospace;">{{ antragsnummer }}</strong></p>
   </div>
@@ -363,18 +363,18 @@
 <div class="legal-text">
   Mit Unterzeichnung willigt das Mitglied in die Erhebung, Verarbeitung und Nutzung seiner
   personenbezogenen Daten zum Zwecke der Mitgliederverwaltung und des Vereinsbetriebs ein.<br><br>
-  Datenschutzerklärung: https://sv-untereuerheim.de/datenschutz<br>
-  Satzung: https://sv-untereuerheim.de/satzung<br>
-  Impressum: https://sv-untereuerheim.de/impressum<br><br>
+  Datenschutzerklärung: {{ club.datenschutz_url }}<br>
+  Satzung: {{ club.satzung_url }}<br>
+  Impressum: {{ club.impressum_url }}<br><br>
   Wenn Sie den Verein verlassen möchten, ist das zum Ende jedes Kalenderjahres möglich –
-  bitte melden Sie sich dafür mindestens sechs Wochen vorher per E-Mail an mitgliedschaft@sv-untereuerheim.de oder per Post.
+  bitte melden Sie sich dafür mindestens sechs Wochen vorher per E-Mail an {{ notification_email or club.contact_email }} oder per Post.
 </div>
 
 {% if consent_at_formatted %}
 <div class="legal-text" style="margin-top: 8px; padding: 8px; border: 1px solid #ddd; background: #fafafa; page-break-inside: avoid; break-inside: avoid;">
   Der/Die Antragsteller/in hat am {{ consent_at_formatted }} die Datenschutzerklärung
-  (https://sv-untereuerheim.de/datenschutz) und die Satzung
-  (https://sv-untereuerheim.de/satzung) des SV 1945 Untereuerheim e.V. zur Kenntnis genommen
+  ({{ club.datenschutz_url }}) und die Satzung
+  ({{ club.satzung_url }}) des {{ club.club_short_name }} zur Kenntnis genommen
   und akzeptiert.
 </div>
 {% endif %}
@@ -399,7 +399,7 @@
 
 <div class="header">
   <div class="header-text">
-    <h1>Sportverein 1945 Untereuerheim e.V.</h1>
+    <h1>{{ club.club_name }}</h1>
     <h2>SEPA-Lastschriftmandat</h2>
     <p style="font-size: 10pt; color: #888; margin-top: 4px;">Antragsnummer: <strong style="color: #333; font-family: monospace;">{{ antragsnummer }}</strong></p>
   </div>
@@ -417,9 +417,9 @@
   </div>
 
   <div class="legal-text" style="margin: 12px 0;">
-    Ich ermächtige den Zahlungsempfänger Sportverein 1945 Untereuerheim e.V. widerruflich, die von mir zu
+    Ich ermächtige den Zahlungsempfänger {{ club.club_name }} widerruflich, die von mir zu
     entrichtenden Zahlungen von meinem Konto mittels Lastschrift einzuziehen. Zugleich weise ich mein
-    Kreditinstitut an, die vom Zahlungsempfänger Sportverein 1945 Untereuerheim e.V. auf mein Konto gezogenen
+    Kreditinstitut an, die vom Zahlungsempfänger {{ club.club_name }} auf mein Konto gezogenen
     Lastschriften einzulösen.<br><br>
     <strong>Hinweis:</strong> Ich kann innerhalb von acht Wochen, beginnend mit dem Belastungsdatum, die Erstattung des
     belasteten Betrages verlangen. Es gelten dabei die mit meinem Kreditinstitut vereinbarten Bedingungen.
@@ -469,27 +469,11 @@
       <tr><th>Kategorie</th><th>Jahresbeitrag</th></tr>
     </thead>
     <tbody>
-      <tr class="{{ 'active' if mitgliedschaft_typ == 'kind' and elternteil_mitglied else '' }}">
-        <td>Kinder (bis 14 Jahre) – 1 Elternteil Mitglied</td><td>12,– €</td>
+      {% for fee in club.fees %}
+      <tr class="{{ 'active' if fee.typ == mitgliedschaft_typ and (fee.elternteil_mitglied is none or fee.elternteil_mitglied == elternteil_mitglied) else '' }}">
+        <td>{{ fee.label }}</td><td>{{ fee.betrag }},– €</td>
       </tr>
-      <tr class="{{ 'active' if mitgliedschaft_typ == 'kind' and not elternteil_mitglied else '' }}">
-        <td>Kinder (bis 14 Jahre) – kein Elternteil Mitglied</td><td>24,– €</td>
-      </tr>
-      <tr class="{{ 'active' if mitgliedschaft_typ == 'jugendlich' and elternteil_mitglied else '' }}">
-        <td>Jugendliche (bis 18 Jahre) – 1 Elternteil Mitglied</td><td>24,– €</td>
-      </tr>
-      <tr class="{{ 'active' if mitgliedschaft_typ == 'jugendlich' and not elternteil_mitglied else '' }}">
-        <td>Jugendliche (bis 18 Jahre) – kein Elternteil Mitglied</td><td>36,– €</td>
-      </tr>
-      <tr class="{{ 'active' if mitgliedschaft_typ == 'junger_erwachsener' else '' }}">
-        <td>Junge Erwachsene (bis 25 Jahre)</td><td>42,– €</td>
-      </tr>
-      <tr class="{{ 'active' if mitgliedschaft_typ == 'erwachsener' else '' }}">
-        <td>Erwachsene</td><td>54,– €</td>
-      </tr>
-      <tr class="{{ 'active' if mitgliedschaft_typ == 'familie' else '' }}">
-        <td>Familie (2 Erwachsene + Kinder bis 18 Jahre)</td><td>96,– €</td>
-      </tr>
+      {% endfor %}
     </tbody>
   </table>
   <div class="legal-text">
@@ -512,7 +496,7 @@
     <li>Bitte drucken Sie dieses Dokument aus.</li>
     <li>Unterschreiben Sie an den vorgesehenen Stellen (bei Minderjährigen: Erziehungsberechtigte/r).</li>
     <li>Senden Sie das unterschriebene Dokument per Post oder als Scan/Foto per E-Mail an:<br>
-        <strong>mitgliedschaft@sv-untereuerheim.de</strong></li>
+        <strong>{{ notification_email or club.contact_email }}</strong></li>
   </ol>
 </div>
 {% endif %}
@@ -533,12 +517,12 @@
 </div>
 
 <div style="margin-top: 20px; padding-top: 10px; border-top: 1px solid #ccc; text-align: center; font-size: 8pt; color: #888; line-height: 1.6;">
-  <strong>Sportverein 1945 Untereuerheim e.V.</strong><br>
-  Triebweg 9 · 97508 Grettstadt/Untereuerheim<br>
-  1. Vorsitzender: Alexander Eckert · Tel: 09729/432<br>
-  E-Mail: info@sv-untereuerheim.de<br>
-  Registergericht: Amtsgericht Schweinfurt · Registernummer: VR 31 · Steuer-ID: 249/111/20506<br>
-  Datenschutz: https://sv-untereuerheim.de/datenschutz · Satzung: https://sv-untereuerheim.de/satzung · Impressum: https://sv-untereuerheim.de/impressum
+  <strong>{{ club.club_name }}</strong><br>
+  {{ club.club_address }}<br>
+  {{ club.contact_role }}: {{ club.contact_name }} · Tel: {{ club.contact_phone }}<br>
+  E-Mail: {{ club.contact_email }}<br>
+  Registergericht: {{ club.registergericht }} · Registernummer: {{ club.registernummer }} · Steuer-ID: {{ club.steuernummer }}<br>
+  Datenschutz: {{ club.datenschutz_url }} · Satzung: {{ club.satzung_url }} · Impressum: {{ club.impressum_url }}
 </div>
 
 </body>

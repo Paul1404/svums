@@ -11,12 +11,12 @@ class Settings(BaseSettings):
     database_url: str = "sqlite:///./data/svums.db"
 
     # CORS
-    cors_origins: str = "https://svums.sv-untereuerheim.de"
-    public_base_url: str = "https://svums.sv-untereuerheim.de"
+    cors_origins: str = "http://localhost:5173"
+    public_base_url: str = "http://localhost:8000"
 
-    # PostHog
+    # PostHog (optional analytics)
     posthog_key: str = ""
-    posthog_host: str = "https://t.sv-untereuerheim.de"
+    posthog_host: str = ""
 
     # Cookie settings
     cookie_secure: bool = True

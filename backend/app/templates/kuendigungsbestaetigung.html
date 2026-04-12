@@ -143,7 +143,7 @@
 
 <div class="header">
   <div class="header-text">
-    <h1>Sportverein 1945 Untereuerheim e.V.</h1>
+    <h1>{{ club.club_name }}</h1>
   </div>
   <img src="logo_svu.png" alt="SVU Logo">
 </div>
@@ -156,7 +156,7 @@
 </div>
 
 <div class="meta">
-  Untereuerheim, den {{ datum }}
+  {{ club.club_city }}, den {{ datum }}
 </div>
 
 <div class="subject">
@@ -176,13 +176,13 @@
 <div class="body-text">
   {% if is_family and familienmitglieder %}
   hiermit bestätigen wir den Eingang der schriftlichen Austrittserklärung und das Ende der
-  Familienmitgliedschaft beim Sportverein 1945 Untereuerheim e.V.
+  Familienmitgliedschaft beim {{ club.club_name }}
   {% elif ist_empfaenger_abweichend %}
   hiermit bestätigen wir den Eingang der schriftlichen Austrittserklärung und das Ende der
-  Mitgliedschaft von {{ vorname }} {{ nachname }} beim Sportverein 1945 Untereuerheim e.V.
+  Mitgliedschaft von {{ vorname }} {{ nachname }} beim {{ club.club_name }}
   {% else %}
   hiermit bestätigen wir den Eingang Ihrer schriftlichen Austrittserklärung und das Ende Ihrer
-  Mitgliedschaft beim Sportverein 1945 Untereuerheim e.V.
+  Mitgliedschaft beim {{ club.club_name }}
   {% endif %}
 </div>
 
@@ -278,18 +278,18 @@
     Unsere Vereinssatzung können Sie ebenfalls jederzeit online einsehen.
   </p>
   <div class="info-links">
-    Datenschutzerklärung: https://sv-untereuerheim.de/datenschutz |
-    Vereinssatzung: https://sv-untereuerheim.de/satzung
+    Datenschutzerklärung: {{ club.datenschutz_url }} |
+    Vereinssatzung: {{ club.satzung_url }}
   </div>
   <div class="info-contact">
     Bei Fragen zur Mitgliedschaft oder Ihren gespeicherten Daten stehen wir Ihnen gerne zur Verfügung:
-    mitgliedschaft@sv-untereuerheim.de | 09729/432
+    {{ notification_email or club.contact_email }} | {{ club.contact_phone }}
   </div>
 </div>
 
 <div class="signature-block">
   <div class="closing">
-    Mit freundlichen Grüßen aus Untereuerheim,<br>
+    Mit freundlichen Grüßen aus {{ club.club_city }},<br>
   </div>
 
   <div class="signature-area">
@@ -297,7 +297,7 @@
     <img class="signature-img" src="{{ unterschrift_base64 }}" alt="Unterschrift">
     {% endif %}
     <div class="signature-line">
-      Mitgliederverwaltung | Sportverein 1945 Untereuerheim e.V.
+      Mitgliederverwaltung – {{ club.club_name }}
     </div>
   </div>
 </div>

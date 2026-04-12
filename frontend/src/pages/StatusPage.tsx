@@ -16,6 +16,7 @@ import {
   identifyApplicant,
   normalizeFailureReason,
 } from "../lib/analytics";
+import { useClubConfig } from "../context/ClubConfigContext";
 
 const STEPS = [
   {
@@ -48,6 +49,7 @@ const STATUS_INDEX: Record<string, number> = {
 };
 
 export default function StatusPage() {
+  const club = useClubConfig();
   const [searchParams] = useSearchParams();
   const [input, setInput] = useState(searchParams.get("nr") || "");
   const [data, setData] = useState<StatusLookupResponse | null>(null);
@@ -110,12 +112,12 @@ export default function StatusPage() {
         <div className="max-w-3xl mx-auto px-4 py-5 flex items-center gap-4">
           <img
             src="/logo_svu-241x300.png"
-            alt="Sportverein 1945 Untereuerheim e.V."
+            alt={club.club_name}
             className="h-14 w-auto drop-shadow-md"
           />
           <div>
             <h1 className="text-2xl font-bold">
-              Sportverein 1945 Untereuerheim e.V.
+              {club.club_name}
             </h1>
             <p className="text-svu-200 mt-0.5 text-sm">Antragsstatus prüfen</p>
           </div>
@@ -205,10 +207,10 @@ export default function StatusPage() {
                     Ihr Antrag wurde leider abgelehnt. Bei Fragen wenden Sie sich
                     bitte an{" "}
                     <a
-                      href="mailto:mitgliedschaft@sv-untereuerheim.de"
+                      href={`mailto:${club.contact_email}`}
                       className="text-svu-600 hover:underline"
                     >
-                      mitgliedschaft@sv-untereuerheim.de
+                      {club.contact_email}
                     </a>
                     .
                   </p>
@@ -369,23 +371,23 @@ export default function StatusPage() {
 
         <footer className="text-center text-xs text-gray-400 py-8 space-y-1">
           <p className="font-medium text-gray-500">
-            Sportverein 1945 Untereuerheim e.V.
+            {club.club_name}
           </p>
-          <p>Triebweg 9 · 97508 Grettstadt/Untereuerheim</p>
-          <p>1. Vorsitzender: Alexander Eckert · Tel: 09729/432</p>
+          <p>{club.club_address}</p>
+          <p>{club.contact_role}: {club.contact_name} · Tel: {club.contact_phone}</p>
           <p>
             E-Mail:{" "}
             <a
-              href="mailto:info@sv-untereuerheim.de"
+              href={`mailto:${club.contact_email}`}
               className="hover:text-svu-600"
             >
-              info@sv-untereuerheim.de
+              {club.contact_email}
             </a>
           </p>
-          <p>Registergericht: Amtsgericht Schweinfurt · Registernummer: VR 31 · Steuer-ID: 249/111/20506</p>
+          <p>Registergericht: {club.registergericht} · Registernummer: {club.registernummer} · Steuer-ID: {club.steuernummer}</p>
           <p className="pt-2 space-x-3">
             <a
-              href="https://sv-untereuerheim.de/impressum/"
+              href={club.impressum_url}
               target="_blank"
               rel="noopener noreferrer"
               className="text-gray-500 hover:text-svu-600 underline"
@@ -393,7 +395,7 @@ export default function StatusPage() {
               Impressum
             </a>
             <a
-              href="https://sv-untereuerheim.de/datenschutz/"
+              href={club.datenschutz_url}
               target="_blank"
               rel="noopener noreferrer"
               className="text-gray-500 hover:text-svu-600 underline"
@@ -401,7 +403,7 @@ export default function StatusPage() {
               Datenschutz
             </a>
             <a
-              href="https://sv-untereuerheim.de/satzung/"
+              href={club.satzung_url}
               target="_blank"
               rel="noopener noreferrer"
               className="text-gray-500 hover:text-svu-600 underline"

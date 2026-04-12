@@ -1,27 +1,18 @@
+# Simple standalone docker-compose — just run `docker compose up -d`
+# Copy .env.example to .env and fill in your values first.
+
 services:
   svums:
     build: .
     container_name: svums
-    restart: always
-    labels:
-      - "io.portainer.accesscontrol.public"
-      - "traefik.enable=true"
-      - "traefik.docker.network=traefik"
-      - "traefik.http.routers.svums.rule=Host(`svums.sv-untereuerheim.de`)"
-      - "traefik.http.routers.svums.entrypoints=websecure"
-      - "traefik.http.routers.svums.tls.certresolver=letsencrypt"
-      - "traefik.http.services.svums.loadbalancer.server.port=8000"
+    restart: unless-stopped
+    ports:
+      - "${PORT:-8000}:8000"
+    env_file: .env
     environment:
-      - ADMIN_PASSWORD=${ADMIN_PASSWORD}
-      - COOKIE_SECRET=${COOKIE_SECRET}
-      - DATABASE_URL=${DATABASE_URL}
-      - PUBLIC_BASE_URL=${PUBLIC_BASE_URL:-https://svums.sv-untereuerheim.de}
-      - FORWARDED_ALLOW_IPS=${FORWARDED_ALLOW_IPS:-127.0.0.1,::1}
-      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
-      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
-      - AWS_ENDPOINT_URL_S3=${AWS_ENDPOINT_URL_S3}
-      - AWS_REGION=${AWS_REGION:-auto}
-      - BUCKET_NAME=${BUCKET_NAME:-svums-uploads}
+      - COOKIE_SECURE=false
+      - CORS_ORIGINS=http://localhost:${PORT:-8000}
+      - PUBLIC_BASE_URL=http://localhost:${PORT:-8000}
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health')"]
       interval: 30s
@@ -30,14 +21,7 @@ services:
       start_period: 15s
     volumes:
       - data:/app/data
-    networks:
-      - traefik
 
 volumes:
   data:
     name: svums_data
-
-networks:
-  traefik:
-    name: traefik
-    external: true

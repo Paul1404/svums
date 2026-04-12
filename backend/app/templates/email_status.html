@@ -37,7 +37,7 @@
   <tr>
     <td align="center" style="background-color: #b91c1c; padding: 28px 24px;">
       <img src="{{ logo_url }}" alt="SVU Logo" width="45" height="56" style="width: 45px; height: 56px; margin-bottom: 10px;">
-      <table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr><td style="font-family: 'Segoe UI', Arial, sans-serif; font-size: 20px; font-weight: 700; color: #ffffff; text-align: center;">Sportverein 1945 Untereuerheim e.V.</td></tr></table>
+      <table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr><td style="font-family: 'Segoe UI', Arial, sans-serif; font-size: 20px; font-weight: 700; color: #ffffff; text-align: center;">{{ club.club_name }}</td></tr></table>
       <table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr><td style="font-family: 'Segoe UI', Arial, sans-serif; font-size: 13px; color: #fecaca; text-align: center; padding-top: 4px;">Statusaktualisierung zu Ihrem Antrag</td></tr></table>
       <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin-top: 10px;"><tr><td style="font-family: 'Consolas', 'Courier New', monospace; font-size: 12px; color: #ffffff; background-color: #991b1b; padding: 4px 14px; text-align: center;">{{ antragsnummer }}</td></tr></table>
     </td>
@@ -73,7 +73,7 @@
       <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom: 20px;">
         <tr><td style="font-family: 'Segoe UI', Arial, sans-serif; font-size: 14px; color: #4b5563; line-height: 1.7;">
           wir freuen uns, Ihnen mitteilen zu können, dass Ihr Antrag <strong>{{ antragsnummer }}</strong> <strong>genehmigt</strong> wurde!<br><br>
-          Herzlich willkommen beim Sportverein 1945 Untereuerheim e.V.! Wir freuen uns auf Sie.
+          Herzlich willkommen beim {{ club.club_name }}! Wir freuen uns auf Sie.
           {% if mitgliedsnummer %}<br><br>
           Ihre <strong>Mitgliedsnummer</strong> lautet: <strong>{{ mitgliedsnummer }}</strong>. Bitte halten Sie diese für künftige Anfragen bereit.{% endif %}<br><br>
           Im Anhang finden Sie Ihre Beitrittserklärung – unterschrieben von Ihnen und bestätigt durch den Verein. Sie können das Dokument für Ihre Unterlagen ausdrucken oder abspeichern.
@@ -92,7 +92,7 @@
         <tr><td style="background-color: #fffbeb; border: 1px solid #fcd34d; padding: 16px; font-family: 'Segoe UI', Arial, sans-serif; font-size: 13px; color: #92400e; line-height: 1.7;">
           <strong style="color: #78350f;">Hinweise:</strong><br>
           &bull; Die Mitgliedsbeiträge werden einmal jährlich per SEPA-Lastschrift eingezogen.<br>
-          &bull; Bei Fragen wenden Sie sich bitte an <a href="mailto:mitgliedschaft@sv-untereuerheim.de" style="color: #b91c1c; font-weight: 600;">mitgliedschaft@sv-untereuerheim.de</a>.
+          &bull; Bei Fragen wenden Sie sich bitte an <a href="mailto:{{ notification_email or club.contact_email }}" style="color: #b91c1c; font-weight: 600;">{{ notification_email or club.contact_email }}</a>.
         </td></tr>
       </table>
 
@@ -143,7 +143,7 @@
       <!-- Help -->
       <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
         <tr><td align="center" style="font-family: 'Segoe UI', Arial, sans-serif; font-size: 13px; color: #6b7280; padding-top: 4px;">
-          Fragen? Schreiben Sie uns an <a href="mailto:mitgliedschaft@sv-untereuerheim.de" style="color: #b91c1c; font-weight: 600; text-decoration: none;">mitgliedschaft@sv-untereuerheim.de</a>
+          Fragen? Schreiben Sie uns an <a href="mailto:{{ notification_email or club.contact_email }}" style="color: #b91c1c; font-weight: 600; text-decoration: none;">{{ notification_email or club.contact_email }}</a>
         </td></tr>
       </table>
     </td>
@@ -152,14 +152,14 @@
   <!-- Footer -->
   <tr>
     <td align="center" style="background-color: #1f2937; padding: 24px; font-family: 'Segoe UI', Arial, sans-serif; font-size: 12px; color: #9ca3af; line-height: 1.8;">
-      <span style="color: #e5e7eb; font-weight: 700;">Sportverein 1945 Untereuerheim e.V.</span><br>
-      Triebweg 9 &middot; 97508 Grettstadt/Untereuerheim<br>
-      1. Vorsitzender: Alexander Eckert &middot; Tel: 09729/432<br>
-      <a href="mailto:info@sv-untereuerheim.de" style="color: #fca5a5; text-decoration: none;">info@sv-untereuerheim.de</a><br>
-      Registergericht: Amtsgericht Schweinfurt &middot; Registernummer: VR 31 &middot; Steuer-ID: 249/111/20506<br>
-      <a href="https://sv-untereuerheim.de/datenschutz/" style="color: #fca5a5; text-decoration: none;">Datenschutzerklärung</a> &middot;
-      <a href="https://sv-untereuerheim.de/satzung/" style="color: #fca5a5; text-decoration: none;">Satzung</a> &middot;
-      <a href="https://sv-untereuerheim.de/impressum/" style="color: #fca5a5; text-decoration: none;">Impressum</a><br>
+      <span style="color: #e5e7eb; font-weight: 700;">{{ club.club_name }}</span><br>
+      {{ club.club_address }}<br>
+      {{ club.contact_role }}: {{ club.contact_name }} &middot; Tel: {{ club.contact_phone }}<br>
+      <a href="mailto:{{ club.contact_email }}" style="color: #fca5a5; text-decoration: none;">{{ club.contact_email }}</a><br>
+      Registergericht: {{ club.registergericht }} &middot; Registernummer: {{ club.registernummer }} &middot; Steuer-ID: {{ club.steuernummer }}<br>
+      <a href="{{ club.datenschutz_url }}" style="color: #fca5a5; text-decoration: none;">Datenschutzerklärung</a> &middot;
+      <a href="{{ club.satzung_url }}" style="color: #fca5a5; text-decoration: none;">Satzung</a> &middot;
+      <a href="{{ club.impressum_url }}" style="color: #fca5a5; text-decoration: none;">Impressum</a><br>
       <br><span style="font-size: 11px; color: #6b7280;">Diese E-Mail wurde automatisch generiert.</span>
     </td>
   </tr>
