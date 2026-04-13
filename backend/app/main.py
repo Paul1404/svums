@@ -77,6 +77,9 @@ async def lifespan(app: FastAPI):
             if "admin_signature_base64" not in settings_columns:
                 cursor.execute("ALTER TABLE app_settings ADD COLUMN admin_signature_base64 TEXT")
                 logger.info("Added admin_signature_base64 column")
+            if "club_config" not in settings_columns:
+                cursor.execute("ALTER TABLE app_settings ADD COLUMN club_config TEXT")
+                logger.info("Added club_config column")
             conn.commit()
             conn.close()
         except Exception as e:
@@ -93,6 +96,10 @@ async def lifespan(app: FastAPI):
                 conn.execute(__import__("sqlalchemy").text(
                     "ALTER TABLE app_settings "
                     "ADD COLUMN IF NOT EXISTS admin_signature_base64 TEXT"
+                ))
+                conn.execute(__import__("sqlalchemy").text(
+                    "ALTER TABLE app_settings "
+                    "ADD COLUMN IF NOT EXISTS club_config TEXT"
                 ))
                 conn.execute(__import__("sqlalchemy").text(
                     "ALTER TABLE membership_applications "
@@ -178,7 +185,7 @@ async def lifespan(app: FastAPI):
 settings = get_settings()
 
 app = FastAPI(
-    title="SVUMS - SV Untereuerheim Mitgliedschaft",
+    title="SVUMS - Vereins-Mitgliedschaft",
     version="1.0.0",
     docs_url="/api/docs" if not settings.cookie_secure else None,
     redoc_url="/api/redoc" if not settings.cookie_secure else None,

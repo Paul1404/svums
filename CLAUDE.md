@@ -2,7 +2,7 @@
 
 ## What is this?
 
-SVUMS (SV Untereuerheim Mitgliedschaft System) — online membership application system for a German sports club (Sportverein 1945 Untereuerheim e.V.). Applicants fill out a form, optionally sign digitally, and the club admin reviews/approves/declines through an admin panel.
+SVUMS — open-source online membership application system for German sports clubs (Sportvereine). Applicants fill out a form, optionally sign digitally, and the club admin reviews/approves/declines through an admin panel. All club-specific settings (name, fees, departments, SEPA, branding) are configurable via the admin panel at runtime.
 
 **All UI text and error messages are in German.**
 

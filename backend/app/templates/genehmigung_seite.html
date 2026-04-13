@@ -123,7 +123,7 @@
 <div class="confirmation-page">
 <div class="header">
   <div class="header-text">
-    <h1 style="font-size: 14pt; color: #b91c1c; margin: 0;">Sportverein 1945 Untereuerheim e.V.</h1>
+    <h1 style="font-size: 14pt; color: #b91c1c; margin: 0;">{{ club.club_name }}</h1>
     <p style="font-size: 10pt; color: #666; margin: 4px 0 0 0;">Antragsnummer: {{ antragsnummer }}</p>
   </div>
   <img src="logo_svu.png" alt="SVU Logo">
@@ -158,14 +158,14 @@
   <p style="font-weight: bold; margin: 14px 0 8px 0;">Hinweise:</p>
   <ul>
     <li><strong>Vereinssatzung:</strong> Die aktuell gültige Fassung ist einsehbar unter:<br>
-    https://sv-untereuerheim.de/satzung</li>
+    {{ club.satzung_url }}</li>
 
     <li><strong>Mitgliedsbeitrag:</strong> Der Jahresbeitrag wird gemäß dem erteilten SEPA-Mandat (Mandatsreferenz: {{ mandatsreferenz }}) vom angegebenen Konto eingezogen.</li>
 
     <li><strong>Datenänderungen:</strong> Änderungen der Anschrift oder Bankverbindung sind zeitnah mitzuteilen, um Rücklastschriftgebühren zu vermeiden.</li>
   </ul>
 
-  <p style="margin-top: 12px; font-size: 10pt;">Kontakt für Mitgliedschaftsfragen: mitgliedschaft@sv-untereuerheim.de</p>
+  <p style="margin-top: 12px; font-size: 10pt;">Kontakt für Mitgliedschaftsfragen: {{ notification_email or club.contact_email }}</p>
 </div>
 
 <div class="approval-box">
@@ -173,18 +173,18 @@
   <p class="approval-date">Genehmigt am {{ approval_datum }}</p>
   <div class="sig-img-line">
     <img src="{{ admin_unterschrift_base64 }}" alt="Unterschrift">
-    <div class="sig-label">Mitgliederverwaltung - Sportverein 1945 Untereuerheim e.V.</div>
+    <div class="sig-label">Mitgliederverwaltung - {{ club.club_name }}</div>
   </div>
 </div>
 </div>
 
 <div class="footer">
-  <strong>Sportverein 1945 Untereuerheim e.V.</strong><br>
-  Triebweg 9 · 97508 Grettstadt/Untereuerheim<br>
-  1. Vorsitzender: Alexander Eckert · Tel: 09729/432<br>
-  E-Mail: info@sv-untereuerheim.de<br>
-  Registergericht: Amtsgericht Schweinfurt · Registernummer: VR 31 · Steuer-ID: 249/111/20506<br>
-  Datenschutz: https://sv-untereuerheim.de/datenschutz · Satzung: https://sv-untereuerheim.de/satzung · Impressum: https://sv-untereuerheim.de/impressum
+  <strong>{{ club.club_name }}</strong><br>
+  {{ club.club_address }}<br>
+  {{ club.contact_role }}: {{ club.contact_name }} · Tel: {{ club.contact_phone }}<br>
+  E-Mail: {{ club.contact_email }}<br>
+  Registergericht: {{ club.registergericht }} · Registernummer: {{ club.registernummer }} · Steuer-ID: {{ club.steuernummer }}<br>
+  Datenschutz: {{ club.datenschutz_url }} · Satzung: {{ club.satzung_url }} · Impressum: {{ club.impressum_url }}
 </div>
 
 </body>

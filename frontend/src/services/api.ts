@@ -6,6 +6,7 @@ export interface ClientConfig {
   posthog_enabled: boolean;
   posthog_key: string | null;
   posthog_host: string | null;
+  club: Record<string, unknown>;
 }
 
 export interface ChildData {
