@@ -35,6 +35,7 @@ import {
   FlaskConical,
   Menu,
   X,
+  Building2,
 } from "lucide-react";
 
 const STATUS_LABELS: Record<string, { label: string; color: string }> = {
@@ -178,6 +179,13 @@ export default function AdminDashboard() {
               <UserX className="w-4 h-4" /> Kündigung
             </Link>
             <Link
+              to="/admin/club-settings"
+              className="flex items-center gap-1.5 px-3 py-2 text-sm text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-colors"
+              title="Vereinseinstellungen"
+            >
+              <Building2 className="w-4 h-4" /> Verein
+            </Link>
+            <Link
               to="/admin/settings"
               className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
               title="Einstellungen"
@@ -240,6 +248,13 @@ export default function AdminDashboard() {
               onClick={() => setMobileMenuOpen(false)}
             >
               <UserX className="w-4 h-4" /> Kündigung
+            </Link>
+            <Link
+              to="/admin/club-settings"
+              className="flex items-center gap-2 px-3 py-2.5 text-sm text-gray-700 hover:bg-gray-100 rounded-lg"
+              onClick={() => setMobileMenuOpen(false)}
+            >
+              <Building2 className="w-4 h-4" /> Vereinseinstellungen
             </Link>
             <Link
               to="/admin/settings"
