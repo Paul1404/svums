@@ -2,10 +2,12 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { useAdmin } from "../context/AdminContext";
+import { useClubConfig } from "../context/ClubConfigContext";
 import { Lock, LogIn } from "lucide-react";
 
 export default function AdminLogin() {
   const { login, isAuthenticated } = useAdmin();
+  const club = useClubConfig();
   const navigate = useNavigate();
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -36,9 +38,9 @@ export default function AdminLogin() {
           <div className="w-16 h-16 bg-svu-600 rounded-full flex items-center justify-center mx-auto mb-4">
             <Lock className="w-8 h-8 text-white" />
           </div>
-          <h1 className="text-xl font-bold text-gray-900">SVUMS Admin</h1>
+          <h1 className="text-xl font-bold text-gray-900">{club.club_abbreviation} Admin</h1>
           <p className="text-sm text-gray-500 mt-1">
-            Sportverein 1945 Untereuerheim e.V.
+            {club.club_name}
           </p>
         </div>
 

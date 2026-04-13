@@ -84,5 +84,5 @@ Stichtag fuer die Altersberechnung ist der 1. Januar.
 
 ### Einwilligungen
 
-- DSGVO-konforme Datenschutz-Zustimmung (Link zu sv-untereuerheim.de/datenschutz)
-- Austritt zum Jahresende, 6 Wochen Frist, in Textform (E-Mail an mitgliedschaft@sv-untereuerheim.de oder postalisch)
+- DSGVO-konforme Datenschutz-Zustimmung (Link configurable via club config)
+- Austritt zum Jahresende, 6 Wochen Frist, in Textform (E-Mail or post — configurable via club config)

@@ -250,7 +250,7 @@ export default function AdminSettings() {
                 value={settings.smtp_from}
                 onChange={(e) => update("smtp_from", e.target.value)}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-svu-500 focus:border-svu-500 outline-none"
-                placeholder="noreply@sv-untereuerheim.de"
+                placeholder="noreply@example.com"
               />
             </div>
 
@@ -281,7 +281,7 @@ export default function AdminSettings() {
               value={settings.notification_email}
               onChange={(e) => update("notification_email", e.target.value)}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-svu-500 focus:border-svu-500 outline-none"
-              placeholder="mitgliedschaft@sv-untereuerheim.de"
+              placeholder="mitgliedschaft@example.com"
             />
             <p className="text-xs text-gray-500 mt-1">
               Neue Beitrittserklärungen werden an diese Adresse gesendet.

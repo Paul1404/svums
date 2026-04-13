@@ -6,6 +6,7 @@ import {
   identifyApplicant,
   normalizeFailureReason,
 } from "../lib/analytics";
+import { useClubConfig } from "../context/ClubConfigContext";
 import {
   Upload as UploadIcon,
   CheckCircle2,
@@ -26,6 +27,7 @@ interface UploadInfo {
 }
 
 export default function UploadPage() {
+  const club = useClubConfig();
   const { token } = useParams<{ token: string }>();
   const [info, setInfo] = useState<UploadInfo | null>(null);
   const [loading, setLoading] = useState(true);
@@ -299,16 +301,16 @@ export default function UploadPage() {
         <footer className="text-center text-xs text-gray-400 py-8 space-y-1">
           <img
             src="/logo_svu-241x300.png"
-            alt="SVU Logo"
+            alt={club.club_abbreviation}
             className="h-10 w-auto mx-auto mb-2 opacity-40"
           />
           <p className="font-medium text-gray-500">
-            Sportverein 1945 Untereuerheim e.V.
+            {club.club_name}
           </p>
-          <p>Triebweg 9 · 97508 Grettstadt/Untereuerheim</p>
+          <p>{club.club_address}</p>
           <p className="pt-2 space-x-3">
             <a
-              href="https://sv-untereuerheim.de/impressum/"
+              href={club.impressum_url}
               target="_blank"
               rel="noopener noreferrer"
               className="text-gray-500 hover:text-svu-600 underline"
@@ -316,7 +318,7 @@ export default function UploadPage() {
               Impressum
             </a>
             <a
-              href="https://sv-untereuerheim.de/datenschutz/"
+              href={club.datenschutz_url}
               target="_blank"
               rel="noopener noreferrer"
               className="text-gray-500 hover:text-svu-600 underline"
@@ -324,7 +326,7 @@ export default function UploadPage() {
               Datenschutz
             </a>
             <a
-              href="https://sv-untereuerheim.de/satzung/"
+              href={club.satzung_url}
               target="_blank"
               rel="noopener noreferrer"
               className="text-gray-500 hover:text-svu-600 underline"
@@ -339,16 +341,17 @@ export default function UploadPage() {
 }
 
 function Header() {
+  const club = useClubConfig();
   return (
     <header className="bg-svu-600 text-white shadow-lg">
       <div className="max-w-3xl mx-auto px-4 py-5 flex items-center gap-4">
         <img
           src="/logo_svu-241x300.png"
-          alt="Sportverein 1945 Untereuerheim e.V."
+          alt={club.club_name}
           className="h-14 w-auto drop-shadow-md"
         />
         <div>
-          <h1 className="text-2xl font-bold">Sportverein 1945 Untereuerheim e.V.</h1>
+          <h1 className="text-2xl font-bold">{club.club_name}</h1>
           <p className="text-svu-200 mt-0.5 text-sm">Dokument hochladen</p>
         </div>
       </div>

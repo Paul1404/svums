@@ -129,7 +129,7 @@ Alle Betraege im deutschen Format via `formatFee` Utility:
 
 - Formelle "Bestaetigung der Mitgliedschaft" mit persoenlicher Anrede
 - Administrative Hinweise: Satzung (PDF-Link), Mandatsreferenz, Datenaenderungen
-- Kontakt: mitgliedschaft@sv-untereuerheim.de
+- Kontakt: configurable via club config (notification_email)
 - Wird mit dem signierten Antrags-PDF zusammengefuehrt und als `{antragsnummer}_approved.pdf` gespeichert
 
 ### E-Mail-Templates

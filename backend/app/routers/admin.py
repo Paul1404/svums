@@ -475,6 +475,8 @@ async def update_application(
     old_status = app.status
     old_notes = app.notes
     settings_obj = _get_or_create_settings(db)
+    club = settings_obj.get_club_config()
+    club_dict = club.to_template_dict()
 
     if data.status is not None:
         app.status = data.status
@@ -509,18 +511,20 @@ async def update_application(
             applicant_name=applicant_name,
             mandatsreferenz=app.mandatsreferenz or "",
             mitgliedsnummer=app.mitgliedsnummer or "",
+            club_config=club_dict,
+            notification_email=settings_obj.notification_email,
         )
         if app.uploaded_file:
             base_bytes = storage.download_file(app.uploaded_file)
             if base_bytes:
                 pdf_bytes = merge_pdf_with_approval(base_bytes, approval_page_bytes)
             else:
-                app_data = _build_application_data(app)
+                app_data = _build_application_data(app, club_config=club_dict)
                 app_data["admin_unterschrift_base64"] = effective_sig
                 app_data["approval_datum"] = approval_datum
                 pdf_bytes = generate_pdf(app_data)
         else:
-            app_data = _build_application_data(app)
+            app_data = _build_application_data(app, club_config=club_dict)
             app_data["admin_unterschrift_base64"] = effective_sig
             app_data["approval_datum"] = approval_datum
             pdf_bytes = generate_pdf(app_data)
@@ -651,6 +655,8 @@ async def update_application(
                             pdf_bytes=pdf_bytes,
                             pdf_filename=pdf_filename,
                             mitgliedsnummer=_snap_mitgliedsnummer,
+                            club_config=club_dict,
+                            notification_email=settings_obj.notification_email,
                         )
                         _ok = True
                     except Exception as _exc:
@@ -768,7 +774,10 @@ async def download_pdf(
     if not app:
         raise HTTPException(status_code=404, detail="Antrag nicht gefunden")
 
-    data = _build_application_data(app)
+    pdf_settings = _get_or_create_settings(db)
+    pdf_club_dict = pdf_settings.get_club_config().to_template_dict()
+    data = _build_application_data(app, club_config=pdf_club_dict)
+    data["notification_email"] = pdf_settings.notification_email
 
     # For online-signed applications, reuse the stored signed PDF (which contains
     # the embedded signature) instead of regenerating an unsigned blank form.
@@ -1036,7 +1045,7 @@ async def get_test_data(
         "strasse": "Hauptstraße 12",
         "plz": "97528",
         "ort": "Sulzdorf a.d.L.",
-        "email": "mitgliedschaft@sv-untereuerheim.de",
+        "email": "test@example.com",
         "telefon": "09727 1234567",
         "abteilungen": ["Fußball"],
         "kontoinhaber": "Max Mustermann",
@@ -1061,7 +1070,7 @@ async def get_test_data(
             "erziehungsberechtigter_nachname": "Müller",
             "elternteil_mitglied": False,
             "kontoinhaber": "Sabine Müller",
-            "email": "test-kind@sv-untereuerheim.de",
+            "email": "test-kind@example.com",
         }
 
     # familie
@@ -1071,7 +1080,7 @@ async def get_test_data(
         "vorname": "Thomas",
         "nachname": "Schneider",
         "geburtsdatum": "1985-08-10",
-        "email": "test-familie@sv-untereuerheim.de",
+        "email": "test-familie@example.com",
         "kontoinhaber": "Thomas Schneider",
         "partner_vorname": "Anna",
         "partner_nachname": "Schneider",
@@ -1266,6 +1275,53 @@ async def test_smtp(
         )
 
 
+# --- Club Configuration ---
+
+@router.get("/club-config")
+async def get_club_config(
+    is_admin: bool = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    """Return current club configuration."""
+    settings = _get_or_create_settings(db)
+    return settings.get_club_config().to_template_dict()
+
+
+@router.put("/club-config")
+async def update_club_config(
+    data: dict,
+    request: Request,
+    is_admin: bool = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    """Update club configuration (partial update)."""
+    from app.schemas.club_config import ClubConfig, ClubConfigUpdate
+
+    settings = _get_or_create_settings(db)
+    current = settings.get_club_config()
+
+    # Validate the update payload
+    update = ClubConfigUpdate(**data)
+
+    # Merge: start from current, override with provided fields
+    merged = current.model_dump()
+    for key, value in update.model_dump(exclude_unset=True).items():
+        merged[key] = value
+
+    # Validate merged config and store
+    new_config = ClubConfig(**merged)
+    settings.club_config = new_config.to_json()
+    db.commit()
+    db.refresh(settings)
+
+    posthog_capture(
+        "admin_club_config_updated",
+        get_admin_distinct_id(request),
+        properties={"app_area": "admin", "source": "backend"},
+    )
+    return new_config.to_template_dict()
+
+
 # --- Cancellation PDF ---
 
 class CancellationFamilyMember(BaseModel):
@@ -1309,6 +1365,8 @@ async def cancellation_pdf(
 ):
     """Generate a cancellation confirmation PDF."""
     settings = _get_or_create_settings(db)
+    cancel_club = settings.get_club_config()
+    cancel_club_dict = cancel_club.to_template_dict()
     effective_signature = data.unterschrift_base64
     signature_source = "none"
     if effective_signature:
@@ -1395,6 +1453,8 @@ async def cancellation_pdf(
         "is_family": data.is_family,
         "familienmitglieder": [fm.model_dump() for fm in data.familienmitglieder],
         "all_mitgliedsnummern": all_mitgliedsnummern,
+        "club": cancel_club_dict,
+        "notification_email": settings.notification_email,
     }
 
     pdf_bytes = generate_cancellation_pdf(pdf_data)

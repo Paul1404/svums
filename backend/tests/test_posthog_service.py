@@ -9,11 +9,11 @@ def test_client_config_disabled_without_posthog_key(client, monkeypatch):
     response = client.get("/api/client-config")
 
     assert response.status_code == 200
-    assert response.json() == {
-        "posthog_enabled": False,
-        "posthog_key": None,
-        "posthog_host": None,
-    }
+    data = response.json()
+    assert data["posthog_enabled"] is False
+    assert data["posthog_key"] is None
+    assert data["posthog_host"] is None
+    assert "club" in data
 
 
 def test_capture_noops_when_disabled(monkeypatch):
