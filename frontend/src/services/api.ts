@@ -160,6 +160,39 @@ export interface SettingsUpdateData {
   admin_signature_base64?: string | null;
 }
 
+export interface ClubConfigData {
+  club_name: string;
+  club_short_name: string;
+  club_abbreviation: string;
+  club_city: string;
+  club_address: string;
+  club_website: string;
+  contact_name: string;
+  contact_role: string;
+  contact_phone: string;
+  contact_email: string;
+  registergericht: string;
+  registernummer: string;
+  steuernummer: string;
+  datenschutz_url: string;
+  satzung_url: string;
+  impressum_url: string;
+  sepa_glaeubiger_id: string;
+  sepa_mandate_prefix: string;
+  fees: Array<{
+    typ: string;
+    betrag: string;
+    label: string;
+    elternteil_mitglied: boolean | null;
+  }>;
+  departments: string[];
+  primary_color: string;
+  primary_color_dark: string;
+  primary_color_light: string;
+  logo_url: string;
+  email_subject_prefix: string;
+}
+
 export interface CancellationLetterResponse {
   id: number;
   anrede: string;
@@ -645,4 +678,19 @@ export async function getCancellationDocuments(
   limit = 500
 ): Promise<CancellationLetterResponse[]> {
   return apiRequest(`/api/admin/cancellation-documents?limit=${limit}`);
+}
+
+// ---- Club Config API ----
+
+export async function getClubConfig(): Promise<ClubConfigData> {
+  return apiRequest("/api/admin/club-config");
+}
+
+export async function updateClubConfig(
+  data: Partial<ClubConfigData>
+): Promise<ClubConfigData> {
+  return apiRequest("/api/admin/club-config", {
+    method: "PUT",
+    body: JSON.stringify(data),
+  });
 }
