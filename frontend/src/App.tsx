@@ -9,6 +9,7 @@ import AdminLogin from "./pages/AdminLogin";
 import AdminDashboard from "./pages/AdminDashboard";
 import AdminApplicationDetail from "./pages/AdminApplicationDetail";
 import AdminSettings from "./pages/AdminSettings";
+import AdminClubSettings from "./pages/AdminClubSettings";
 import AdminCancellation from "./pages/AdminCancellation";
 import AdminEmailLog from "./pages/AdminEmailLog";
 import AdminDocuments from "./pages/AdminDocuments";
@@ -60,6 +61,14 @@ function AdminRoutes() {
           element={
             <AdminRoute>
               <AdminSettings />
+            </AdminRoute>
+          }
+        />
+        <Route
+          path="club-settings"
+          element={
+            <AdminRoute>
+              <AdminClubSettings />
             </AdminRoute>
           }
         />
@@ -124,6 +133,9 @@ function RouteAnalytics() {
       appArea = "admin";
     } else if (location.pathname === "/admin/settings") {
       routeName = "admin_settings";
+      appArea = "admin";
+    } else if (location.pathname === "/admin/club-settings") {
+      routeName = "admin_club_settings";
       appArea = "admin";
     } else if (location.pathname === "/admin/cancellation") {
       routeName = "admin_cancellation";
