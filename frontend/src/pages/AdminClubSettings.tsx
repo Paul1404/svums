@@ -53,6 +53,7 @@ export default function AdminClubSettings() {
   const [config, setConfig] = useState<ClubConfigData | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [logoError, setLogoError] = useState(false);
 
   useEffect(() => {
     getClubConfig()
@@ -364,8 +365,8 @@ export default function AdminClubSettings() {
                 className="flex items-start gap-2 p-3 rounded-lg border border-gray-200 bg-gray-50"
               >
                 <GripVertical className="w-4 h-4 text-gray-300 mt-2.5 shrink-0" />
-                <div className="flex-1 grid grid-cols-1 sm:grid-cols-4 gap-2">
-                  <div>
+                <div className="flex-1 grid grid-cols-1 sm:grid-cols-5 gap-2">
+                  <div className="sm:col-span-2">
                     <label className="block text-xs text-gray-500 mb-0.5">
                       Typ
                     </label>
@@ -404,7 +405,7 @@ export default function AdminClubSettings() {
                       className={inputCls}
                     />
                   </div>
-                  <div className="sm:col-span-4">
+                  <div className="sm:col-span-5">
                     <label className="block text-xs text-gray-500 mb-0.5">
                       Elternteil Mitglied?
                     </label>
@@ -546,19 +547,20 @@ export default function AdminClubSettings() {
               <label className={labelCls}>Logo-URL</label>
               <input
                 value={config.logo_url}
-                onChange={(e) => update("logo_url", e.target.value)}
+                onChange={(e) => {
+                  update("logo_url", e.target.value);
+                  setLogoError(false);
+                }}
                 className={inputCls}
                 placeholder="https://... oder leer lassen"
               />
-              {config.logo_url && (
+              {config.logo_url && !logoError && (
                 <div className="mt-2 p-2 border border-gray-200 rounded-lg bg-gray-50 inline-block">
                   <img
                     src={config.logo_url}
                     alt="Vereinslogo"
                     className="max-h-16 object-contain"
-                    onError={(e) => {
-                      (e.target as HTMLImageElement).style.display = "none";
-                    }}
+                    onError={() => setLogoError(true)}
                   />
                 </div>
               )}
