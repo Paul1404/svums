@@ -581,6 +581,19 @@ export async function testSmtp(
   });
 }
 
+export async function getClubConfig(): Promise<Record<string, unknown>> {
+  return apiRequest("/api/admin/club-config");
+}
+
+export async function updateClubConfig(
+  data: Record<string, unknown>
+): Promise<Record<string, unknown>> {
+  return apiRequest("/api/admin/club-config", {
+    method: "PUT",
+    body: JSON.stringify(data),
+  });
+}
+
 export interface EmailLogEntry {
   id: number;
   timestamp: string;

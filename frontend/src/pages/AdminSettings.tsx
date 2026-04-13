@@ -5,6 +5,8 @@ import {
   getSettings,
   updateSettings,
   testSmtp,
+  getClubConfig,
+  updateClubConfig,
   type SettingsData,
   type SettingsUpdateData,
 } from "../services/api";
@@ -17,12 +19,23 @@ import {
   EyeOff,
   Upload,
   Trash2,
+  Building2,
+  ChevronDown,
+  ChevronRight,
+  Plus,
+  X,
 } from "lucide-react";
+import type { ClubConfig, FeeEntry } from "../context/ClubConfigContext";
+
+type Tab = "smtp" | "club";
 
 export default function AdminSettings() {
+  const [tab, setTab] = useState<Tab>("smtp");
   const [settings, setSettings] = useState<SettingsData | null>(null);
+  const [clubConfig, setClubConfig] = useState<ClubConfig | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [savingClub, setSavingClub] = useState(false);
   const [testing, setTesting] = useState(false);
   const [testEmail, setTestEmail] = useState("");
   const [smtpPassword, setSmtpPassword] = useState("");
@@ -31,10 +44,14 @@ export default function AdminSettings() {
   const [sigUploading, setSigUploading] = useState(false);
 
   useEffect(() => {
-    getSettings()
-      .then((data) => {
-        setSettings(data);
-        setTestEmail(data.notification_email);
+    Promise.all([
+      getSettings(),
+      getClubConfig() as unknown as Promise<ClubConfig>,
+    ])
+      .then(([s, c]) => {
+        setSettings(s);
+        setTestEmail(s.notification_email);
+        setClubConfig(c);
       })
       .catch((err) => toast.error(err.message))
       .finally(() => setLoading(false));
@@ -91,6 +108,24 @@ export default function AdminSettings() {
     setSettings((prev) => (prev ? { ...prev, [field]: value } : prev));
   };
 
+  const updateClub = (field: keyof ClubConfig, value: any) => {
+    setClubConfig((prev) => (prev ? { ...prev, [field]: value } : prev));
+  };
+
+  const handleSaveClub = async () => {
+    if (!clubConfig) return;
+    setSavingClub(true);
+    try {
+      const updated = await updateClubConfig(clubConfig as unknown as Record<string, unknown>) as unknown as ClubConfig;
+      setClubConfig(updated);
+      toast.success("Vereinsdaten gespeichert");
+    } catch (err: any) {
+      toast.error(err.message);
+    } finally {
+      setSavingClub(false);
+    }
+  };
+
   const handleSignatureUpload = (file: File) => {
     if (!settings) return;
     if (!file.type.startsWith("image/")) {
@@ -139,12 +174,37 @@ export default function AdminSettings() {
           </Link>
           <div>
             <h1 className="text-lg font-bold text-gray-900">Einstellungen</h1>
-            <p className="text-xs text-gray-500">SMTP & E-Mail-Konfiguration</p>
+            <p className="text-xs text-gray-500">SMTP, E-Mail & Vereinsdaten</p>
           </div>
+        </div>
+        <div className="max-w-3xl mx-auto px-4 flex gap-1 -mb-px">
+          <button
+            onClick={() => setTab("smtp")}
+            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+              tab === "smtp"
+                ? "border-svu-600 text-svu-700"
+                : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+            }`}
+          >
+            SMTP & E-Mail
+          </button>
+          <button
+            onClick={() => setTab("club")}
+            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors flex items-center gap-1.5 ${
+              tab === "club"
+                ? "border-svu-600 text-svu-700"
+                : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+            }`}
+          >
+            <Building2 className="w-3.5 h-3.5" />
+            Vereinsdaten
+          </button>
         </div>
       </header>
 
       <div className="max-w-3xl mx-auto px-4 py-6 space-y-6">
+        {tab === "club" && clubConfig && <ClubConfigTab config={clubConfig} updateClub={updateClub} saving={savingClub} onSave={handleSaveClub} />}
+        {tab === "smtp" && <>
         {/* SMTP Settings */}
         <div className="bg-white rounded-xl shadow-sm border p-6">
           <h2 className="text-lg font-semibold text-gray-900 mb-4">
@@ -379,7 +439,211 @@ export default function AdminSettings() {
             </button>
           </div>
         </div>
+        </>}
       </div>
     </div>
+  );
+}
+
+
+/* ─── Helper: labelled input ─── */
+
+function CField({ label, value, onChange, placeholder, type = "text" }: {
+  label: string; value: string; onChange: (v: string) => void; placeholder?: string; type?: string;
+}) {
+  return (
+    <div>
+      <label className="block text-sm font-medium text-gray-700 mb-1">{label}</label>
+      <input
+        type={type}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-svu-500 focus:border-svu-500 outline-none"
+        placeholder={placeholder}
+      />
+    </div>
+  );
+}
+
+/* ─── Collapsible section ─── */
+
+function Section({ title, children, defaultOpen = false }: { title: string; children: React.ReactNode; defaultOpen?: boolean }) {
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <div className="bg-white rounded-xl shadow-sm border">
+      <button
+        type="button"
+        onClick={() => setOpen(!open)}
+        className="w-full flex items-center justify-between px-6 py-4 text-left"
+      >
+        <h2 className="text-base font-semibold text-gray-900">{title}</h2>
+        {open ? <ChevronDown className="w-4 h-4 text-gray-400" /> : <ChevronRight className="w-4 h-4 text-gray-400" />}
+      </button>
+      {open && <div className="px-6 pb-6 space-y-4">{children}</div>}
+    </div>
+  );
+}
+
+/* ─── Club Config Tab ─── */
+
+function ClubConfigTab({ config, updateClub, saving, onSave }: {
+  config: ClubConfig;
+  updateClub: (field: keyof ClubConfig, value: any) => void;
+  saving: boolean;
+  onSave: () => void;
+}) {
+  return (
+    <>
+      <Section title="Verein" defaultOpen>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <CField label="Vereinsname (vollständig)" value={config.club_name} onChange={(v) => updateClub("club_name", v)} placeholder="Sportverein 1945 Musterstadt e.V." />
+          <CField label="Kurzname" value={config.club_short_name} onChange={(v) => updateClub("club_short_name", v)} placeholder="SV 1945 Musterstadt e.V." />
+          <CField label="Kürzel" value={config.club_abbreviation} onChange={(v) => updateClub("club_abbreviation", v)} placeholder="SVM" />
+          <CField label="Ort" value={config.club_city} onChange={(v) => updateClub("club_city", v)} placeholder="Musterstadt" />
+          <CField label="Adresse (einzeilig)" value={config.club_address} onChange={(v) => updateClub("club_address", v)} placeholder="Hauptstr. 1 · 12345 Musterstadt" />
+          <CField label="Website" value={config.club_website} onChange={(v) => updateClub("club_website", v)} placeholder="https://example.com" />
+        </div>
+      </Section>
+
+      <Section title="Kontaktperson">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <CField label="Name" value={config.contact_name} onChange={(v) => updateClub("contact_name", v)} placeholder="Max Mustermann" />
+          <CField label="Rolle / Amt" value={config.contact_role} onChange={(v) => updateClub("contact_role", v)} placeholder="1. Vorsitzender" />
+          <CField label="Telefon" value={config.contact_phone} onChange={(v) => updateClub("contact_phone", v)} placeholder="01234/56789" />
+          <CField label="E-Mail" value={config.contact_email} onChange={(v) => updateClub("contact_email", v)} placeholder="info@example.com" />
+        </div>
+      </Section>
+
+      <Section title="Rechtliches">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <CField label="Registergericht" value={config.registergericht} onChange={(v) => updateClub("registergericht", v)} placeholder="Amtsgericht Musterstadt" />
+          <CField label="Registernummer" value={config.registernummer} onChange={(v) => updateClub("registernummer", v)} placeholder="VR 123" />
+          <CField label="Steuernummer" value={config.steuernummer} onChange={(v) => updateClub("steuernummer", v)} placeholder="123/456/78901" />
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <CField label="Datenschutz-URL" value={config.datenschutz_url} onChange={(v) => updateClub("datenschutz_url", v)} />
+          <CField label="Satzung-URL" value={config.satzung_url} onChange={(v) => updateClub("satzung_url", v)} />
+          <CField label="Impressum-URL" value={config.impressum_url} onChange={(v) => updateClub("impressum_url", v)} />
+        </div>
+      </Section>
+
+      <Section title="SEPA">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <CField label="Gläubiger-ID" value={config.sepa_glaeubiger_id} onChange={(v) => updateClub("sepa_glaeubiger_id", v)} placeholder="DE98ZZZ09999999999" />
+          <CField label="Mandatsreferenz-Präfix" value={config.sepa_mandate_prefix} onChange={(v) => updateClub("sepa_mandate_prefix", v)} placeholder="SVM-" />
+        </div>
+      </Section>
+
+      <Section title="Abteilungen">
+        <p className="text-xs text-gray-500 mb-2">Abteilungen, die im Antragsformular zur Auswahl stehen.</p>
+        <div className="space-y-2">
+          {config.departments.map((dept, i) => (
+            <div key={i} className="flex items-center gap-2">
+              <input
+                value={dept}
+                onChange={(e) => {
+                  const updated = [...config.departments];
+                  updated[i] = e.target.value;
+                  updateClub("departments", updated);
+                }}
+                className="flex-1 px-3 py-1.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-svu-500 focus:border-svu-500 outline-none"
+              />
+              <button type="button" onClick={() => {
+                updateClub("departments", config.departments.filter((_, j) => j !== i));
+              }} className="p-1.5 text-gray-400 hover:text-red-500">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          ))}
+          <button
+            type="button"
+            onClick={() => updateClub("departments", [...config.departments, ""])}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-svu-600 bg-svu-50 rounded-lg hover:bg-svu-100 transition-colors"
+          >
+            <Plus className="w-3.5 h-3.5" /> Abteilung hinzufügen
+          </button>
+        </div>
+      </Section>
+
+      <Section title="Mitgliedsbeiträge">
+        <p className="text-xs text-gray-500 mb-2">Beitragsstruktur für die Beitragsberechnung und PDF-Anzeige.</p>
+        <div className="space-y-3">
+          {config.fees.map((fee, i) => (
+            <div key={i} className="flex items-start gap-2 p-3 bg-gray-50 rounded-lg border border-gray-200">
+              <div className="flex-1 grid grid-cols-1 sm:grid-cols-3 gap-2">
+                <input
+                  value={fee.label}
+                  onChange={(e) => {
+                    const updated = [...config.fees];
+                    updated[i] = { ...fee, label: e.target.value };
+                    updateClub("fees", updated);
+                  }}
+                  className="px-2 py-1.5 border border-gray-300 rounded text-sm outline-none focus:ring-1 focus:ring-svu-500"
+                  placeholder="Bezeichnung"
+                />
+                <input
+                  value={fee.betrag}
+                  onChange={(e) => {
+                    const updated = [...config.fees];
+                    updated[i] = { ...fee, betrag: e.target.value };
+                    updateClub("fees", updated);
+                  }}
+                  className="px-2 py-1.5 border border-gray-300 rounded text-sm outline-none focus:ring-1 focus:ring-svu-500"
+                  placeholder="Betrag (z.B. 54.00)"
+                />
+                <select
+                  value={fee.typ}
+                  onChange={(e) => {
+                    const updated = [...config.fees];
+                    updated[i] = { ...fee, typ: e.target.value };
+                    updateClub("fees", updated);
+                  }}
+                  className="px-2 py-1.5 border border-gray-300 rounded text-sm outline-none focus:ring-1 focus:ring-svu-500"
+                >
+                  <option value="erwachsener">Erwachsener</option>
+                  <option value="junger_erwachsener">Junger Erwachsener</option>
+                  <option value="jugendlich">Jugendlich</option>
+                  <option value="kind">Kind</option>
+                  <option value="familie">Familie</option>
+                </select>
+              </div>
+              <button type="button" onClick={() => {
+                updateClub("fees", config.fees.filter((_, j) => j !== i));
+              }} className="p-1.5 mt-0.5 text-gray-400 hover:text-red-500">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          ))}
+          <button
+            type="button"
+            onClick={() => updateClub("fees", [...config.fees, { typ: "erwachsener", betrag: "0.00", label: "", elternteil_mitglied: null }])}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-svu-600 bg-svu-50 rounded-lg hover:bg-svu-100 transition-colors"
+          >
+            <Plus className="w-3.5 h-3.5" /> Beitragskategorie hinzufügen
+          </button>
+        </div>
+      </Section>
+
+      <Section title="E-Mail & Branding">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <CField label="E-Mail-Betreff-Präfix" value={config.email_subject_prefix} onChange={(v) => updateClub("email_subject_prefix", v)} placeholder="Vereinsname" />
+          <CField label="Primärfarbe (Hex)" value={config.primary_color} onChange={(v) => updateClub("primary_color", v)} placeholder="#b91c1c" />
+          <CField label="Primärfarbe dunkel" value={config.primary_color_dark} onChange={(v) => updateClub("primary_color_dark", v)} placeholder="#991b1b" />
+          <CField label="Primärfarbe hell" value={config.primary_color_light} onChange={(v) => updateClub("primary_color_light", v)} placeholder="#dc2626" />
+        </div>
+      </Section>
+
+      {/* Save button */}
+      <div className="flex flex-col sm:flex-row gap-3">
+        <button
+          onClick={onSave}
+          disabled={saving}
+          className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium text-white bg-svu-600 rounded-lg hover:bg-svu-700 disabled:opacity-50 transition-colors"
+        >
+          {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+          Vereinsdaten speichern
+        </button>
+      </div>
+    </>
   );
 }
