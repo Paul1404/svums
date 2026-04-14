@@ -28,11 +28,13 @@ import {
   ChevronLeft,
   ChevronRight,
   CreditCard,
+  HelpCircle,
   Loader2,
   Maximize2,
   Pencil,
   Plus,
   RotateCcw,
+  Save,
   Send,
   Trash2,
   Upload,
@@ -180,6 +182,8 @@ export default function ApplicationForm() {
   const [_d] = useState(() => (testData ? null : loadDraft()));
 
   const [step, setStep] = useState<number>(_d?.step ?? 0);
+  const [slideDirection, setSlideDirection] = useState<"forward" | "backward">("forward");
+  const [completedStepPulse, setCompletedStepPulse] = useState<number | null>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState(false);
   const [consent, setConsent] = useState(false);
@@ -187,6 +191,8 @@ export default function ApplicationForm() {
   const [consentSatzung, setConsentSatzung] = useState(false);
   const [feeInfo, setFeeInfo] = useState<FeeResponse | null>(null);
   const [duplicateChecked, setDuplicateChecked] = useState(false);
+  const [duplicateWarning, setDuplicateWarning] = useState(false);
+  const [saveIndicator, setSaveIndicator] = useState<string | null>(_d ? "Entwurf wiederhergestellt" : null);
 
   // ---- Signature flow: "upload" (Option A, default) or "inline" (Option B)
   const [signatureMode, setSignatureMode] = useState<"upload" | "inline">(_d?.signatureMode ?? "upload");
@@ -329,6 +335,7 @@ export default function ApplicationForm() {
 
   // ---- SEPA
   const [kontoinhaber, setKontoinhaber] = useState(_src?.kontoinhaber ?? _d?.kontoinhaber ?? "");
+  const [kontoinhaberAutoFilled, setKontoinhaberAutoFilled] = useState(false);
   const [iban, setIban] = useState(_src?.iban ? formatIban(_src.iban) : (_d?.iban ?? ""));
   const [bic, setBic] = useState(_src?.bic ?? _d?.bic ?? "");
   const [kreditinstitut, setKreditinstitut] = useState(_src?.kreditinstitut ?? _d?.kreditinstitut ?? "");
@@ -376,6 +383,41 @@ export default function ApplicationForm() {
     { label: "SEPA-Lastschrift", icon: CreditCard },
     { label: "Zusammenfassung", icon: Send },
   ];
+
+  // ---- Live field validation (Feature 2: green checkmarks on valid fields)
+  const [touchedFields, setTouchedFields] = useState<Set<string>>(new Set());
+  const markTouched = useCallback((key: string) => {
+    setTouchedFields((prev) => {
+      if (prev.has(key)) return prev;
+      const next = new Set(prev);
+      next.add(key);
+      return next;
+    });
+  }, []);
+
+  // Compute field validity for currently visible fields
+  const fieldValidity = (() => {
+    const v: Record<string, boolean | null> = {};
+    const check = (key: string, valid: boolean) => {
+      v[key] = touchedFields.has(key) ? valid : null;
+    };
+    // Step 0 fields
+    check("vorname", vorname.trim().length >= 2 && NAME_REGEX.test(vorname.trim()));
+    check("nachname", nachname.trim().length >= 2 && NAME_REGEX.test(nachname.trim()));
+    check("geburtsdatum", !!geburtsdatum && new Date(geburtsdatum) < new Date() && calculateRealAge(geburtsdatum) <= 120);
+    if (antragstyp === "einzel" || antragstyp === "familie") {
+      check("email", /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email));
+    }
+    if (antragstyp === "kind") {
+      check("erzVorname", erzVorname.trim().length >= 2);
+      check("erzNachname", erzNachname.trim().length >= 2);
+      check("email", /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email));
+    }
+    // Step 1 fields
+    const cleanIban = iban.replace(/\s/g, "").toUpperCase();
+    check("iban", cleanIban.length >= 15 && cleanIban.length <= 34 && validateIbanChecksum(cleanIban));
+    return v;
+  })();
 
   // ---- Fee calculation
   useEffect(() => {
@@ -484,6 +526,7 @@ export default function ApplicationForm() {
   }, [iban]);
 
   // ---- Persist form state to sessionStorage (debounced)
+  const saveCountRef = useRef(0);
   useEffect(() => {
     const timer = setTimeout(() => {
       saveDraft({
@@ -496,6 +539,11 @@ export default function ApplicationForm() {
         capturedSigDataUrl: capturedSigDataUrl && capturedSigDataUrl.length < 500_000 ? capturedSigDataUrl : null,
         uploadedSignatureDataUrl: uploadedSignatureDataUrl && uploadedSignatureDataUrl.length < 500_000 ? uploadedSignatureDataUrl : null,
       });
+      // Show auto-save indicator (skip first save on mount)
+      saveCountRef.current++;
+      if (saveCountRef.current > 1) {
+        setSaveIndicator("Entwurf gespeichert");
+      }
     }, 500);
     return () => clearTimeout(timer);
   }, [
@@ -516,6 +564,37 @@ export default function ApplicationForm() {
     window.addEventListener("beforeunload", handler);
     return () => window.removeEventListener("beforeunload", handler);
   }, [vorname, nachname, geburtsdatum, email, iban]);
+
+  // Auto-clear save indicator after 2.5 seconds
+  useEffect(() => {
+    if (!saveIndicator) return;
+    const timer = setTimeout(() => setSaveIndicator(null), 2500);
+    return () => clearTimeout(timer);
+  }, [saveIndicator]);
+
+  // ---- Real-time duplicate check (debounced)
+  useEffect(() => {
+    if (!vorname.trim() || vorname.trim().length < 2) return;
+    if (!nachname.trim() || nachname.trim().length < 2) return;
+    if (!geburtsdatum) return;
+    const bd = new Date(geburtsdatum);
+    if (isNaN(bd.getTime()) || bd >= new Date()) return;
+
+    const timer = setTimeout(async () => {
+      try {
+        const result = await checkDuplicate(vorname, nachname, geburtsdatum);
+        if (result.duplicate) {
+          setDuplicateWarning(true);
+          setDuplicateChecked(true);
+        } else {
+          setDuplicateWarning(false);
+        }
+      } catch {
+        // Silently ignore errors — non-critical
+      }
+    }, 800);
+    return () => clearTimeout(timer);
+  }, [vorname, nachname, geburtsdatum]);
 
   // ---- Helpers
   const clearError = useCallback((key: string) => {
@@ -555,11 +634,18 @@ export default function ApplicationForm() {
 
   const addChild = useCallback(() => {
     setKinder((prev) => {
-      const newList = [...prev, emptyChild()];
+      const child = emptyChild();
+      // Smart auto-fill: pre-populate child's last name from applicant
+      if (nachname.trim()) child.nachname = nachname.trim();
+      const newList = [...prev, child];
       setExpandedChild(newList.length - 1); // auto-expand new child
+      // Auto-fill partner last name when first child is added
+      if (prev.length === 0 && nachname.trim()) {
+        setPartnerNachname((cur: string) => cur ? cur : nachname.trim());
+      }
       return newList;
     });
-  }, []);
+  }, [nachname]);
 
   const removeChild = useCallback((index: number) => {
     setKinder((prev) => prev.filter((_, i) => i !== index));
@@ -739,18 +825,37 @@ export default function ApplicationForm() {
     }
 
     setErrors(errs);
-    return Object.keys(errs).length === 0;
+    const keys = Object.keys(errs);
+    if (keys.length > 0) {
+      // Scroll to first error field and pulse-highlight it
+      setTimeout(() => {
+        const firstKey = keys[0];
+        const el = document.querySelector(`[data-field="${firstKey}"]`);
+        if (el) {
+          el.scrollIntoView({ behavior: "smooth", block: "center" });
+          el.classList.add("error-pulse");
+          setTimeout(() => el.classList.remove("error-pulse"), 1500);
+        }
+      }, 50);
+      const count = keys.length;
+      toast.error(`Bitte prüfen Sie ${count} markierte${count === 1 ? "s" : ""} Feld${count === 1 ? "" : "er"}.`);
+    }
+    return keys.length === 0;
   };
 
   // Central step navigation — always scrolls to top and clears errors.
   const goToStep = useCallback((target: number) => {
+    setSlideDirection(target > step ? "forward" : "backward");
     setStep(target);
     setErrors({});
     window.scrollTo({ top: 0, behavior: "smooth" });
-  }, []);
+  }, [step]);
 
   const nextStep = () => {
     if (validateStep(step)) {
+      // Trigger step completion pulse animation
+      setCompletedStepPulse(step);
+      setTimeout(() => setCompletedStepPulse(null), 700);
       captureEvent("membership_form_step_completed", {
         app_area: "public",
         step_index: step,
@@ -759,6 +864,14 @@ export default function ApplicationForm() {
         has_children: kinder.length > 0,
         signature_mode: signatureMode === "inline" ? "inline" : "paper_upload",
       });
+      // Auto-fill Kontoinhaber when moving to SEPA step
+      if (step === 0 && !kontoinhaber.trim()) {
+        const payer = antragstyp === "kind" ? `${erzVorname} ${erzNachname}`.trim() : `${vorname} ${nachname}`.trim();
+        if (payer) {
+          setKontoinhaber(payer);
+          setKontoinhaberAutoFilled(true);
+        }
+      }
       goToStep(Math.min(step + 1, STEPS.length - 1));
     }
   };
@@ -973,7 +1086,7 @@ export default function ApplicationForm() {
                         : isActive
                         ? "bg-svu-600 text-white ring-4 ring-svu-200"
                         : "bg-gray-200 text-gray-500"
-                    }`}
+                    } ${completedStepPulse === i ? "step-complete-pulse" : ""}`}
                   >
                     {isDone ? (
                       <CheckCircle2 className="w-5 h-5" />
@@ -1001,11 +1114,21 @@ export default function ApplicationForm() {
           })}
         </div>
 
+        {/* Auto-save indicator */}
+        <div className="h-5 mb-1 flex justify-end">
+          {saveIndicator && (
+            <span className="save-indicator-enter flex items-center gap-1 text-xs text-gray-400">
+              <Save className="w-3 h-3" />
+              {saveIndicator}
+            </span>
+          )}
+        </div>
+
         {/* Step Content */}
         <div className="glass-card shadow-sm p-6 sm:p-8">
           {/* ===================== STEP 0: MITGLIEDSDATEN ===================== */}
           {step === 0 && (
-            <div key="step-0" className="step-enter">
+            <div key={`step-0-${slideDirection}`} className={slideDirection === "forward" ? "step-enter-forward" : "step-enter-backward"}>
               <h2 className="text-xl font-semibold text-gray-900 mb-2">
                 Mitgliedsdaten
               </h2>
@@ -1044,14 +1167,27 @@ export default function ApplicationForm() {
 
               {/* Main person fields */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <Field label="Vorname *" error={errors.vorname} value={vorname}
+                <Field label="Vorname *" fieldKey="vorname" error={errors.vorname} value={vorname}
+                  valid={fieldValidity.vorname} onBlur={() => markTouched("vorname")}
                   onChange={(v) => { setVorname(v); clearError("vorname"); }} />
-                <Field label="Nachname *" error={errors.nachname} value={nachname}
+                <Field label="Nachname *" fieldKey="nachname" error={errors.nachname} value={nachname}
+                  valid={fieldValidity.nachname} onBlur={() => markTouched("nachname")}
                   onChange={(v) => { setNachname(v); clearError("nachname"); }} />
-                <Field label="Geburtsdatum *" type="date" error={errors.geburtsdatum}
+                <Field label="Geburtsdatum *" fieldKey="geburtsdatum" type="date" error={errors.geburtsdatum}
+                  valid={fieldValidity.geburtsdatum} onBlur={() => markTouched("geburtsdatum")}
                   value={geburtsdatum} onChange={(v) => { setGeburtsdatum(v); clearError("geburtsdatum"); }} />
                 <div />
               </div>
+
+              {/* Real-time duplicate warning */}
+              {duplicateWarning && (
+                <div className="flex items-start gap-2 p-3 bg-amber-50 border border-amber-200 rounded-lg mt-2 mb-2">
+                  <AlertCircle className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
+                  <p className="text-sm text-amber-800">
+                    Es scheint bereits ein Antrag mit diesem Namen und Geburtsdatum zu existieren. Sie können trotzdem fortfahren.
+                  </p>
+                </div>
+              )}
 
               <AbteilungenPicker
                 label="Abteilungen *"
@@ -1100,6 +1236,7 @@ export default function ApplicationForm() {
                       <div>
                         <Field
                           label="Telefon"
+                          fieldKey="telefon"
                           error={errors.telefon}
                           value={telefon}
                           onChange={(v) => { setTelefon(v); clearError("telefon"); }}
@@ -1120,7 +1257,8 @@ export default function ApplicationForm() {
                         </label>
                       </div>
                       <div>
-                        <Field label="E-Mail *" type="email" error={errors.email}
+                        <Field label="E-Mail *" fieldKey="email" type="email" error={errors.email}
+                          valid={fieldValidity.email} onBlur={() => markTouched("email")}
                           value={email} onChange={(v) => { setEmail(v); clearError("email"); }} />
                         <p className="text-xs text-gray-500 mt-1">
                           Wir benötigen Ihre E-Mail für die Bestätigung und Kommunikation zum Antrag.
@@ -1159,11 +1297,11 @@ export default function ApplicationForm() {
                             Die Familienmitgliedschaft gilt für 2 Erwachsene. Falls gewünscht, geben Sie hier die Daten des Partners an.
                           </p>
                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                            <Field label="Vorname" error={errors.partnerVorname} value={partnerVorname}
+                            <Field label="Vorname" fieldKey="partnerVorname" error={errors.partnerVorname} value={partnerVorname}
                               onChange={(v) => { setPartnerVorname(v); clearError("partnerVorname"); }} />
-                            <Field label="Nachname" error={errors.partnerNachname} value={partnerNachname}
+                            <Field label="Nachname" fieldKey="partnerNachname" error={errors.partnerNachname} value={partnerNachname}
                               onChange={(v) => { setPartnerNachname(v); clearError("partnerNachname"); }} />
-                            <Field label="Geburtsdatum" type="date" error={errors.partnerGeburtsdatum}
+                            <Field label="Geburtsdatum" fieldKey="partnerGeburtsdatum" type="date" error={errors.partnerGeburtsdatum}
                               value={partnerGeburtsdatum}
                               onChange={(v) => { setPartnerGeburtsdatum(v); clearError("partnerGeburtsdatum"); }} />
                             <div />
@@ -1389,9 +1527,11 @@ export default function ApplicationForm() {
                       onChange={(v) => { setGeschlecht(v); clearError("geschlecht"); }}
                     />
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-3">
-                      <Field label="Vorname *" error={errors.erzVorname} value={erzVorname}
+                      <Field label="Vorname *" fieldKey="erzVorname" error={errors.erzVorname} value={erzVorname}
+                        valid={fieldValidity.erzVorname} onBlur={() => markTouched("erzVorname")}
                         onChange={(v) => { setErzVorname(v); clearError("erzVorname"); }} />
-                      <Field label="Nachname *" error={errors.erzNachname} value={erzNachname}
+                      <Field label="Nachname *" fieldKey="erzNachname" error={errors.erzNachname} value={erzNachname}
+                        valid={fieldValidity.erzNachname} onBlur={() => markTouched("erzNachname")}
                         onChange={(v) => { setErzNachname(v); clearError("erzNachname"); }} />
                       <AddressFields
                         strasse={strasse} plz={plz} ort={ort}
@@ -1401,6 +1541,7 @@ export default function ApplicationForm() {
                       <div>
                         <Field
                           label="Telefon"
+                          fieldKey="telefon"
                           error={errors.telefon}
                           value={telefon}
                           onChange={(v) => { setTelefon(v); clearError("telefon"); }}
@@ -1421,7 +1562,8 @@ export default function ApplicationForm() {
                         </label>
                       </div>
                       <div>
-                        <Field label="E-Mail *" type="email" error={errors.email}
+                        <Field label="E-Mail *" fieldKey="email" type="email" error={errors.email}
+                          valid={fieldValidity.email} onBlur={() => markTouched("email")}
                           value={email} onChange={(v) => { setEmail(v); clearError("email"); }} />
                         <p className="text-xs text-gray-500 mt-1">
                           Wir benötigen Ihre E-Mail für die Bestätigung und Kommunikation zum Antrag.
@@ -1436,9 +1578,10 @@ export default function ApplicationForm() {
 
           {/* ===================== STEP 1: SEPA ===================== */}
           {step === 1 && (
-            <div key="step-1" className="step-enter">
+            <div key={`step-1-${slideDirection}`} className={slideDirection === "forward" ? "step-enter-forward" : "step-enter-backward"}>
               <h2 className="text-xl font-semibold text-gray-900 mb-2">
                 SEPA-Lastschriftmandat
+                <HelpTip text="Der Vereinsbeitrag wird einmal jährlich automatisch von Ihrem Konto abgebucht. Sie können das Mandat jederzeit widerrufen." />
               </h2>
               <p className="text-sm text-gray-500 mb-1">
                 Zahlungspflichtig:{" "}
@@ -1479,20 +1622,32 @@ export default function ApplicationForm() {
                 <Field
                   label="Kontoinhaber (falls abweichend)"
                   value={kontoinhaber}
-                  onChange={setKontoinhaber}
+                  onChange={(v) => { setKontoinhaber(v); setKontoinhaberAutoFilled(false); }}
                   placeholder={payerName}
                 />
-                <p className="text-xs text-gray-400 -mt-2 mb-2">Nur ausfüllen, wenn das Konto auf einen anderen Namen läuft.</p>
+                {kontoinhaberAutoFilled && kontoinhaber === payerName ? (
+                  <div className="flex items-center gap-1 -mt-2 mb-2">
+                    <CheckCircle2 className="w-3 h-3 text-green-600" />
+                    <span className="text-xs text-green-600">Kontoinhaber = Antragsteller</span>
+                  </div>
+                ) : (
+                  <p className="text-xs text-gray-400 -mt-2 mb-2">Nur ausfüllen, wenn das Konto auf einen anderen Namen läuft.</p>
+                )}
                 <div>
                   <Field
                     label="IBAN *"
+                    fieldKey="iban"
                     error={errors.iban}
+                    valid={fieldValidity.iban}
+                    onBlur={() => markTouched("iban")}
                     value={formatIban(iban)}
                     onChange={(v) => { setIban(v); clearError("iban"); }}
                     placeholder="DE__ ____ ____ ____ ____ __"
                     maxLength={42}
                     className="font-mono tracking-wider"
-                  />
+                  >
+                    <HelpTip text="Die IBAN finden Sie auf Ihrer Bankkarte oder im Online-Banking. Sie beginnt mit DE und hat 22 Stellen." />
+                  </Field>
                   {ibanLookup.loading && (
                     <div className="flex items-center gap-1.5 mt-1.5 text-xs text-gray-500">
                       <Loader2 className="w-3 h-3 animate-spin" />
@@ -1543,7 +1698,7 @@ export default function ApplicationForm() {
 
           {/* ===================== STEP 2: SUMMARY ===================== */}
           {step === 2 && (
-            <div key="step-2" className="step-enter">
+            <div key={`step-2-${slideDirection}`} className={slideDirection === "forward" ? "step-enter-forward" : "step-enter-backward"}>
               <h2 className="text-xl font-semibold text-gray-900 mb-2">
                 Zusammenfassung &amp; Unterschrift
               </h2>
@@ -1934,7 +2089,11 @@ export default function ApplicationForm() {
               <button type="button" onClick={nextStep}
                 className="flex items-center gap-2 px-5 py-2.5 text-sm font-medium text-white bg-svu-600 rounded-lg hover:bg-svu-700 transition-colors"
               >
-                Weiter <ChevronRight className="w-4 h-4" />
+                Weiter
+                <span className="hidden sm:inline text-white/70 font-normal ml-1">
+                  · {step === 0 ? "Bankdaten eingeben" : "Prüfen & Absenden"}
+                </span>
+                <ChevronRight className="w-4 h-4" />
               </button>
             ) : (
               <button type="button" onClick={handleSubmit}
@@ -2101,7 +2260,7 @@ function GeschlechtPicker({
   onChange: (v: "Herr" | "Frau" | "keine Angabe") => void;
 }) {
   return (
-    <div className="mb-4">
+    <div className="mb-4" data-field="geschlecht">
       <label className="block text-sm font-medium text-gray-700 mb-1">
         Anrede *
       </label>
@@ -2269,6 +2428,10 @@ function Field({
   maxLength,
   className = "",
   disabled = false,
+  fieldKey,
+  valid,
+  onBlur,
+  children: labelExtra,
 }: {
   label: string;
   value: string;
@@ -2279,28 +2442,68 @@ function Field({
   maxLength?: number;
   className?: string;
   disabled?: boolean;
+  fieldKey?: string;
+  valid?: boolean | null;
+  onBlur?: () => void;
+  children?: React.ReactNode;
 }) {
   return (
-    <div>
+    <div data-field={fieldKey}>
       <label className="block text-sm font-medium text-gray-700 mb-1">
-        {label}
+        {label}{labelExtra}
       </label>
-      <input
-        type={type}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder={placeholder}
-        maxLength={maxLength}
-        disabled={disabled}
-        className={`field-glow w-full px-3 py-2 border rounded-lg text-sm outline-none transition-all duration-200 ${
-          error ? "border-red-400 bg-red-50" : "border-gray-300"
-        } ${disabled ? "bg-gray-100 cursor-not-allowed" : ""} ${className}`}
-      />
+      <div className="relative">
+        <input
+          type={type}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          onBlur={onBlur}
+          placeholder={placeholder}
+          maxLength={maxLength}
+          disabled={disabled}
+          className={`field-glow w-full px-3 py-2 border rounded-lg text-sm outline-none transition-all duration-200 ${
+            error ? "border-red-400 bg-red-50" : valid === true ? "border-green-400" : "border-gray-300"
+          } ${disabled ? "bg-gray-100 cursor-not-allowed" : ""} ${valid === true ? "pr-8" : ""} ${className}`}
+        />
+        {valid === true && (
+          <CheckCircle2 className="check-fade-in absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-green-500" />
+        )}
+      </div>
       {error && <p className="text-red-600 text-xs mt-1">{error}</p>}
       {type === "date" && !error && !value && (
         <p className="text-gray-400 text-xs mt-1">Format: TT.MM.JJJJ</p>
       )}
     </div>
+  );
+}
+
+function HelpTip({ text }: { text: string }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLSpanElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [open]);
+
+  return (
+    <span ref={ref} className="relative inline-flex ml-1 align-middle">
+      <button type="button" onClick={() => setOpen(!open)}
+        className="text-gray-400 hover:text-svu-600 transition-colors focus:outline-none"
+        aria-label="Hilfe"
+      >
+        <HelpCircle className="w-3.5 h-3.5" />
+      </button>
+      {open && (
+        <span className="help-tooltip absolute left-1/2 -translate-x-1/2 top-full mt-1.5 z-50 w-64 p-3 text-xs text-gray-700 bg-svu-50 border border-svu-200 rounded-lg shadow-lg leading-relaxed">
+          {text}
+        </span>
+      )}
+    </span>
   );
 }
 
