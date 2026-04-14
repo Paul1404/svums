@@ -10,6 +10,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
+from sqlalchemy import text
+
 from app.config import get_settings
 from app.database import Base, SessionLocal, engine, wait_for_db
 from app.logging_config import setup_logging
@@ -89,47 +91,47 @@ async def lifespan(app: FastAPI):
     if not _get_cfg().database_url.startswith("sqlite"):
         try:
             with engine.begin() as conn:
-                conn.execute(__import__("sqlalchemy").text(
+                conn.execute(text(
                     "ALTER TABLE membership_applications "
                     "ALTER COLUMN iban TYPE VARCHAR(500)"
                 ))
-                conn.execute(__import__("sqlalchemy").text(
+                conn.execute(text(
                     "ALTER TABLE app_settings "
                     "ADD COLUMN IF NOT EXISTS admin_signature_base64 TEXT"
                 ))
-                conn.execute(__import__("sqlalchemy").text(
+                conn.execute(text(
                     "ALTER TABLE app_settings "
                     "ADD COLUMN IF NOT EXISTS club_config TEXT"
                 ))
-                conn.execute(__import__("sqlalchemy").text(
+                conn.execute(text(
                     "ALTER TABLE membership_applications "
                     "ADD COLUMN IF NOT EXISTS admin_decline_reason TEXT"
                 ))
-                conn.execute(__import__("sqlalchemy").text(
+                conn.execute(text(
                     "ALTER TABLE membership_applications "
                     "ADD COLUMN IF NOT EXISTS admin_approved_file VARCHAR(500)"
                 ))
-                conn.execute(__import__("sqlalchemy").text(
+                conn.execute(text(
                     "ALTER TABLE membership_applications "
                     "ADD COLUMN IF NOT EXISTS mitgliedsnummer VARCHAR(500)"
                 ))
-                conn.execute(__import__("sqlalchemy").text(
+                conn.execute(text(
                     "ALTER TABLE membership_applications "
                     "ALTER COLUMN mitgliedsnummer TYPE VARCHAR(500)"
                 ))
-                conn.execute(__import__("sqlalchemy").text(
+                conn.execute(text(
                     "ALTER TABLE membership_applications "
                     "ADD COLUMN IF NOT EXISTS datenschutz_accepted BOOLEAN"
                 ))
-                conn.execute(__import__("sqlalchemy").text(
+                conn.execute(text(
                     "ALTER TABLE membership_applications "
                     "ADD COLUMN IF NOT EXISTS satzung_accepted BOOLEAN"
                 ))
-                conn.execute(__import__("sqlalchemy").text(
+                conn.execute(text(
                     "ALTER TABLE membership_applications "
                     "ADD COLUMN IF NOT EXISTS consent_ip VARCHAR(45)"
                 ))
-                conn.execute(__import__("sqlalchemy").text(
+                conn.execute(text(
                     "ALTER TABLE membership_applications "
                     "ADD COLUMN IF NOT EXISTS is_test BOOLEAN DEFAULT FALSE"
                 ))
@@ -301,8 +303,8 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins.split(","),
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PATCH", "PUT", "DELETE", "OPTIONS"],
+    allow_headers=["Content-Type", "X-CSRF-Token"],
 )
 
 # --- Routes ---

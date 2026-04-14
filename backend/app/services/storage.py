@@ -52,8 +52,8 @@ def delete_file(filename: str) -> None:
     try:
         _client().delete_object(Bucket=BUCKET, Key=filename)
         logger.debug(f"Deleted {filename} from storage")
-    except ClientError:
-        pass
+    except ClientError as e:
+        logger.warning("Failed to delete %s from storage: %s", filename, e)
 
 
 def file_exists(filename: str) -> bool:

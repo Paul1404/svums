@@ -10,7 +10,7 @@ from urllib.parse import quote
 from app.services.posthog import capture as posthog_capture, get_admin_distinct_id
 from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, Request, Response, UploadFile
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 from itsdangerous import URLSafeTimedSerializer, BadSignature, SignatureExpired
@@ -964,18 +964,17 @@ async def admin_upload_document(
     if not app:
         raise HTTPException(status_code=404, detail="Antrag nicht gefunden")
 
-    ALLOWED_EXTENSIONS = {".pdf", ".jpg", ".jpeg", ".png", ".heic", ".heif"}
-    MAX_FILE_SIZE = 20 * 1024 * 1024  # 20 MB
+    from app.constants import ALLOWED_UPLOAD_EXTENSIONS, MAX_UPLOAD_FILE_SIZE
 
     ext = Path(file.filename).suffix.lower() if file.filename else ""
-    if ext not in ALLOWED_EXTENSIONS:
+    if ext not in ALLOWED_UPLOAD_EXTENSIONS:
         raise HTTPException(
             status_code=400,
-            detail=f"Nicht erlaubtes Dateiformat. Erlaubt: {', '.join(ALLOWED_EXTENSIONS)}"
+            detail=f"Nicht erlaubtes Dateiformat. Erlaubt: {', '.join(ALLOWED_UPLOAD_EXTENSIONS)}"
         )
 
     contents = await file.read()
-    if len(contents) > MAX_FILE_SIZE:
+    if len(contents) > MAX_UPLOAD_FILE_SIZE:
         raise HTTPException(status_code=400, detail="Datei zu groß (max. 20 MB)")
     if len(contents) == 0:
         raise HTTPException(status_code=400, detail="Leere Datei")
@@ -1448,7 +1447,7 @@ async def cancellation_pdf(
         "mitgliedsnummer": data.mitgliedsnummer or "",
         "abteilung": data.abteilung or "",
         "austritt_datum": data.austritt_datum,
-        "datum": datetime.now().strftime("%d.%m.%Y"),
+        "datum": datetime.utcnow().strftime("%d.%m.%Y"),
         "unterschrift_base64": effective_signature,
         "is_family": data.is_family,
         "familienmitglieder": [fm.model_dump() for fm in data.familienmitglieder],
@@ -1605,8 +1604,7 @@ class EmailLogResponse(BaseModel):
     vorname: str | None
     nachname: str | None
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 @router.get("/email-logs", response_model=list[EmailLogResponse])
