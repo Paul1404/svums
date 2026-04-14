@@ -1,10 +1,8 @@
 import { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { toast } from "sonner";
-import SignatureCanvasType from "react-signature-canvas";
-const SignatureCanvas: typeof SignatureCanvasType = typeof SignatureCanvasType === "function"
-  ? SignatureCanvasType
-  : (SignatureCanvasType as unknown as { default: typeof SignatureCanvasType }).default;
+import SignatureCanvas from "../lib/SignatureCanvas";
+import type { SignatureCanvasType } from "../lib/SignatureCanvas";
 import {
   getApplication,
   updateApplication,

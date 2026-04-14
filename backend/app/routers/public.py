@@ -459,8 +459,8 @@ async def lookup_iban(iban: str):
                 pass
         except Exception:
             pass
-    except Exception:
-        pass
+    except Exception as e:
+        logger.debug("IBAN lookup failed for input %r: %s", cleaned, e)
     return result
 
 
@@ -481,7 +481,8 @@ async def client_config(db: Session = Depends(get_db)):
     posthog_enabled = bool(env.posthog_key)
 
     app_settings = db.query(AppSettings).filter(AppSettings.id == 1).first()
-    club = app_settings.get_club_config() if app_settings else __import__("app.schemas.club_config", fromlist=["ClubConfig"]).ClubConfig()
+    from app.schemas.club_config import ClubConfig
+    club = app_settings.get_club_config() if app_settings else ClubConfig()
 
     return {
         "posthog_enabled": posthog_enabled,
@@ -525,8 +526,31 @@ async def check_duplicate(
 
 # --- Upload signed document ---
 
-ALLOWED_EXTENSIONS = {".pdf", ".jpg", ".jpeg", ".png", ".heic", ".heif"}
-MAX_FILE_SIZE = 20 * 1024 * 1024  # 20 MB
+from app.constants import ALLOWED_UPLOAD_EXTENSIONS, MAX_UPLOAD_FILE_SIZE
+
+
+def _check_upload_expiry(app: MembershipApplication) -> None:
+    """Raise HTTP 410 if the upload link has expired (30 days)."""
+    if not app.created_at:
+        return
+    days_since = (datetime.utcnow() - app.created_at).days
+    if days_since > 30:
+        posthog_capture(
+            "membership_upload_link_expired",
+            app.antragsnummer or "public",
+            properties={
+                "app_area": "public",
+                "source": "backend",
+                "application_id": app.id,
+                "antragsnummer": app.antragsnummer,
+                "days_since_submission": days_since,
+                "reason": "expired_link",
+            },
+        )
+        raise HTTPException(
+            status_code=410,
+            detail="Der Upload-Link ist abgelaufen (30 Tage). Bitte kontaktieren Sie den Verein."
+        )
 
 
 @router.get("/upload/{token}")
@@ -543,26 +567,7 @@ async def get_upload_info(token: str, db: Session = Depends(get_db)):
         )
         raise HTTPException(status_code=404, detail="Ungültiger Upload-Link")
 
-    # Check 30-day expiry
-    if app.created_at:
-        days_since = (datetime.utcnow() - app.created_at).days
-        if days_since > 30:
-            posthog_capture(
-                "membership_upload_link_expired",
-                app.antragsnummer or "public",
-                properties={
-                    "app_area": "public",
-                    "source": "backend",
-                    "application_id": app.id,
-                    "antragsnummer": app.antragsnummer,
-                    "days_since_submission": days_since,
-                    "reason": "expired_link",
-                },
-            )
-            raise HTTPException(
-                status_code=410,
-                detail="Der Upload-Link ist abgelaufen (30 Tage). Bitte kontaktieren Sie den Verein."
-            )
+    _check_upload_expiry(app)
 
     return {
         "antragsnummer": app.antragsnummer,
@@ -592,38 +597,19 @@ async def upload_signed_document(
         )
         raise HTTPException(status_code=404, detail="Ungültiger Upload-Link")
 
-    # Check 30-day expiry
-    if app.created_at:
-        days_since = (datetime.utcnow() - app.created_at).days
-        if days_since > 30:
-            posthog_capture(
-                "membership_upload_link_expired",
-                app.antragsnummer or "public",
-                properties={
-                    "app_area": "public",
-                    "source": "backend",
-                    "application_id": app.id,
-                    "antragsnummer": app.antragsnummer,
-                    "days_since_submission": days_since,
-                    "reason": "expired_link",
-                },
-            )
-            raise HTTPException(
-                status_code=410,
-                detail="Der Upload-Link ist abgelaufen (30 Tage). Bitte kontaktieren Sie den Verein."
-            )
+    _check_upload_expiry(app)
 
     # Validate file extension
     ext = Path(file.filename).suffix.lower() if file.filename else ""
-    if ext not in ALLOWED_EXTENSIONS:
+    if ext not in ALLOWED_UPLOAD_EXTENSIONS:
         raise HTTPException(
             status_code=400,
-            detail=f"Nicht erlaubtes Dateiformat. Erlaubt: {', '.join(ALLOWED_EXTENSIONS)}"
+            detail=f"Nicht erlaubtes Dateiformat. Erlaubt: {', '.join(ALLOWED_UPLOAD_EXTENSIONS)}"
         )
 
     # Read and validate size
     contents = await file.read()
-    if len(contents) > MAX_FILE_SIZE:
+    if len(contents) > MAX_UPLOAD_FILE_SIZE:
         raise HTTPException(status_code=400, detail="Datei zu groß (max. 20 MB)")
     if len(contents) == 0:
         raise HTTPException(status_code=400, detail="Leere Datei")

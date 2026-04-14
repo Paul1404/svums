@@ -2,12 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { toast } from "sonner";
 import { ArrowLeft, Download, FileText, Loader2, PenLine, Plus, Trash2, Upload, Users } from "lucide-react";
-import SignatureCanvasType from "react-signature-canvas";
-// CJS interop: Vite 8/Rolldown may wrap the CJS module so the default import
-// is a namespace object { default: Component } instead of the component itself.
-const SignatureCanvas: typeof SignatureCanvasType = typeof SignatureCanvasType === "function"
-  ? SignatureCanvasType
-  : (SignatureCanvasType as unknown as { default: typeof SignatureCanvasType }).default;
+import SignatureCanvas from "../lib/SignatureCanvas";
+import type { SignatureCanvasType } from "../lib/SignatureCanvas";
 import { extractApiError, getCsrfToken, getCsrfTokenFromCookie, getSettings, updateSettings } from "../services/api";
 import { getAdminDistinctIdHeader } from "../lib/analytics";
 
