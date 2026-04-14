@@ -1,10 +1,45 @@
 import { useLocation, useNavigate, Link } from "react-router-dom";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { CheckCircle2, ArrowLeft, Printer, Mail, Upload, Copy } from "lucide-react";
+import { CheckCircle2, ArrowLeft, Clock, Mail, Upload, Copy } from "lucide-react";
 import { formatFee } from "../services/api";
 import { captureEvent, identifyApplicant } from "../lib/analytics";
 import { useClubConfig } from "../context/ClubConfigContext";
+
+const CONFETTI_COLORS = ["#b91c1c", "#dc2626", "#f87171", "#f59e0b", "#22c55e", "#ffffff"];
+
+function Confetti() {
+  const [visible, setVisible] = useState(true);
+  const prefersReducedMotion = typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  useEffect(() => {
+    const timer = setTimeout(() => setVisible(false), 3500);
+    return () => clearTimeout(timer);
+  }, []);
+
+  if (!visible || prefersReducedMotion) return null;
+
+  return (
+    <div aria-hidden="true" className="pointer-events-none fixed inset-0 z-50 overflow-hidden">
+      {Array.from({ length: 30 }).map((_, i) => (
+        <div
+          key={i}
+          className="confetti-piece"
+          style={{
+            left: `${Math.random() * 100}%`,
+            backgroundColor: CONFETTI_COLORS[i % CONFETTI_COLORS.length],
+            width: `${6 + Math.random() * 8}px`,
+            height: `${6 + Math.random() * 8}px`,
+            borderRadius: Math.random() > 0.5 ? "50%" : "2px",
+            "--confetti-delay": `${Math.random() * 0.8}s`,
+            "--confetti-duration": `${2 + Math.random() * 1.5}s`,
+            "--confetti-rotation": `${360 + Math.random() * 720}deg`,
+          } as React.CSSProperties}
+        />
+      ))}
+    </div>
+  );
+}
 
 export default function Success() {
   const location = useLocation();
@@ -49,6 +84,7 @@ export default function Success() {
 
   return (
     <div className="min-h-screen bg-gray-50">
+      <Confetti />
       <header className="bg-svu-600 text-white shadow-lg">
         <div className="max-w-3xl mx-auto px-4 py-5 flex items-center gap-4">
           <img
@@ -127,56 +163,50 @@ export default function Success() {
             </div>
           )}
 
-          {/* Next steps box — differs by flow */}
-          {state.signedOnline ? (
-            <div className="bg-green-50 border border-green-300 rounded-lg p-5 text-left mb-6">
-              <h3 className="font-semibold text-green-900 mb-3 text-sm flex items-center gap-2">
-                <CheckCircle2 className="w-4 h-4 text-green-600" />
-                Antrag digital unterzeichnet – alles erledigt!
-              </h3>
-              <p className="text-sm text-green-800">
-                Ihre Beitrittserklärung wurde mit Ihrer digitalen Unterschrift eingereicht und wird zeitnah bearbeitet.
-                Sie erhalten eine Bestätigung mit dem unterzeichneten Dokument per E-Mail an{" "}
-                <strong>{state.form?.email}</strong>.
-              </p>
+          {/* Next steps timeline */}
+          <div className="bg-gray-50 rounded-lg p-5 text-left mb-6">
+            <h3 className="font-semibold text-gray-900 mb-4 text-sm">So geht es weiter:</h3>
+            <div className="space-y-0">
+              {/* Step 1: Email confirmation - always done */}
+              <TimelineStep
+                icon={<Mail className="w-4 h-4" />}
+                title="Bestätigung per E-Mail"
+                subtitle={`An ${state.form?.email}`}
+                time="In wenigen Minuten"
+                done
+                last={false}
+              />
+              {/* Step 2: Document signing */}
+              <TimelineStep
+                icon={<Upload className="w-4 h-4" />}
+                title="Dokument unterschreiben & hochladen"
+                subtitle={state.signedOnline
+                  ? "Digital unterschrieben"
+                  : "PDF drucken, unterschreiben, als Scan hochladen"}
+                time={state.signedOnline ? "Erledigt!" : "Innerhalb von 30 Tagen"}
+                done={!!state.signedOnline}
+                last={false}
+              />
+              {/* Step 3: Processing */}
+              <TimelineStep
+                icon={<Clock className="w-4 h-4" />}
+                title="Bearbeitung durch den Verein"
+                subtitle="Ihr Antrag wird geprüft und bestätigt"
+                time="Wenige Werktage"
+                done={false}
+                last
+              />
             </div>
-          ) : (
-            <>
-              <div className="bg-amber-50 border border-amber-300 rounded-lg p-5 text-left mb-6">
-                <h3 className="font-semibold text-amber-900 mb-3 text-sm">So geht es weiter:</h3>
-                <ol className="text-sm text-amber-800 space-y-2 list-decimal list-inside">
-                  <li className="flex items-start gap-2">
-                    <Printer className="w-4 h-4 mt-0.5 flex-shrink-0 text-amber-600" />
-                    <span>Sie erhalten die Beitrittserklärung als PDF per E-Mail an <strong>{state.form?.email}</strong>.</span>
-                  </li>
-                  <li className="flex items-start gap-2">
-                    <span className="w-4 h-4 mt-0.5 flex-shrink-0 text-amber-600 font-bold text-center">✍</span>
-                    <span>Bitte <strong>drucken</strong> Sie das PDF aus und <strong>unterschreiben</strong> Sie es (bei Minderjährigen: Erziehungsberechtigte/r).</span>
-                  </li>
-                  <li className="flex items-start gap-2">
-                    <Upload className="w-4 h-4 mt-0.5 flex-shrink-0 text-amber-600" />
-                    <span>Laden Sie das unterschriebene Dokument als Scan oder Foto über den Upload-Link hoch (Link auch in der E-Mail).</span>
-                  </li>
-                </ol>
-              </div>
+          </div>
 
-              {state.upload_url && (
-                <a
-                  href={state.upload_url}
-                  className="block w-full mb-6 py-3 px-4 bg-svu-600 text-white font-medium rounded-lg hover:bg-svu-700 transition-colors text-center flex items-center justify-center gap-2"
-                >
-                  <Upload className="w-4 h-4" />
-                  Unterschriebenes Dokument jetzt hochladen
-                </a>
-              )}
-            </>
-          )}
-
-          {!state.signedOnline && (
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-sm text-blue-800 mb-6">
-              Eine Bestätigung mit Ihrer Beitrittserklärung als PDF wird per E-Mail an{" "}
-              <strong>{state.form?.email}</strong> gesendet.
-            </div>
+          {!state.signedOnline && state.upload_url && (
+            <a
+              href={state.upload_url}
+              className="block w-full mb-6 py-3 px-4 bg-svu-600 text-white font-medium rounded-lg hover:bg-svu-700 transition-colors text-center flex items-center justify-center gap-2"
+            >
+              <Upload className="w-4 h-4" />
+              Unterschriebenes Dokument jetzt hochladen
+            </a>
           )}
 
           {state.antragsnummer && (
@@ -234,6 +264,50 @@ export default function Success() {
             </a>
           </p>
         </footer>
+      </div>
+    </div>
+  );
+}
+
+function TimelineStep({
+  icon,
+  title,
+  subtitle,
+  time,
+  done,
+  last,
+}: {
+  icon: React.ReactNode;
+  title: string;
+  subtitle: string;
+  time: string;
+  done: boolean;
+  last: boolean;
+}) {
+  return (
+    <div className="flex gap-3">
+      <div className="flex flex-col items-center">
+        <div
+          className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 border-2 ${
+            done
+              ? "bg-green-500 border-green-500 text-white"
+              : "bg-gray-100 border-gray-300 text-gray-400"
+          }`}
+        >
+          {done ? <CheckCircle2 className="w-4 h-4" /> : icon}
+        </div>
+        {!last && (
+          <div className={`w-0.5 flex-1 min-h-[24px] ${done ? "bg-green-300" : "bg-gray-200"}`} />
+        )}
+      </div>
+      <div className={`pb-4 ${last ? "pb-0" : ""}`}>
+        <h4 className={`font-semibold text-sm ${done ? "text-green-700" : "text-gray-700"}`}>
+          {title}
+        </h4>
+        <p className="text-xs text-gray-500 mt-0.5">{subtitle}</p>
+        <span className={`text-xs font-medium mt-1 inline-block ${done ? "text-green-600" : "text-svu-600"}`}>
+          {time}
+        </span>
       </div>
     </div>
   );
