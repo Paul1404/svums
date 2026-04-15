@@ -1,10 +1,8 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
-import SignatureCanvasType from "react-signature-canvas";
-const SignatureCanvas: typeof SignatureCanvasType = typeof SignatureCanvasType === "function"
-  ? SignatureCanvasType
-  : (SignatureCanvasType as unknown as { default: typeof SignatureCanvasType }).default;
+import SignatureCanvas from "../lib/SignatureCanvas";
+import type { SignatureCanvasType } from "../lib/SignatureCanvas";
 import {
   ApiError,
   submitApplication,
@@ -21,6 +19,7 @@ import {
   normalizeFailureReason,
 } from "../lib/analytics";
 import { useClubConfig } from "../context/ClubConfigContext";
+import { validatePhone } from "../lib/utils";
 import {
   AlertCircle,
   CheckCircle2,
@@ -698,15 +697,8 @@ export default function ApplicationForm() {
         if (!email.trim()) errs.email = "E-Mail ist erforderlich";
         else if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email))
           errs.email = "Ungültige E-Mail-Adresse";
-        if (!telefonOptOut) {
-          if (!telefon.trim())
-            errs.telefon = "Bitte geben Sie eine Telefonnummer an oder wählen Sie „Ich möchte keine angeben“.";
-          else {
-            const cp = telefon.replace(/[\s\-/()]/g, "");
-            if (!/^\+?\d{6,15}$/.test(cp))
-              errs.telefon = "Ungültige Telefonnummer";
-          }
-        }
+        const phoneErr = validatePhone(telefon, telefonOptOut);
+        if (phoneErr) errs.telefon = phoneErr;
       }
 
       if (antragstyp === "kind") {
@@ -729,15 +721,8 @@ export default function ApplicationForm() {
         if (!email.trim()) errs.email = "E-Mail ist erforderlich";
         else if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email))
           errs.email = "Ungültige E-Mail-Adresse";
-        if (!telefonOptOut) {
-          if (!telefon.trim())
-            errs.telefon = "Bitte geben Sie eine Telefonnummer an oder wählen Sie „Ich möchte keine angeben“.";
-          else {
-            const cp = telefon.replace(/[\s\-/()]/g, "");
-            if (!/^\+?\d{6,15}$/.test(cp))
-              errs.telefon = "Ungültige Telefonnummer";
-          }
-        }
+        const phoneErr2 = validatePhone(telefon, telefonOptOut);
+        if (phoneErr2) errs.telefon = phoneErr2;
       }
 
       // Adult with children: validate children data AND require a partner.
