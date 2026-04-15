@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from "react";
+import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
 
 export interface FeeEntry {
   typ: string;
@@ -39,13 +39,52 @@ const ClubConfigContext = createContext<ClubConfig | null>(null);
 
 export function ClubConfigProvider({ children }: { children: React.ReactNode }) {
   const [config, setConfig] = useState<ClubConfig | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const loadConfig = useCallback(() => {
+    setError(null);
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 10000);
+
+    fetch("/api/club-config", { signal: controller.signal })
+      .then((r) => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return r.json();
+      })
+      .then((data) => setConfig(data))
+      .catch((err) => {
+        if (err.name === "AbortError") {
+          setError("Zeitüberschreitung beim Laden der Konfiguration.");
+        } else {
+          setError("Konfiguration konnte nicht geladen werden.");
+        }
+        console.error("Failed to load club config:", err);
+      })
+      .finally(() => clearTimeout(timeout));
+
+    return () => {
+      clearTimeout(timeout);
+      controller.abort();
+    };
+  }, []);
 
   useEffect(() => {
-    fetch("/api/club-config")
-      .then((r) => r.json())
-      .then((data) => setConfig(data))
-      .catch((err) => console.error("Failed to load club config:", err));
-  }, []);
+    return loadConfig();
+  }, [loadConfig]);
+
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen gap-4">
+        <p className="text-red-600">{error}</p>
+        <button
+          onClick={loadConfig}
+          className="px-4 py-2 bg-gray-200 rounded hover:bg-gray-300"
+        >
+          Erneut versuchen
+        </button>
+      </div>
+    );
+  }
 
   if (!config) {
     return (
