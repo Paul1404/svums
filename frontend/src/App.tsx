@@ -15,6 +15,8 @@ import AdminEmailLog from "./pages/AdminEmailLog";
 import AdminDocuments from "./pages/AdminDocuments";
 import { AdminProvider, useAdmin } from "./context/AdminContext";
 import { ClubConfigProvider } from "./context/ClubConfigContext";
+import { ThemeProvider } from "./context/ThemeContext";
+import ThemeToggle from "./components/ThemeToggle";
 import { capturePageView } from "./lib/analytics";
 
 function AdminRoute({ children }: { children: React.ReactNode }) {
@@ -162,19 +164,22 @@ function RouteAnalytics() {
 
 export default function App() {
   return (
-    <ClubConfigProvider>
-      <BrowserRouter>
-        <RouteAnalytics />
-        <Toaster position="top-right" richColors />
-        <Routes>
-          <Route path="/" element={<ApplicationForm />} />
-          <Route path="/erfolg" element={<Success />} />
-          <Route path="/upload/:token" element={<UploadPage />} />
-          <Route path="/status" element={<StatusPage />} />
-          <Route path="/admin/*" element={<AdminRoutes />} />
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
-      </BrowserRouter>
-    </ClubConfigProvider>
+    <ThemeProvider>
+      <ClubConfigProvider>
+        <BrowserRouter>
+          <RouteAnalytics />
+          <Toaster position="top-right" richColors theme="system" />
+          <ThemeToggle floating />
+          <Routes>
+            <Route path="/" element={<ApplicationForm />} />
+            <Route path="/erfolg" element={<Success />} />
+            <Route path="/upload/:token" element={<UploadPage />} />
+            <Route path="/status" element={<StatusPage />} />
+            <Route path="/admin/*" element={<AdminRoutes />} />
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
+        </BrowserRouter>
+      </ClubConfigProvider>
+    </ThemeProvider>
   );
 }

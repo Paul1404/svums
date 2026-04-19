@@ -32,21 +32,21 @@ export default function AdminLogin() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-      <div className="w-full max-w-sm">
+    <div className="min-h-screen flex items-center justify-center px-4">
+      <div className="w-full max-w-sm step-enter">
         <div className="text-center mb-8">
-          <div className="w-16 h-16 bg-svu-600 rounded-full flex items-center justify-center mx-auto mb-4">
-            <Lock className="w-8 h-8 text-white" />
+          <div className="w-16 h-16 brand-gradient-bg rounded-2xl flex items-center justify-center mx-auto mb-4 btn-primary-glow">
+            <Lock className="w-8 h-8 text-white drop-shadow" />
           </div>
-          <h1 className="text-xl font-bold text-gray-900">{club.club_abbreviation} Admin</h1>
-          <p className="text-sm text-gray-500 mt-1">
-            {club.club_name}
-          </p>
+          <h1 className="text-2xl font-bold brand-gradient-text tracking-tight">
+            {club.club_abbreviation} Admin
+          </h1>
+          <p className="text-sm text-gray-500 mt-1">{club.club_name}</p>
         </div>
 
         <form
           onSubmit={handleSubmit}
-          className="bg-white rounded-xl shadow-sm border p-6"
+          className="glass-card shine p-6"
         >
           <label className="block text-sm font-medium text-gray-700 mb-2">
             Passwort
@@ -56,13 +56,13 @@ export default function AdminLogin() {
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             autoFocus
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-svu-500 focus:border-svu-500 outline-none"
+            className="field-glow w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm outline-none transition bg-white"
             placeholder="Admin-Passwort eingeben"
           />
           <button
             type="submit"
             disabled={loading}
-            className="w-full mt-4 flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium text-white bg-svu-600 rounded-lg hover:bg-svu-700 disabled:opacity-50 transition-colors"
+            className="btn-spring btn-primary-glow w-full mt-5 flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-semibold text-white brand-gradient-bg rounded-lg"
           >
             <LogIn className="w-4 h-4" />
             {loading ? "Wird angemeldet..." : "Anmelden"}
