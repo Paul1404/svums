@@ -15,7 +15,7 @@ export COOKIE_SECURE=false
 export CORS_ORIGINS=http://localhost:5173
 export PUBLIC_BASE_URL=http://localhost:5173
 
-.PHONY: help setup test backend frontend build lint clean
+.PHONY: help setup test smoke backend frontend build lint clean
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | \
@@ -29,6 +29,9 @@ test: ## Run backend tests
 
 test-v: ## Run backend tests (verbose)
 	cd $(BACKEND_DIR) && $(PYTHON) -m pytest -v $(ARGS)
+
+smoke: ## Run the end-to-end smoke test (no browser needed)
+	$(BACKEND_DIR)/$(VENV)/bin/python scripts/smoke.py $(ARGS)
 
 backend: ## Start backend dev server (port 8000)
 	cd $(BACKEND_DIR) && $(PYTHON) -m uvicorn app.main:app --reload --port 8000

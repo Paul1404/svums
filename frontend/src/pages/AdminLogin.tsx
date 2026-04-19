@@ -1,8 +1,9 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { useAdmin } from "../context/AdminContext";
 import { useClubConfig } from "../context/ClubConfigContext";
+import { errorMessage } from "../lib/utils";
 import { Lock, LogIn } from "lucide-react";
 
 export default function AdminLogin() {
@@ -12,10 +13,14 @@ export default function AdminLogin() {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
 
-  if (isAuthenticated) {
-    navigate("/admin", { replace: true });
-    return null;
-  }
+  // Redirect in an effect — calling navigate() during render triggers a
+  // React warning ("Cannot update a component while rendering a different
+  // component") and can cause double-renders on fast refresh.
+  useEffect(() => {
+    if (isAuthenticated) navigate("/admin", { replace: true });
+  }, [isAuthenticated, navigate]);
+
+  if (isAuthenticated) return null;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -24,8 +29,8 @@ export default function AdminLogin() {
     try {
       await login(password);
       navigate("/admin", { replace: true });
-    } catch (err: any) {
-      toast.error(err.message || "Falsches Passwort");
+    } catch (err) {
+      toast.error(errorMessage(err, "Falsches Passwort"));
     } finally {
       setLoading(false);
     }
@@ -56,6 +61,8 @@ export default function AdminLogin() {
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             autoFocus
+            autoComplete="current-password"
+            aria-label="Admin-Passwort"
             className="field-glow w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm outline-none transition bg-white"
             placeholder="Admin-Passwort eingeben"
           />
