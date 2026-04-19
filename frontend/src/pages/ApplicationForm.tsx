@@ -1021,18 +1021,19 @@ export default function ApplicationForm() {
       : `${vorname} ${nachname}`.trim();
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen">
       {/* Header */}
-      <header className="bg-svu-600 text-white shadow-lg">
-        <div className="max-w-3xl mx-auto px-4 py-5 flex items-center gap-4">
+      <header className="brand-gradient-bg text-white shadow-lg relative overflow-hidden">
+        <div className="absolute inset-0 pointer-events-none bg-[radial-gradient(ellipse_at_top_left,rgba(255,255,255,0.25),transparent_60%)]" />
+        <div className="max-w-3xl mx-auto px-4 py-5 flex items-center gap-4 relative">
           <img
             src="/logo_svu-241x300.png"
             alt={club.club_name}
             className="h-14 w-auto drop-shadow-md"
           />
           <div>
-            <h1 className="text-2xl font-bold">{club.club_name}</h1>
-            <p className="text-svu-200 mt-0.5 text-sm">Online Beitrittserklärung</p>
+            <h1 className="text-2xl font-bold tracking-tight">{club.club_name}</h1>
+            <p className="text-white/80 mt-0.5 text-sm">Online Beitrittserklärung</p>
           </div>
         </div>
       </header>
