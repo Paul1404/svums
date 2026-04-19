@@ -685,6 +685,63 @@
   z-index: 50;
 }
 
+/* Staggered table-row entrance (used on the admin dashboard) */
+.row-enter {
+  animation: rowFadeIn 0.35s ease-out both;
+}
+
+/* Stat card: soft lift + sheen on hover */
+.stat-card {
+  transition:
+    transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1),
+    box-shadow 0.25s ease,
+    border-color 0.25s ease;
+  will-change: transform;
+}
+
+.stat-card:hover {
+  transform: translateY(-2px);
+  border-color: color-mix(in srgb, var(--color-svu-500) 30%, var(--border-subtle));
+  box-shadow:
+    0 12px 26px -14px rgba(185, 28, 28, 0.35),
+    0 0 0 1px var(--border-subtle);
+}
+
+.dark .stat-card:hover {
+  box-shadow:
+    0 18px 34px -14px rgba(220, 38, 38, 0.4),
+    0 0 0 1px rgba(248, 113, 113, 0.25);
+}
+
+/* Pill-style segmented filter buttons get a gentle pop when selected */
+.filter-pill {
+  transition:
+    transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1),
+    background-color 0.2s ease,
+    color 0.2s ease,
+    border-color 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.filter-pill[data-active="true"] {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 14px -6px rgba(185, 28, 28, 0.45);
+}
+
+/* Skeleton shimmer for loading rows */
+.skeleton-row {
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--border-subtle) 40%, transparent) 0%,
+    color-mix(in srgb, var(--border-strong) 60%, transparent) 50%,
+    color-mix(in srgb, var(--border-subtle) 40%, transparent) 100%
+  );
+  background-size: 200% 100%;
+  animation: skeletonShimmer 1.4s ease-in-out infinite;
+  border-radius: 6px;
+  height: 14px;
+}
+
 /* Subtle sheen on top of glass cards */
 .shine {
   position: relative;
@@ -832,6 +889,26 @@
       opacity: 0;
     }
   }
+
+  @keyframes rowFadeIn {
+    from {
+      opacity: 0;
+      transform: translateY(6px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  @keyframes skeletonShimmer {
+    0% {
+      background-position: 200% 0;
+    }
+    100% {
+      background-position: -200% 0;
+    }
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -858,8 +935,19 @@
   .confetti-piece,
   .help-tooltip,
   .save-indicator-enter,
-  .save-indicator-exit {
+  .save-indicator-exit,
+  .row-enter,
+  .skeleton-row {
     animation: none;
+  }
+
+  .stat-card,
+  .filter-pill {
+    transition: none;
+  }
+
+  .stat-card:hover {
+    transform: none;
   }
 
   .shine::after {

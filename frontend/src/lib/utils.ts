@@ -6,6 +6,21 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 /**
+ * Safely extract a human-readable message from anything caught in a `catch`.
+ * Covers Error instances, strings, and unknown non-Error throwables so that
+ * toast.error() never shows `undefined` when a non-Error slips through.
+ */
+export function errorMessage(err: unknown, fallback = "Ein Fehler ist aufgetreten"): string {
+  if (err instanceof Error && err.message) return err.message;
+  if (typeof err === "string" && err.trim()) return err;
+  if (err && typeof err === "object" && "message" in err) {
+    const m = (err as { message?: unknown }).message;
+    if (typeof m === "string" && m.trim()) return m;
+  }
+  return fallback;
+}
+
+/**
  * Validate a phone number. Returns an error message string or null if valid.
  */
 export function validatePhone(telefon: string, optOut: boolean): string | null {
