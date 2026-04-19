@@ -1,5 +1,8 @@
 @import "tailwindcss";
 
+/* ── Tailwind 4: class-based dark variant ── */
+@custom-variant dark (&:where(.dark, .dark *));
+
 @theme {
   --color-svu-50: #fef2f2;
   --color-svu-100: #fee2e2;
@@ -13,42 +16,469 @@
   --color-svu-900: #450a0a;
 }
 
+/* ── Semantic design tokens (theme-aware) ── */
+:root {
+  --bg-app: #f8fafc;
+  --bg-surface: #ffffff;
+  --bg-surface-2: #f3f4f6;
+  --bg-muted: #f9fafb;
+  --fg-primary: #0f172a;
+  --fg-secondary: #334155;
+  --fg-muted: #64748b;
+  --fg-subtle: #94a3b8;
+  --border-subtle: #e5e7eb;
+  --border-strong: #d1d5db;
+  --shadow-color: 220 40% 2%;
+  --shadow-strength: 1%;
+
+  --aurora-1: rgba(220, 38, 38, 0.18);
+  --aurora-2: rgba(251, 146, 60, 0.14);
+  --aurora-3: rgba(244, 114, 182, 0.12);
+
+  --glass-bg: color-mix(in srgb, #ffffff 72%, transparent);
+  --glass-border: color-mix(in srgb, #e5e7eb 70%, transparent);
+  --glass-highlight: rgba(255, 255, 255, 0.55);
+
+  --ring-brand: rgba(185, 28, 28, 0.18);
+
+  color-scheme: light;
+}
+
+.dark {
+  --bg-app: #0b0f19;
+  --bg-surface: #111827;
+  --bg-surface-2: #1f2937;
+  --bg-muted: #0f1624;
+  --fg-primary: #f1f5f9;
+  --fg-secondary: #cbd5e1;
+  --fg-muted: #94a3b8;
+  --fg-subtle: #64748b;
+  --border-subtle: #1f2937;
+  --border-strong: #334155;
+  --shadow-color: 220 60% 0%;
+  --shadow-strength: 30%;
+
+  --aurora-1: rgba(220, 38, 38, 0.28);
+  --aurora-2: rgba(168, 85, 247, 0.22);
+  --aurora-3: rgba(56, 189, 248, 0.18);
+
+  --glass-bg: color-mix(in srgb, #0f172a 72%, transparent);
+  --glass-border: color-mix(in srgb, #334155 55%, transparent);
+  --glass-highlight: rgba(255, 255, 255, 0.05);
+
+  --ring-brand: rgba(248, 113, 113, 0.28);
+
+  color-scheme: dark;
+}
+
+/* Auto dark mode when system prefers dark AND user hasn't explicitly chosen */
+@media (prefers-color-scheme: dark) {
+  :root:not(.light) {
+    --bg-app: #0b0f19;
+    --bg-surface: #111827;
+    --bg-surface-2: #1f2937;
+    --bg-muted: #0f1624;
+    --fg-primary: #f1f5f9;
+    --fg-secondary: #cbd5e1;
+    --fg-muted: #94a3b8;
+    --fg-subtle: #64748b;
+    --border-subtle: #1f2937;
+    --border-strong: #334155;
+    --shadow-color: 220 60% 0%;
+    --shadow-strength: 30%;
+    --aurora-1: rgba(220, 38, 38, 0.28);
+    --aurora-2: rgba(168, 85, 247, 0.22);
+    --aurora-3: rgba(56, 189, 248, 0.18);
+    --glass-bg: color-mix(in srgb, #0f172a 72%, transparent);
+    --glass-border: color-mix(in srgb, #334155 55%, transparent);
+    --glass-highlight: rgba(255, 255, 255, 0.05);
+    --ring-brand: rgba(248, 113, 113, 0.28);
+    color-scheme: dark;
+  }
+}
+
 @layer base {
   * {
-    @apply border-gray-200;
+    border-color: var(--border-subtle);
   }
+
+  html,
   body {
-    @apply bg-gray-50 text-gray-900 antialiased;
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    background-color: var(--bg-app);
+    color: var(--fg-primary);
+    transition: background-color 0.35s ease, color 0.35s ease;
+  }
+
+  body {
+    @apply antialiased;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+      "Helvetica Neue", Arial, sans-serif;
+    font-feature-settings: "cv11", "ss01", "ss03";
+    min-height: 100dvh;
+    position: relative;
+  }
+
+  /* Aurora mesh — subtle animated gradient backdrop */
+  body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    background:
+      radial-gradient(1200px 700px at 10% -10%, var(--aurora-1), transparent 60%),
+      radial-gradient(900px 600px at 100% 0%, var(--aurora-2), transparent 55%),
+      radial-gradient(900px 700px at 50% 120%, var(--aurora-3), transparent 60%);
+    filter: saturate(1.1);
+    opacity: 0.9;
+    animation: auroraDrift 28s ease-in-out infinite alternate;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    body::before {
+      animation: none;
+    }
+  }
+
+  ::selection {
+    background: color-mix(in srgb, var(--color-svu-500) 35%, transparent);
+    color: var(--fg-primary);
+  }
+
+  /* Smooth-scroll and nicer focus rings globally */
+  html {
+    scroll-behavior: smooth;
+  }
+
+  :focus-visible {
+    outline: none;
+  }
+
+  /* Custom scrollbar */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--border-strong) transparent;
+  }
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: color-mix(in srgb, var(--border-strong) 70%, transparent);
+    border-radius: 999px;
+    border: 2px solid transparent;
+    background-clip: padding-box;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: var(--color-svu-500);
+    background-clip: padding-box;
+    border: 2px solid transparent;
   }
 }
 
-/* ── Liquid Glass UI ── */
+/* ───────────────────────────────────────────────────────────
+   Automatic dark-mode remapping of common Tailwind utilities.
+   We rewrite the most pervasive background / text / border
+   classes so existing pages inherit a polished dark theme
+   without touching every file.
+   ─────────────────────────────────────────────────────────── */
+@layer utilities {
+  .dark .bg-white {
+    background-color: #111827 !important;
+  }
+  .dark .bg-gray-50 {
+    background-color: transparent !important;
+  }
+  .dark .bg-gray-100 {
+    background-color: #1f2937 !important;
+  }
+  .dark .bg-gray-200 {
+    background-color: #273449 !important;
+  }
+  .dark .bg-gray-300 {
+    background-color: #334155 !important;
+  }
+  .dark .hover\:bg-gray-50:hover {
+    background-color: #1a2133 !important;
+  }
+  .dark .hover\:bg-gray-100:hover {
+    background-color: #273449 !important;
+  }
+  .dark .hover\:bg-gray-200:hover {
+    background-color: #334155 !important;
+  }
 
-/* 1. Glass card effect */
-.glass-card {
-  background: color-mix(in srgb, #ffffff 65%, transparent);
-  backdrop-filter: blur(20px) saturate(1.4);
-  -webkit-backdrop-filter: blur(20px) saturate(1.4);
-  border: 0.5px solid color-mix(in srgb, #e5e7eb 60%, transparent);
-  border-radius: 16px;
+  /* Text colors */
+  .dark .text-gray-900 {
+    color: #f1f5f9 !important;
+  }
+  .dark .text-gray-800 {
+    color: #e2e8f0 !important;
+  }
+  .dark .text-gray-700 {
+    color: #cbd5e1 !important;
+  }
+  .dark .text-gray-600 {
+    color: #94a3b8 !important;
+  }
+  .dark .text-gray-500 {
+    color: #94a3b8 !important;
+  }
+  .dark .text-gray-400 {
+    color: #64748b !important;
+  }
+  .dark .hover\:text-gray-800:hover {
+    color: #e2e8f0 !important;
+  }
+  .dark .hover\:text-gray-900:hover {
+    color: #f1f5f9 !important;
+  }
+  .dark .hover\:text-gray-700:hover {
+    color: #cbd5e1 !important;
+  }
+
+  /* Borders */
+  .dark .border,
+  .dark .border-t,
+  .dark .border-b,
+  .dark .border-l,
+  .dark .border-r {
+    border-color: #1f2937;
+  }
+  .dark .border-gray-100 {
+    border-color: #1f2937 !important;
+  }
+  .dark .border-gray-200 {
+    border-color: #273449 !important;
+  }
+  .dark .border-gray-300 {
+    border-color: #334155 !important;
+  }
+  .dark .divide-gray-100 > :not([hidden]) ~ :not([hidden]) {
+    border-color: #1f2937 !important;
+  }
+  .dark .divide-gray-200 > :not([hidden]) ~ :not([hidden]) {
+    border-color: #273449 !important;
+  }
+
+  /* Placeholder */
+  .dark input::placeholder,
+  .dark textarea::placeholder {
+    color: #64748b;
+  }
+
+  /* Brand-tinted subtle backgrounds: make them readable on dark */
+  .dark .bg-svu-50 {
+    background-color: rgba(220, 38, 38, 0.12) !important;
+  }
+  .dark .bg-svu-100 {
+    background-color: rgba(220, 38, 38, 0.18) !important;
+  }
+  .dark .text-svu-600 {
+    color: #fca5a5 !important;
+  }
+  .dark .text-svu-700 {
+    color: #fecaca !important;
+  }
+  .dark .text-svu-800 {
+    color: #fee2e2 !important;
+  }
+  .dark .border-svu-200 {
+    border-color: rgba(220, 38, 38, 0.35) !important;
+  }
+  .dark .border-svu-300 {
+    border-color: rgba(220, 38, 38, 0.45) !important;
+  }
+
+  /* Status chip backgrounds: soften brightness in dark */
+  .dark .bg-blue-100 {
+    background-color: rgba(59, 130, 246, 0.18) !important;
+  }
+  .dark .text-blue-700 {
+    color: #93c5fd !important;
+  }
+  .dark .bg-cyan-100 {
+    background-color: rgba(6, 182, 212, 0.18) !important;
+  }
+  .dark .text-cyan-700 {
+    color: #67e8f9 !important;
+  }
+  .dark .bg-amber-100,
+  .dark .bg-amber-50 {
+    background-color: rgba(245, 158, 11, 0.16) !important;
+  }
+  .dark .text-amber-700 {
+    color: #fcd34d !important;
+  }
+  .dark .bg-green-100,
+  .dark .bg-green-50 {
+    background-color: rgba(34, 197, 94, 0.16) !important;
+  }
+  .dark .text-green-700 {
+    color: #86efac !important;
+  }
+  .dark .bg-red-100,
+  .dark .bg-red-50 {
+    background-color: rgba(239, 68, 68, 0.16) !important;
+  }
+  .dark .text-red-700,
+  .dark .text-red-600 {
+    color: #fca5a5 !important;
+  }
+  .dark .bg-orange-100 {
+    background-color: rgba(249, 115, 22, 0.18) !important;
+  }
+
+  /* Inputs look better with a translucent, elevated surface */
+  .dark input:where(:not([type="checkbox"]):not([type="radio"])),
+  .dark select,
+  .dark textarea {
+    background-color: #0f172a;
+    border-color: #334155;
+    color: #f1f5f9;
+  }
+  .dark input:focus,
+  .dark select:focus,
+  .dark textarea:focus {
+    border-color: var(--color-svu-400);
+  }
+
+  /* Shadows feel right on dark with a colored tint */
+  .dark .shadow-sm {
+    box-shadow:
+      0 1px 2px hsl(var(--shadow-color) / 0.5),
+      0 0 0 1px hsl(var(--shadow-color) / 0.4);
+  }
+  .dark .shadow,
+  .dark .shadow-md {
+    box-shadow:
+      0 4px 14px hsl(var(--shadow-color) / 0.55),
+      0 0 0 1px hsl(var(--shadow-color) / 0.35);
+  }
+  .dark .shadow-lg,
+  .dark .shadow-xl {
+    box-shadow:
+      0 20px 45px hsl(var(--shadow-color) / 0.6),
+      0 0 0 1px hsl(var(--shadow-color) / 0.35);
+  }
 }
 
-/* 2. Fee card glass variant */
+/* ── Liquid Glass UI (theme-aware) ── */
+
+.glass-card {
+  background: var(--glass-bg);
+  backdrop-filter: blur(20px) saturate(1.5);
+  -webkit-backdrop-filter: blur(20px) saturate(1.5);
+  border: 1px solid var(--glass-border);
+  border-radius: 18px;
+  position: relative;
+  transition: transform 0.3s ease, box-shadow 0.3s ease,
+    background 0.35s ease, border-color 0.35s ease;
+}
+
+.glass-card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background: linear-gradient(
+    180deg,
+    var(--glass-highlight),
+    transparent 40%
+  );
+  opacity: 0.6;
+  mix-blend-mode: overlay;
+}
+
 .fee-card {
-  background: color-mix(in srgb, #fef2f2 70%, transparent);
-  backdrop-filter: blur(12px) saturate(1.2);
-  -webkit-backdrop-filter: blur(12px) saturate(1.2);
-  border: 1.5px solid color-mix(in srgb, #dc2626 40%, transparent);
-  border-radius: 12px;
-  transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  background: color-mix(in srgb, var(--color-svu-50) 70%, transparent);
+  backdrop-filter: blur(14px) saturate(1.3);
+  -webkit-backdrop-filter: blur(14px) saturate(1.3);
+  border: 1.5px solid color-mix(in srgb, var(--color-svu-500) 40%, transparent);
+  border-radius: 14px;
+  transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1),
+    box-shadow 0.3s ease, background 0.35s ease, border-color 0.35s ease;
+}
+
+.dark .fee-card {
+  background: linear-gradient(
+    135deg,
+    rgba(220, 38, 38, 0.18),
+    rgba(168, 85, 247, 0.08)
+  );
+  border-color: rgba(248, 113, 113, 0.45);
+  box-shadow: 0 10px 30px rgba(220, 38, 38, 0.18);
 }
 
 .fee-card-pop {
-  transform: scale(1.15);
+  transform: scale(1.06);
+  box-shadow: 0 18px 40px rgba(220, 38, 38, 0.22);
 }
 
-/* 3. Custom animated checkboxes */
+/* Brand gradient helpers */
+.brand-gradient-text {
+  background-image: linear-gradient(
+    135deg,
+    var(--color-svu-500) 0%,
+    #f97316 55%,
+    #ec4899 100%
+  );
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.dark .brand-gradient-text {
+  background-image: linear-gradient(
+    135deg,
+    #f87171 0%,
+    #fb923c 50%,
+    #f472b6 100%
+  );
+}
+
+.brand-gradient-bg {
+  background-image: linear-gradient(
+    135deg,
+    var(--color-svu-600) 0%,
+    #dc2626 45%,
+    #f97316 100%
+  );
+}
+
+.btn-primary-glow {
+  position: relative;
+  isolation: isolate;
+  box-shadow:
+    0 10px 25px -8px rgba(185, 28, 28, 0.55),
+    0 0 0 1px rgba(255, 255, 255, 0.04) inset;
+}
+.btn-primary-glow::after {
+  content: "";
+  position: absolute;
+  inset: -2px;
+  border-radius: inherit;
+  background: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.35),
+    transparent 40%,
+    rgba(255, 255, 255, 0.12)
+  );
+  mix-blend-mode: overlay;
+  pointer-events: none;
+}
+
+.dark .btn-primary-glow {
+  box-shadow:
+    0 12px 28px -8px rgba(220, 38, 38, 0.7),
+    0 0 0 1px rgba(255, 255, 255, 0.06) inset;
+}
+
+/* Custom animated checkboxes (theme-aware) */
 .custom-checkbox {
   position: relative;
   display: inline-flex;
@@ -74,25 +504,27 @@
 .custom-checkbox .cb-box {
   width: 20px;
   height: 20px;
-  border-radius: 5px;
-  border: 1.5px solid #d1d5db;
-  background: white;
+  border-radius: 6px;
+  border: 1.5px solid var(--border-strong);
+  background: var(--bg-surface);
   display: flex;
   align-items: center;
   justify-content: center;
   transition: background-color 0.2s ease, border-color 0.2s ease,
-    transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+    transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1),
+    box-shadow 0.2s ease;
   cursor: pointer;
 }
 
 .custom-checkbox input:checked + .cb-box {
-  background-color: #b91c1c;
-  border-color: #b91c1c;
-  transform: scale(1.1);
+  background-color: var(--color-svu-600);
+  border-color: var(--color-svu-600);
+  transform: scale(1.08);
+  box-shadow: 0 6px 14px rgba(185, 28, 28, 0.35);
 }
 
 .custom-checkbox input:focus-visible + .cb-box {
-  box-shadow: 0 0 0 3px rgba(185, 28, 28, 0.15);
+  box-shadow: 0 0 0 3px var(--ring-brand);
 }
 
 .custom-checkbox .cb-check {
@@ -112,13 +544,13 @@
   stroke-dashoffset: 0;
 }
 
-/* 4. Submit button spring transitions */
+/* Submit button spring transitions */
 .btn-spring {
   transition: all 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
 .btn-spring:not(:disabled):hover {
-  transform: scale(1.02);
+  transform: translateY(-1px) scale(1.02);
   filter: brightness(1.08);
 }
 
@@ -131,18 +563,13 @@
   pointer-events: none;
 }
 
-/* 5. Step page transition */
-.step-enter {
-  animation: stepFadeIn 0.4s ease-out both;
-}
-
-/* 6. Form field focus glow */
+/* Form field focus glow */
 .field-glow:focus {
-  border-color: #b91c1c;
-  box-shadow: 0 0 0 3px rgba(185, 28, 28, 0.15);
+  border-color: var(--color-svu-500);
+  box-shadow: 0 0 0 3px var(--ring-brand);
 }
 
-/* 7. IBAN bank name reveal */
+/* IBAN bank name reveal */
 .iban-reveal {
   display: grid;
   grid-template-rows: 0fr;
@@ -159,22 +586,19 @@
   overflow: hidden;
 }
 
-/* 8. Error pulse highlight for scroll-to-error */
+/* Error pulse highlight for scroll-to-error */
 .error-pulse {
   animation: errorPulse 0.5s ease-in-out 3;
 }
 
-/* 9. Field validation checkmark fade-in */
 .check-fade-in {
   animation: checkFadeIn 0.25s cubic-bezier(0.34, 1.56, 0.64, 1) both;
 }
 
-/* 10. Step completion green pulse */
 .step-complete-pulse {
   animation: stepPulse 0.6s ease-out both;
 }
 
-/* 11. Confetti fall animation */
 .confetti-piece {
   position: fixed;
   top: -10px;
@@ -182,10 +606,14 @@
   height: 10px;
   z-index: 9999;
   pointer-events: none;
-  animation: confettiFall var(--confetti-duration, 2.5s) ease-in var(--confetti-delay, 0s) forwards;
+  animation: confettiFall var(--confetti-duration, 2.5s) ease-in
+    var(--confetti-delay, 0s) forwards;
 }
 
-/* 12. Directional step transitions */
+.step-enter {
+  animation: stepFadeIn 0.4s ease-out both;
+}
+
 .step-enter-forward {
   animation: slideInRight 0.35s ease-out both;
 }
@@ -194,12 +622,10 @@
   animation: slideInLeft 0.35s ease-out both;
 }
 
-/* 13. Help tooltip */
 .help-tooltip {
   animation: tooltipFadeIn 0.2s ease-out both;
 }
 
-/* 14. Auto-save indicator */
 .save-indicator-enter {
   animation: saveFadeIn 0.3s ease-out both;
 }
@@ -208,8 +634,97 @@
   animation: saveFadeOut 0.3s ease-out both;
 }
 
+/* ── Theme toggle component styling ── */
+.theme-toggle {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 3px;
+  border-radius: 999px;
+  background: var(--glass-bg);
+  backdrop-filter: blur(14px) saturate(1.4);
+  -webkit-backdrop-filter: blur(14px) saturate(1.4);
+  border: 1px solid var(--glass-border);
+  box-shadow: 0 8px 22px -12px hsl(var(--shadow-color) / 0.5);
+}
+
+.theme-toggle button {
+  width: 30px;
+  height: 30px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--fg-muted);
+  transition: color 0.2s ease, transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+  cursor: pointer;
+  background: transparent;
+  border: none;
+}
+
+.theme-toggle button:hover {
+  color: var(--fg-primary);
+  transform: scale(1.06);
+}
+
+.theme-toggle button[aria-pressed="true"] {
+  color: #fff;
+  background: linear-gradient(
+    135deg,
+    var(--color-svu-500),
+    var(--color-svu-700)
+  );
+  box-shadow: 0 6px 14px -4px rgba(185, 28, 28, 0.5);
+}
+
+.theme-toggle-floating {
+  position: fixed;
+  top: 1rem;
+  right: 1rem;
+  z-index: 50;
+}
+
+/* Subtle sheen on top of glass cards */
+.shine {
+  position: relative;
+  overflow: hidden;
+}
+.shine::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    110deg,
+    transparent 30%,
+    rgba(255, 255, 255, 0.15) 50%,
+    transparent 70%
+  );
+  transform: translateX(-100%);
+  transition: transform 0.8s ease;
+  pointer-events: none;
+}
+.shine:hover::after {
+  transform: translateX(100%);
+}
+
 /* Keyframe animations - respect prefers-reduced-motion */
 @media (prefers-reduced-motion: no-preference) {
+  @keyframes auroraDrift {
+    0% {
+      transform: translate3d(0, 0, 0) scale(1);
+      filter: saturate(1.1) hue-rotate(0deg);
+    }
+    50% {
+      transform: translate3d(-2%, 1%, 0) scale(1.05);
+      filter: saturate(1.2) hue-rotate(8deg);
+    }
+    100% {
+      transform: translate3d(2%, -1%, 0) scale(1.02);
+      filter: saturate(1.15) hue-rotate(-6deg);
+    }
+  }
+
   @keyframes stepFadeIn {
     from {
       opacity: 0;
@@ -221,25 +736,34 @@
     }
   }
 
-  @keyframes checkDraw {
-    to {
-      stroke-dashoffset: 0;
+  @keyframes errorPulse {
+    0%,
+    100% {
+      box-shadow: 0 0 0 0 rgba(239, 68, 68, 0);
+    }
+    50% {
+      box-shadow: 0 0 0 4px rgba(239, 68, 68, 0.3);
     }
   }
 
-  @keyframes errorPulse {
-    0%, 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
-    50% { box-shadow: 0 0 0 4px rgba(239, 68, 68, 0.3); }
-  }
-
   @keyframes checkFadeIn {
-    from { opacity: 0; transform: scale(0.5); }
-    to { opacity: 1; transform: scale(1); }
+    from {
+      opacity: 0;
+      transform: scale(0.5);
+    }
+    to {
+      opacity: 1;
+      transform: scale(1);
+    }
   }
 
   @keyframes stepPulse {
-    0% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.5); }
-    100% { box-shadow: 0 0 0 14px rgba(34, 197, 94, 0); }
+    0% {
+      box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.5);
+    }
+    100% {
+      box-shadow: 0 0 0 14px rgba(34, 197, 94, 0);
+    }
   }
 
   @keyframes confettiFall {
@@ -259,28 +783,54 @@
   }
 
   @keyframes slideInRight {
-    from { opacity: 0; transform: translateX(30px); }
-    to { opacity: 1; transform: translateX(0); }
+    from {
+      opacity: 0;
+      transform: translateX(30px);
+    }
+    to {
+      opacity: 1;
+      transform: translateX(0);
+    }
   }
 
   @keyframes slideInLeft {
-    from { opacity: 0; transform: translateX(-30px); }
-    to { opacity: 1; transform: translateX(0); }
+    from {
+      opacity: 0;
+      transform: translateX(-30px);
+    }
+    to {
+      opacity: 1;
+      transform: translateX(0);
+    }
   }
 
   @keyframes tooltipFadeIn {
-    from { opacity: 0; transform: translateY(-4px); }
-    to { opacity: 1; transform: translateY(0); }
+    from {
+      opacity: 0;
+      transform: translateY(-4px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
   }
 
   @keyframes saveFadeIn {
-    from { opacity: 0; }
-    to { opacity: 1; }
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
   }
 
   @keyframes saveFadeOut {
-    from { opacity: 1; }
-    to { opacity: 0; }
+    from {
+      opacity: 1;
+    }
+    to {
+      opacity: 0;
+    }
   }
 }
 
@@ -310,5 +860,9 @@
   .save-indicator-enter,
   .save-indicator-exit {
     animation: none;
+  }
+
+  .shine::after {
+    display: none;
   }
 }
