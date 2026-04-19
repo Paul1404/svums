@@ -12,6 +12,7 @@ import {
   type AdminStatsResponse,
 } from "../services/api";
 import { captureEvent } from "../lib/analytics";
+import { errorMessage } from "../lib/utils";
 import {
   Search,
   Download,
@@ -85,8 +86,8 @@ export default function AdminDashboard() {
         search_present: Boolean(search),
         result_count: result.items.length,
       });
-    } catch (err: any) {
-      toast.error(err.message);
+    } catch (err) {
+      toast.error(errorMessage(err, "Daten konnten nicht geladen werden"));
     } finally {
       setLoading(false);
     }
@@ -113,8 +114,8 @@ export default function AdminDashboard() {
       const testData = await getTestData(testModeType);
       sessionStorage.setItem("svums_test_data", JSON.stringify(testData));
       window.open("/", "_blank");
-    } catch (err: any) {
-      toast.error(err.message || "Testdaten konnten nicht geladen werden");
+    } catch (err) {
+      toast.error(errorMessage(err, "Testdaten konnten nicht geladen werden"));
     } finally {
       setLaunchingTest(false);
     }
@@ -311,6 +312,7 @@ export default function AdminDashboard() {
                 value={searchInput}
                 onChange={(e) => setSearchInput(e.target.value)}
                 placeholder="Name, E-Mail oder Ort suchen..."
+                aria-label="Anträge durchsuchen"
                 className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-svu-500 focus:border-svu-500 outline-none"
               />
             </div>
@@ -326,11 +328,12 @@ export default function AdminDashboard() {
             {["", "neu", "dokument_hochgeladen", "in_bearbeitung", "genehmigt", "abgelehnt"].map((s) => (
               <button
                 key={s}
+                data-active={statusFilter === s}
                 onClick={() => {
                   setStatusFilter(s);
                   setPage(1);
                 }}
-                className={`px-3 py-2 text-sm rounded-lg border transition-colors whitespace-nowrap shrink-0 ${
+                className={`filter-pill px-3 py-2 text-sm rounded-lg border whitespace-nowrap shrink-0 ${
                   statusFilter === s
                     ? "bg-svu-600 text-white border-svu-600"
                     : "bg-white text-gray-600 border-gray-300 hover:bg-gray-50"
@@ -383,28 +386,28 @@ export default function AdminDashboard() {
         {/* Stats */}
         {stats && (
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
-            <div className="bg-white rounded-xl border shadow-sm p-4">
+            <div className="stat-card bg-white rounded-xl border shadow-sm p-4">
               <div className="flex items-center gap-2 text-gray-500 mb-1">
                 <BarChart3 className="w-4 h-4" />
                 <span className="text-xs font-medium">Gesamt</span>
               </div>
               <p className="text-2xl font-bold text-gray-900">{stats.total}</p>
             </div>
-            <div className="bg-white rounded-xl border shadow-sm p-4">
+            <div className="stat-card bg-white rounded-xl border shadow-sm p-4">
               <div className="flex items-center gap-2 text-gray-500 mb-1">
                 <CalendarDays className="w-4 h-4" />
                 <span className="text-xs font-medium">Diesen Monat</span>
               </div>
               <p className="text-2xl font-bold text-gray-900">{stats.applications_this_month}</p>
             </div>
-            <div className="bg-white rounded-xl border shadow-sm p-4">
+            <div className="stat-card bg-white rounded-xl border shadow-sm p-4">
               <div className="flex items-center gap-2 text-gray-500 mb-1">
                 <Euro className="w-4 h-4" />
                 <span className="text-xs font-medium">Einnahmen (genehmigt)</span>
               </div>
               <p className="text-2xl font-bold text-gray-900">{formatFee(stats.revenue_approved)}</p>
             </div>
-            <div className="bg-white rounded-xl border shadow-sm p-4">
+            <div className="stat-card bg-white rounded-xl border shadow-sm p-4">
               <div className="flex items-center gap-2 text-gray-500 mb-2">
                 <span className="text-xs font-medium">Status-Verteilung</span>
               </div>
@@ -437,7 +440,7 @@ export default function AdminDashboard() {
             {showDetailedStats && (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
                 {/* Abteilungen */}
-                <div className="bg-white rounded-xl border shadow-sm p-4">
+                <div className="stat-card bg-white rounded-xl border shadow-sm p-4">
                   <h3 className="text-xs font-medium text-gray-500 mb-3">Anträge pro Abteilung</h3>
                   {Object.keys(stats.by_abteilung).length === 0 ? (
                     <p className="text-sm text-gray-400">Keine Daten</p>
@@ -456,7 +459,7 @@ export default function AdminDashboard() {
                 </div>
 
                 {/* Altersgruppen */}
-                <div className="bg-white rounded-xl border shadow-sm p-4">
+                <div className="stat-card bg-white rounded-xl border shadow-sm p-4">
                   <h3 className="text-xs font-medium text-gray-500 mb-3">Altersverteilung</h3>
                   <div className="space-y-2">
                     {Object.entries(stats.by_age_group).map(([group, count]) => {
@@ -480,7 +483,7 @@ export default function AdminDashboard() {
                 </div>
 
                 {/* Mitgliedschaftstyp */}
-                <div className="bg-white rounded-xl border shadow-sm p-4">
+                <div className="stat-card bg-white rounded-xl border shadow-sm p-4">
                   <h3 className="text-xs font-medium text-gray-500 mb-3">Mitgliedschaftstyp</h3>
                   {Object.keys(stats.by_membership_type).length === 0 ? (
                     <p className="text-sm text-gray-400">Keine Daten</p>
@@ -508,7 +511,7 @@ export default function AdminDashboard() {
                 </div>
 
                 {/* Geschlecht */}
-                <div className="bg-white rounded-xl border shadow-sm p-4">
+                <div className="stat-card bg-white rounded-xl border shadow-sm p-4">
                   <h3 className="text-xs font-medium text-gray-500 mb-3">Geschlecht</h3>
                   {Object.keys(stats.by_gender).length === 0 ? (
                     <p className="text-sm text-gray-400">Keine Daten</p>
@@ -563,14 +566,35 @@ export default function AdminDashboard() {
                 </tr>
               </thead>
               <tbody>
-                {loading && (
-                  <tr>
-                    <td colSpan={8} className="px-4 py-12 text-center text-gray-400">
-                      <RefreshCw className="w-5 h-5 animate-spin mx-auto mb-2" />
-                      Lade Daten...
-                    </td>
-                  </tr>
-                )}
+                {loading &&
+                  Array.from({ length: 6 }).map((_, i) => (
+                    <tr key={`skel-${i}`} className="border-b">
+                      <td className="px-4 py-4 hidden sm:table-cell">
+                        <div className="skeleton-row w-8" />
+                      </td>
+                      <td className="px-4 py-4">
+                        <div className="skeleton-row w-40" />
+                      </td>
+                      <td className="px-4 py-4 hidden md:table-cell">
+                        <div className="skeleton-row w-48" />
+                      </td>
+                      <td className="px-4 py-4 hidden lg:table-cell">
+                        <div className="skeleton-row w-24" />
+                      </td>
+                      <td className="px-4 py-4 hidden sm:table-cell">
+                        <div className="skeleton-row w-16" />
+                      </td>
+                      <td className="px-4 py-4">
+                        <div className="skeleton-row w-20" />
+                      </td>
+                      <td className="px-4 py-4 hidden md:table-cell">
+                        <div className="skeleton-row w-10" />
+                      </td>
+                      <td className="px-4 py-4 hidden sm:table-cell">
+                        <div className="skeleton-row w-20" />
+                      </td>
+                    </tr>
+                  ))}
                 {!loading && data?.items.length === 0 && (
                   <tr>
                     <td colSpan={8} className="px-4 py-12 text-center text-gray-400">
@@ -580,13 +604,23 @@ export default function AdminDashboard() {
                   </tr>
                 )}
                 {!loading &&
-                  data?.items.map((app) => (
+                  data?.items.map((app, idx) => (
                     <tr
                       key={app.id}
+                      role="button"
+                      tabIndex={0}
+                      aria-label={`Antrag ${app.nachname}, ${app.vorname} öffnen`}
                       onClick={() =>
                         navigate(`/admin/applications/${app.id}`)
                       }
-                      className={`border-b hover:bg-gray-50 cursor-pointer transition-colors ${
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          navigate(`/admin/applications/${app.id}`);
+                        }
+                      }}
+                      style={{ animationDelay: `${Math.min(idx * 30, 360)}ms` }}
+                      className={`row-enter border-b hover:bg-gray-50 focus:bg-gray-100 focus:outline-none cursor-pointer transition-colors ${
                         app.is_test ? "bg-orange-50/60" : ""
                       }`}
                     >
