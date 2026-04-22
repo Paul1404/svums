@@ -137,6 +137,17 @@ export default function AdminDashboard() {
 
           {/* Desktop nav */}
           <div className="hidden lg:flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => window.dispatchEvent(new CustomEvent("svums:open-palette"))}
+              className="flex items-center gap-2 px-3 py-2 text-sm text-gray-500 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-colors border border-gray-200"
+              title="Befehlspalette öffnen"
+              aria-label="Befehlspalette öffnen"
+            >
+              <Search className="w-4 h-4" />
+              <span className="text-xs">Suchen…</span>
+              <kbd className="ml-1 text-[10px] px-1.5 py-0.5 rounded border border-gray-300 bg-gray-50 text-gray-500 font-mono">⌘K</kbd>
+            </button>
             {/* Test Application */}
             <div className="flex items-center gap-1.5 border-r pr-2 mr-1">
               <select
@@ -382,6 +393,18 @@ export default function AdminDashboard() {
             <RefreshCw className={`w-5 h-5 ${loading ? "animate-spin" : ""}`} />
           </button>
         </div>
+
+        {/* Stats skeletons while loading */}
+        {!stats && loading && (
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6" aria-hidden="true">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <div key={`stat-skel-${i}`} className="stat-card bg-white rounded-xl border shadow-sm p-4">
+                <div className="skeleton-row w-20 mb-3" style={{ height: 10 }} />
+                <div className="skeleton-row w-16" style={{ height: 22 }} />
+              </div>
+            ))}
+          </div>
+        )}
 
         {/* Stats */}
         {stats && (

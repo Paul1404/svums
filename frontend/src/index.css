@@ -586,6 +586,31 @@
   overflow: hidden;
 }
 
+.iban-reveal.visible .bank-chip {
+  animation: bankChipPop 0.45s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+@keyframes bankChipPop {
+  0% {
+    transform: scale(0.6) translateY(3px);
+    opacity: 0;
+  }
+  60% {
+    transform: scale(1.06) translateY(0);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1) translateY(0);
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .iban-reveal.visible .bank-chip {
+    animation: none;
+  }
+}
+
 /* Error pulse highlight for scroll-to-error */
 .error-pulse {
   animation: errorPulse 0.5s ease-in-out 3;
@@ -680,9 +705,67 @@
 
 .theme-toggle-floating {
   position: fixed;
-  top: 1rem;
+  top: auto;
+  bottom: calc(1rem + env(safe-area-inset-bottom, 0px));
   right: 1rem;
   z-index: 50;
+}
+
+@media (min-width: 640px) {
+  .theme-toggle-floating {
+    top: 1rem;
+    bottom: auto;
+  }
+}
+
+/* ── Command palette (⌘K) ── */
+.command-palette-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  background: color-mix(in srgb, #0b0f19 50%, transparent);
+  backdrop-filter: blur(6px) saturate(1.1);
+  -webkit-backdrop-filter: blur(6px) saturate(1.1);
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: clamp(1rem, 10vh, 6rem) 1rem 1rem;
+  animation: paletteFadeIn 0.18s ease-out both;
+}
+
+.command-palette {
+  width: 100%;
+  max-width: 560px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: 14px;
+  box-shadow:
+    0 30px 60px -20px hsl(var(--shadow-color) / 0.55),
+    0 0 0 1px hsl(var(--shadow-color) / 0.08);
+  overflow: hidden;
+  animation: paletteScaleIn 0.22s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+.command-palette kbd {
+  font-family: inherit;
+  background: var(--bg-surface-2);
+}
+
+@keyframes paletteFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes paletteScaleIn {
+  from { opacity: 0; transform: translateY(-8px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .command-palette-backdrop,
+  .command-palette {
+    animation: none;
+  }
 }
 
 /* Staggered table-row entrance (used on the admin dashboard) */

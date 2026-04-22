@@ -90,6 +90,10 @@ export default function AdminApplicationDetail() {
 
   const handleAdminUpload = async (file: File) => {
     if (!app) return;
+    if (file.size > 10 * 1024 * 1024) {
+      toast.error("Datei zu groß (max. 10 MB)");
+      return;
+    }
     setUploading(true);
     try {
       const updated = await adminUploadDocument(app.id, file);
@@ -142,6 +146,10 @@ export default function AdminApplicationDetail() {
   const handleSignatureUpload = (file: File) => {
     if (!file.type.startsWith("image/")) {
       toast.error("Bitte ein Bild (PNG/JPG) hochladen.");
+      return;
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      toast.error("Datei zu groß (max. 10 MB)");
       return;
     }
     const reader = new FileReader();
