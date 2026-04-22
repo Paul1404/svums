@@ -1642,9 +1642,14 @@ export default function ApplicationForm() {
                   )}
                   <div className={`iban-reveal ${!ibanLookup.loading && ibanLookup.valid === true && ibanLookup.autoFilled ? "visible" : ""}`}>
                     <div>
-                      <div className="flex items-center gap-1.5 mt-1.5 text-xs text-green-600">
-                        <CheckCircle2 className="w-3 h-3" />
-                        <span>BIC und Kreditinstitut automatisch ermittelt</span>
+                      <div className="flex items-center flex-wrap gap-1.5 mt-1.5 text-xs text-green-600">
+                        <CheckCircle2 className="w-3 h-3 flex-shrink-0" />
+                        <span>Bank erkannt:</span>
+                        {kreditinstitut && (
+                          <span className="bank-chip inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-green-50 border border-green-200 text-green-700 font-medium">
+                            {kreditinstitut}
+                          </span>
+                        )}
                       </div>
                     </div>
                   </div>
