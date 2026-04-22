@@ -17,6 +17,7 @@ import { AdminProvider, useAdmin } from "./context/AdminContext";
 import { ClubConfigProvider } from "./context/ClubConfigContext";
 import { ThemeProvider } from "./context/ThemeContext";
 import ThemeToggle from "./components/ThemeToggle";
+import CommandPalette from "./components/CommandPalette";
 import { capturePageView } from "./lib/analytics";
 
 function AdminRoute({ children }: { children: React.ReactNode }) {
@@ -40,6 +41,7 @@ function AdminRoute({ children }: { children: React.ReactNode }) {
 function AdminRoutes() {
   return (
     <AdminProvider>
+      <CommandPalette />
       <Routes>
         <Route path="login" element={<AdminLogin />} />
         <Route
