@@ -35,12 +35,7 @@ function applyTheme(mode: ThemeMode): "light" | "dark" {
   root.classList.remove("light", "dark");
   const resolved =
     mode === "auto" ? (systemPrefersDark() ? "dark" : "light") : mode;
-  if (mode === "auto") {
-    // leave both classes off so CSS `prefers-color-scheme` media query takes effect
-  } else {
-    root.classList.add(mode);
-  }
-  // Always mirror the effective theme on a data attribute (useful for extra CSS hooks)
+  root.classList.add(resolved);
   root.setAttribute("data-theme", resolved);
   return resolved;
 }
@@ -60,11 +55,12 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     if (mode !== "auto") return;
     const mq = window.matchMedia("(prefers-color-scheme: dark)");
     const handler = (e: MediaQueryListEvent) => {
-      setResolved(e.matches ? "dark" : "light");
-      document.documentElement.setAttribute(
-        "data-theme",
-        e.matches ? "dark" : "light"
-      );
+      const next = e.matches ? "dark" : "light";
+      setResolved(next);
+      const root = document.documentElement;
+      root.classList.remove("light", "dark");
+      root.classList.add(next);
+      root.setAttribute("data-theme", next);
     };
     mq.addEventListener("change", handler);
     return () => mq.removeEventListener("change", handler);
