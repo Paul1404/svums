@@ -1,154 +1,244 @@
-# SVUMS — Club Membership System
+# SVUMS
 
-**A full-stack membership application system for German sports clubs (Sportvereine).** Built with FastAPI, React, and TypeScript — handles everything from multi-step application forms and digital signatures to PDF generation, email notifications, and an admin dashboard.
+Membership application system for German sports clubs (Sportvereine).
+Applicants fill out a form online, sign digitally or on paper, and the club
+admin processes everything from a web dashboard. Originally written for one
+local club, then opened up so anyone can deploy it for theirs.
 
-Originally built for a local sports club, now open-source and configurable for any club.
+The whole UI is in German. Club name, address, fees, departments, SEPA
+details, branding colors etc. are configured at runtime through the admin
+panel, so no code changes are needed to set it up for a different club.
 
----
+## What it does
 
-## Features
+For applicants:
 
-- **Multi-step application forms** — Individual, child, and family memberships with automatic fee calculation
-- **Digital signatures** — Sign on-screen or print/scan/upload the classic way
-- **Admin dashboard** — Review, approve (with countersignature), or decline applications
-- **PDF generation** — Membership applications, approval letters, and cancellation confirmations (WeasyPrint)
-- **Email notifications** — Automatic emails at every status change with PDF attachments
-- **Fully configurable** — Club name, address, fees, departments, branding, SEPA details — all editable via admin panel at runtime
-- **IBAN encryption** — Bank data encrypted at rest (Fernet AES)
-- **CSRF protection + rate limiting** — Production-ready security
-- **Address autocomplete** — German PLZ/street lookup via OpenStreetMap Nominatim
-- **SEPA mandate generation** — Creditor ID, mandate reference, full SEPA form in PDF
+- Three-step form: personal data, banking (IBAN with checksum validation
+  and BIC lookup), then signature and consent.
+- Picks the membership category from the date of birth (child, youth, young
+  adult, adult, family) and calculates the annual fee.
+- Family applications can include a partner and any number of children,
+  each with their own departments.
+- Two ways to sign: draw or upload the signature in the browser, or get the
+  PDF by email and upload it back signed (link is valid for 30 days).
+- Status page at `/status?nr=ANT-...` showing where the application is
+  (received, document received, in review, approved/declined).
+- Address autocomplete via OpenStreetMap Nominatim (PLZ → towns, street
+  search).
+- Duplicate check on name + date of birth before submitting.
 
-## Tech Stack
+For the club admin:
 
-| Layer | Technology |
-|-------|-----------|
-| Backend | Python 3.14, FastAPI, SQLAlchemy 2.0, Uvicorn |
-| Frontend | React 19, TypeScript, Vite, Tailwind CSS 4 |
-| Database | PostgreSQL (recommended) or SQLite |
-| File Storage | Any S3-compatible service (Tigris, MinIO, AWS S3) |
-| PDF | WeasyPrint (HTML → PDF via Jinja2) |
-| Email | aiosmtplib (async SMTP) with HTML templates |
-| Container | Docker multi-stage build |
+- Dashboard with stats: totals, breakdowns by status, department, age,
+  membership type, gender, current month, approved revenue.
+- List view with search, status filter, pagination, and a toggle to hide
+  test applications.
+- Application detail view: edit fields and notes, change status, approve
+  with countersignature plus member number, decline with a reason that gets
+  emailed to the applicant.
+- Generated PDFs: membership application, approval page (merged onto the
+  application), cancellation letter (Kündigungsbestätigung) with optional
+  family members and a separate payer address.
+- File handling: download the original or approved PDF, upload a document
+  on behalf of the applicant, delete files.
+- CSV export (semicolon-delimited, German headers, IBANs decrypted).
+- Email log showing every send with type, recipient, status, and any error.
+- Built-in test data generator for development.
+- SMTP settings, notification address, and a stored admin signature are all
+  edited from the panel; there's a test-send button.
 
-## Quick Start
+Behind the scenes:
 
-### Docker Compose (recommended)
+- IBANs are encrypted at rest with Fernet (key derived from `COOKIE_SECRET`).
+  Plaintext rows are encrypted automatically on startup.
+- CSRF protection on state-changing endpoints (double-submit cookie).
+- Rate limit on the public application endpoint (3 per 10 min per IP) and
+  on admin login (5 attempts per 15 min, 30 min lockout).
+- Mandate reference and Antragsnummer are generated automatically.
+- Optional PostHog analytics on form and admin events. PII fields (names,
+  email, IBAN, addresses, etc.) are blocked from being captured even if
+  someone tries to attach them.
+- Optional S3-compatible storage (Tigris, MinIO, AWS S3) for uploaded and
+  generated PDFs. Without it, file features are no-ops; everything else
+  still works.
+
+## Stack
+
+| Layer        | Technology                                            |
+|--------------|-------------------------------------------------------|
+| Backend      | Python 3.14, FastAPI, SQLAlchemy 2.0, Uvicorn         |
+| Frontend     | React 19, TypeScript, Vite, Tailwind CSS 4            |
+| Database     | PostgreSQL in production, SQLite for local dev        |
+| File storage | Any S3-compatible service (optional)                  |
+| PDF          | WeasyPrint, rendered from Jinja2 HTML templates       |
+| Email        | aiosmtplib (async SMTP), Jinja2 HTML templates        |
+| Container    | Docker multi-stage build                              |
+
+## Running it
+
+### With Docker Compose
 
 ```bash
 git clone https://github.com/paul1404/svums.git
 cd svums
 cp .env.example .env
-# Edit .env — set ADMIN_PASSWORD and COOKIE_SECRET at minimum
+# Edit .env. At minimum set ADMIN_PASSWORD and COOKIE_SECRET.
 docker compose up -d
 ```
 
-Open **http://localhost:8000** — the application form is at `/`, the admin panel at `/admin`.
+The app comes up on http://localhost:8000. Form is at `/`, admin panel at
+`/admin`, public status lookup at `/status`.
 
-### Local Development
-
-```bash
-# One-time setup
-make setup
-
-# Start backend (port 8000) and frontend (port 5173) in separate terminals
-make backend
-make frontend
-
-# Run tests
-make test
-```
-
-The frontend dev server proxies `/api` requests to the backend. Admin password is whatever you set in `ADMIN_PASSWORD` (or `dev` with the Makefile defaults).
-
-## Configuration
-
-### Environment Variables
-
-| Variable | Required | Default | Description |
-|----------|----------|---------|-------------|
-| `ADMIN_PASSWORD` | Yes | — | Admin panel login password |
-| `COOKIE_SECRET` | Yes | — | Session signing + IBAN encryption key (min 24 chars) |
-| `DATABASE_URL` | No | SQLite | PostgreSQL connection string for production |
-| `PUBLIC_BASE_URL` | No | `http://localhost:8000` | Public URL used in email links |
-| `AWS_*`, `BUCKET_NAME` | No | — | S3-compatible storage for file uploads |
-| `POSTHOG_KEY` | No | — | Optional analytics |
-
-See [`.env.example`](.env.example) for the full list.
-
-### Club Settings (Admin Panel)
-
-All club-specific settings are configurable at runtime through the admin panel — no code changes needed:
-
-- **Identity** — Club name, abbreviation, city, address, website
-- **Contact** — Chairman/contact person name, role, phone, email
-- **Legal** — Court of registration, registration number, tax ID, privacy/bylaws/imprint URLs
-- **SEPA** — Creditor ID, mandate reference prefix
-- **Fees** — Complete fee schedule (categories, amounts, labels)
-- **Departments** — List of available departments/sections
-- **Branding** — Primary colors
-- **Email** — Subject line prefix
-
-These are stored in the database and served to both the frontend and PDF/email templates.
-
-**API endpoint:** `GET /api/club-config` (public) · `PUT /api/admin/club-config` (admin)
-
-### Production Deployment (Traefik + HTTPS)
-
-For production with Traefik reverse proxy and automatic HTTPS:
+For production with Traefik and HTTPS:
 
 ```bash
-cp .env.example .env
-# Fill in all production values including PUBLIC_BASE_URL, DATABASE_URL, etc.
 docker compose -f docker-compose.prod.yml up -d
 ```
 
-See [`docker-compose.prod.yml`](docker-compose.prod.yml) for the Traefik configuration.
+### Local development
 
-## Architecture
+```bash
+make setup          # creates the venv and installs node_modules
+make backend        # backend on :8000
+make frontend       # frontend on :5173 (proxies /api → :8000)
+make test           # backend tests
+make lint           # TypeScript type-check
+```
+
+The frontend dev server proxies `/api` to the backend, so use port 5173 in
+your browser. With the Makefile defaults the admin password is `dev`.
+
+## Configuration
+
+Most things are configured at runtime through the admin panel. Only a small
+set of values has to come from the environment:
+
+| Variable                | Required | Default                 | Notes                                                  |
+|-------------------------|----------|-------------------------|--------------------------------------------------------|
+| `ADMIN_PASSWORD`        | yes      | —                       | Admin login password.                                  |
+| `COOKIE_SECRET`         | yes      | —                       | Min 24 chars. Signs sessions and encrypts IBANs.       |
+| `DATABASE_URL`          | no       | local SQLite            | PostgreSQL URI in production.                          |
+| `PUBLIC_BASE_URL`       | no       | `http://localhost:8000` | Used when building links in emails.                    |
+| `CORS_ORIGINS`          | no       | —                       | Comma-separated list of allowed origins.               |
+| `COOKIE_SECURE`         | no       | `true`                  | Set to `false` for plain HTTP local dev.               |
+| `AWS_*`, `BUCKET_NAME`  | no       | —                       | S3-compatible storage. Disable to skip uploads.        |
+| `POSTHOG_KEY`           | no       | —                       | Enables analytics if set.                              |
+
+The full list with explanations is in [`.env.example`](.env.example).
+
+In the admin panel under Vereinseinstellungen you can edit:
+
+- Club name and short name, city, postal address, website
+- Contact person (name, role, phone, email)
+- Legal info: court of registration, registration number, tax ID, links to
+  privacy policy, bylaws, and imprint
+- SEPA creditor ID and mandate reference prefix
+- Fee schedule and the list of departments
+- Primary brand color
+- Subject prefix for outgoing emails
+
+These are stored as JSON in the `app_settings` row, validated with Pydantic,
+and served to both the frontend (`GET /api/club-config`) and the
+PDF/email templates.
+
+## Layout
 
 ```
 svums/
-  Dockerfile              Multi-stage build (Node frontend → Python backend)
-  docker-compose.yml      Simple standalone setup
-  docker-compose.prod.yml Traefik + HTTPS production setup
+  Dockerfile
+  docker-compose.yml         simple standalone setup
+  docker-compose.prod.yml    Traefik + HTTPS
   backend/
     app/
-      main.py             FastAPI app, middlewares, startup migrations
-      config.py           Environment variable settings (Pydantic)
-      models/             SQLAlchemy models (Application, Settings, etc.)
-      routers/            API routes — public, admin, address
-      schemas/            Pydantic request/response schemas + ClubConfig
-      services/           Business logic — email, PDF, fees, crypto, storage
-      templates/          Jinja2 HTML templates for PDFs and emails
-    tests/                pytest test suite
+      main.py                FastAPI app, middlewares, startup migrations
+      config.py              env-driven settings (Pydantic)
+      database.py            SQLAlchemy engine + session
+      models/                Application, AppSettings, EmailLog,
+                             CancellationLetter, RateLimitBucket
+      routers/               public, admin, address
+      schemas/               request/response shapes incl. ClubConfig
+      services/              email, pdf, fees, crypto, storage, urls,
+                             posthog, rate_limit
+      templates/             Jinja2 HTML for PDFs and emails
+    tests/                   pytest suite
   frontend/
     src/
-      pages/              React page components
-      context/            React contexts (Auth, ClubConfig)
-      services/api.ts     API client with CSRF handling
+      App.tsx                routes
+      pages/                 form, success, upload, status, admin pages
+      context/               auth and club-config providers
+      services/api.ts        API client with CSRF handling
 ```
 
-### Key Patterns
+A few things worth knowing if you start poking around:
 
-- **Club config** — All club-specific values stored as JSON in the database, validated by Pydantic, served via API
-- **Database migrations** — Auto-run at startup (`CREATE TABLE` + `ALTER TABLE ADD COLUMN IF NOT EXISTS`)
-- **CSRF** — Double-submit cookie pattern on state-changing endpoints
-- **IBAN encryption** — Fernet AES at rest, plaintext auto-encrypted on startup
-- **Rate limiting** — DB-backed, 3 requests per 10 min on the application endpoint
-- **SPA serving** — FastAPI serves the built React frontend, catch-all route for client-side routing
+- There is no Alembic. Schema changes happen at startup via plain
+  `CREATE TABLE` and `ALTER TABLE ADD COLUMN IF NOT EXISTS`.
+- The built React bundle is served by FastAPI from `backend/static/`.
+  A catch-all route returns `index.html` so client-side routing works.
+- WeasyPrint needs system libraries (`libpango`, `libcairo`, ...). They are
+  installed in the Docker image; if you skip them locally, PDF generation
+  will fail but everything else still runs.
+- All UI strings, PDF templates, and email templates are German. There is
+  no i18n layer.
 
 ## License
 
-MIT
+MIT.
 
 ---
 
 # Deutsche Version
 
-## SVUMS — Vereins-Mitgliedschaftssystem
+## SVUMS — Mitgliedschaftssystem für Sportvereine
 
-**Ein vollständiges Mitgliedschaftsantrags-System für deutsche Sportvereine.** Gebaut mit FastAPI, React und TypeScript — von mehrstufigen Antragsformularen und digitalen Unterschriften bis hin zu PDF-Erzeugung, E-Mail-Benachrichtigungen und einem Admin-Dashboard.
+Online-Mitgliedschaftsantrag für deutsche Sportvereine. Antragsteller füllen
+ein Formular aus, unterschreiben digital oder auf Papier, und der Verein
+bearbeitet alles über ein Admin-Panel. Ursprünglich für einen einzelnen
+Verein geschrieben und inzwischen so verallgemeinert, dass jeder Verein es
+ohne Codeänderungen selbst betreiben kann.
+
+### Was es kann
+
+Für Antragsteller:
+
+- Dreistufiges Formular: Persönliche Daten, SEPA, Unterschrift und
+  Einwilligungen.
+- Beitragskategorie und Jahresbeitrag werden automatisch aus dem
+  Geburtsdatum bestimmt (Kind, Jugendliche, junge Erwachsene, Erwachsene,
+  Familie).
+- Familienanträge mit Partner und beliebig vielen Kindern, jeweils mit
+  eigenen Abteilungen.
+- Zwei Unterschriftswege: direkt im Browser zeichnen oder hochladen, oder
+  PDF per E-Mail erhalten und unterschrieben zurück hochladen
+  (Link 30 Tage gültig).
+- Statusseite unter `/status?nr=ANT-...` mit Fortschrittsanzeige.
+- PLZ- und Straßen-Vervollständigung über OpenStreetMap Nominatim.
+- Doppel-Antrags-Prüfung über Name plus Geburtsdatum.
+
+Für die Vereinsverwaltung:
+
+- Übersichts-Dashboard mit Auswertungen nach Status, Abteilung, Alter,
+  Mitgliedschaftstyp, Geschlecht, Monat und genehmigtem Beitragsvolumen.
+- Antragsliste mit Suche, Status-Filter, Paginierung und Filter für
+  Test-Anträge.
+- Antragsdetail: bearbeiten, Status ändern, genehmigen mit
+  Gegenzeichnung und Mitgliedsnummer, ablehnen mit Begründung
+  (geht per E-Mail an den Antragsteller).
+- Erzeugte PDFs: Beitrittserklärung, Genehmigungsseite (wird hinten
+  angehängt), Kündigungsbestätigung mit optionalen Familienmitgliedern und
+  abweichendem Zahler.
+- CSV-Export (Semikolon, deutsche Spaltennamen, IBANs entschlüsselt).
+- E-Mail-Protokoll mit Empfänger, Betreff, Status und Fehlermeldung.
+- SMTP-Einstellungen, Benachrichtigungs-E-Mail und gespeicherte
+  Admin-Unterschrift im Panel pflegbar; Testversand inklusive.
+
+Im Hintergrund:
+
+- IBANs werden mit Fernet verschlüsselt gespeichert. Klartext-Werte werden
+  beim Start automatisch verschlüsselt.
+- CSRF-Schutz, Rate-Limit auf dem Antrags-Endpoint und beim Admin-Login.
+- Optionale PostHog-Analyse mit hartem PII-Filter.
+- Optionaler S3-kompatibler Speicher (Tigris, MinIO, AWS S3) für PDFs.
 
 ### Schnellstart mit Docker
 
@@ -160,35 +250,23 @@ cp .env.example .env
 docker compose up -d
 ```
 
-Öffne **http://localhost:8000** — Antragsformular unter `/`, Admin-Panel unter `/admin`.
+Anwendung unter http://localhost:8000.
 
 ### Anpassung für deinen Verein
 
-Alle vereinsspezifischen Einstellungen sind über das Admin-Panel konfigurierbar:
+Über das Admin-Panel konfigurierbar (kein Deployment nötig):
 
 - Vereinsname, Adresse, Kontaktdaten
-- Beitragsstruktur und Abteilungen
+- Beiträge und Abteilungen
 - SEPA-Gläubiger-ID und Mandatsreferenz-Präfix
-- Rechtliche Angaben (Registergericht, Steuernummer, Links zu Datenschutz/Satzung/Impressum)
+- Rechtliche Angaben und Links zu Datenschutz, Satzung, Impressum
 - Branding-Farben
-
-Kein Code muss geändert werden — einfach deployen und im Admin-Panel konfigurieren.
 
 ### Lokale Entwicklung
 
 ```bash
-make setup      # Einmalig: venv + node_modules installieren
-make backend    # Backend starten (Port 8000)
-make frontend   # Frontend starten (Port 5173)
-make test       # Tests ausführen
+make setup
+make backend     # Port 8000
+make frontend    # Port 5173
+make test
 ```
-
-### Funktionen
-
-- Mehrstufige Formulare (Einzel, Kind, Familie) mit automatischer Beitragsberechnung
-- Digitale Unterschrift am Bildschirm oder klassisch: ausdrucken, unterschreiben, hochladen
-- Admin-Dashboard mit Genehmigung (mit Gegenzeichnung) oder Ablehnung
-- PDF-Erzeugung (Beitrittserklärung, Genehmigung, Kündigungsbestätigung)
-- Automatische E-Mail-Benachrichtigungen bei jedem Statuswechsel
-- IBAN-Verschlüsselung, CSRF-Schutz, Rate-Limiting
-- PLZ-basierte Adress-Vervollständigung
