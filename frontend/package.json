@@ -11,8 +11,8 @@
   "dependencies": {
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
-    "lucide-react": "^1.8.0",
-    "posthog-js": "^1.369.3",
+    "lucide-react": "^1.14.0",
+    "posthog-js": "^1.372.6",
     "react": "^19.2.5",
     "react-dom": "^19.2.5",
     "react-router-dom": "^7.14.1",
@@ -26,9 +26,9 @@
     "@types/react-dom": "^19.2.3",
     "@types/react-signature-canvas": "^1.0.7",
     "@vitejs/plugin-react": "^6.0.1",
-    "postcss": "^8.5.10",
-    "tailwindcss": "^4.2.0",
+    "postcss": "^8.5.13",
+    "tailwindcss": "^4.2.4",
     "typescript": "^6.0.3",
-    "vite": "^8.0.8"
+    "vite": "^8.0.10"
   }
 }
