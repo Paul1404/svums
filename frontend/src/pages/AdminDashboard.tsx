@@ -37,6 +37,7 @@ import {
   Menu,
   X,
   Building2,
+  ScrollText,
 } from "lucide-react";
 
 const STATUS_LABELS: Record<string, { label: string; color: string }> = {
@@ -170,6 +171,13 @@ export default function AdminDashboard() {
               </button>
             </div>
             <Link
+              to="/admin/legacy-application"
+              className="flex items-center gap-1.5 px-3 py-2 text-sm text-amber-700 hover:text-amber-800 hover:bg-amber-50 rounded-lg transition-colors"
+              title="Papier-Antrag erfassen"
+            >
+              <ScrollText className="w-4 h-4" /> Papier-Antrag
+            </Link>
+            <Link
               to="/admin/documents"
               className="flex items-center gap-1.5 px-3 py-2 text-sm text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-colors"
               title="Dokumente verwalten"
@@ -240,6 +248,13 @@ export default function AdminDashboard() {
         {/* Mobile dropdown menu */}
         {mobileMenuOpen && (
           <div className="lg:hidden border-t bg-white px-4 py-3 space-y-1">
+            <Link
+              to="/admin/legacy-application"
+              className="flex items-center gap-2 px-3 py-2.5 text-sm text-amber-700 hover:bg-amber-50 rounded-lg"
+              onClick={() => setMobileMenuOpen(false)}
+            >
+              <ScrollText className="w-4 h-4" /> Papier-Antrag erfassen
+            </Link>
             <Link
               to="/admin/documents"
               className="flex items-center gap-2 px-3 py-2.5 text-sm text-gray-700 hover:bg-gray-100 rounded-lg"
@@ -644,7 +659,11 @@ export default function AdminDashboard() {
                       }}
                       style={{ animationDelay: `${Math.min(idx * 30, 360)}ms` }}
                       className={`row-enter border-b hover:bg-gray-50 focus:bg-gray-100 focus:outline-none cursor-pointer transition-colors ${
-                        app.is_test ? "bg-orange-50/60" : ""
+                        app.is_test
+                          ? "bg-orange-50/60"
+                          : app.source === "legacy"
+                          ? "bg-amber-50/60"
+                          : ""
                       }`}
                     >
                       <td className="px-4 py-3 text-gray-500 font-mono hidden sm:table-cell">
@@ -655,6 +674,14 @@ export default function AdminDashboard() {
                           {app.is_test && (
                             <span className="inline-flex items-center px-1.5 py-0.5 text-[10px] font-semibold rounded bg-orange-100 text-orange-700 shrink-0">
                               TEST
+                            </span>
+                          )}
+                          {app.source === "legacy" && (
+                            <span
+                              className="inline-flex items-center px-1.5 py-0.5 text-[10px] font-semibold rounded bg-amber-100 text-amber-800 shrink-0"
+                              title="Papier-Antrag (manuell erfasst)"
+                            >
+                              PAPIER
                             </span>
                           )}
                           {app.nachname}, {app.vorname}

@@ -8,9 +8,9 @@ from pathlib import Path
 from urllib.parse import quote
 
 from app.services.posthog import capture as posthog_capture, get_admin_distinct_id
-from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, Request, Response, UploadFile
+from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, Request, Response, UploadFile
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, ValidationError
 from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 from itsdangerous import URLSafeTimedSerializer, BadSignature, SignatureExpired
@@ -26,6 +26,7 @@ from app.schemas.application import (
     ApplicationResponse,
     ApplicationListResponse,
     ApplicationUpdate,
+    LegacyApplicationCreate,
 )
 from app.schemas.settings import (
     AdminLoginRequest,
@@ -42,7 +43,7 @@ from app.services.pdf import (
     generate_approval_page,
     merge_pdf_with_approval,
 )
-from app.services.crypto import decrypt_iban_safe
+from app.services.crypto import decrypt_iban_safe, encrypt_iban
 from app.services.email import send_status_email
 from app.services import storage
 from app.services.rate_limit import (
@@ -1025,6 +1026,169 @@ async def admin_upload_document(
     return ApplicationResponse.model_validate(app)
 
 
+# --- Legacy paper application import ---
+
+@router.post("/applications/legacy", response_model=ApplicationResponse, status_code=201)
+async def create_legacy_application(
+    request: Request,
+    data: str = Form(...),
+    file: UploadFile = File(...),
+    is_admin: bool = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    """Create a membership application from a legacy paper form.
+
+    Admin uploads a scan of the (already paper-signed) form and transcribes the
+    fields. The application is created with source='legacy', status set to
+    'dokument_hochgeladen' (paper signature == upload), and no confirmation
+    emails are dispatched.
+    """
+    import json as _json
+    import secrets
+    import string
+    from datetime import date as _date
+    from app.constants import ALLOWED_UPLOAD_EXTENSIONS, MAX_UPLOAD_FILE_SIZE
+    from app.models.settings import AppSettings
+
+    try:
+        payload = _json.loads(data)
+    except _json.JSONDecodeError:
+        raise HTTPException(status_code=400, detail="Ungültige Antragsdaten (kein gültiges JSON)")
+    try:
+        parsed = LegacyApplicationCreate(**payload)
+    except ValidationError as exc:
+        # Pydantic errors() may contain non-JSON-serializable ctx values, so we
+        # project them down to plain strings.
+        sanitized = [
+            {"loc": list(e.get("loc", [])), "msg": str(e.get("msg", "")), "type": e.get("type", "")}
+            for e in exc.errors()
+        ]
+        raise HTTPException(status_code=422, detail=sanitized)
+
+    ext = Path(file.filename).suffix.lower() if file.filename else ""
+    if ext not in ALLOWED_UPLOAD_EXTENSIONS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Nicht erlaubtes Dateiformat. Erlaubt: {', '.join(ALLOWED_UPLOAD_EXTENSIONS)}",
+        )
+    contents = await file.read()
+    if len(contents) > MAX_UPLOAD_FILE_SIZE:
+        raise HTTPException(status_code=400, detail="Datei zu groß (max. 20 MB)")
+    if len(contents) == 0:
+        raise HTTPException(status_code=400, detail="Leere Datei")
+
+    fee_amount, _fee_label = calculate_fee(parsed.mitgliedschaft_typ, parsed.elternteil_mitglied)
+
+    consent_dt = (
+        datetime.combine(parsed.signed_on, datetime.min.time())
+        if parsed.signed_on
+        else datetime.utcnow()
+    )
+
+    application = MembershipApplication(
+        antragstyp=parsed.antragstyp,
+        geschlecht=parsed.geschlecht,
+        vorname=parsed.vorname,
+        nachname=parsed.nachname,
+        geburtsdatum=parsed.geburtsdatum,
+        strasse=parsed.strasse,
+        plz=parsed.plz,
+        ort=parsed.ort,
+        telefon=parsed.telefon,
+        email=parsed.email,
+        erziehungsberechtigter_vorname=parsed.erziehungsberechtigter_vorname,
+        erziehungsberechtigter_nachname=parsed.erziehungsberechtigter_nachname,
+        partner_vorname=parsed.partner_vorname,
+        partner_nachname=parsed.partner_nachname,
+        partner_geburtsdatum=parsed.partner_geburtsdatum,
+        partner_abteilungen=json.dumps(parsed.partner_abteilungen) if parsed.partner_abteilungen else None,
+        kinder=json.dumps([k.model_dump(mode="json") for k in parsed.kinder]) if parsed.kinder else None,
+        abteilungen=json.dumps(parsed.abteilungen),
+        mitgliedschaft_typ=parsed.mitgliedschaft_typ,
+        elternteil_mitglied=parsed.elternteil_mitglied,
+        jahresbeitrag=fee_amount,
+        kontoinhaber=parsed.kontoinhaber,
+        iban=encrypt_iban(parsed.iban),
+        bic=parsed.bic,
+        kreditinstitut=parsed.kreditinstitut,
+        # Paper signature implies consent at the time the form was signed.
+        consent_at=consent_dt,
+        datenschutz_accepted=True,
+        satzung_accepted=True,
+        consent_ip=None,
+        is_test=False,
+        source="legacy",
+        # Suppress later email dispatch attempts; admin can still resend if needed.
+        email_sent=True,
+        # Paper form is already signed → treat upload as the signed document.
+        status="dokument_hochgeladen",
+    )
+
+    db.add(application)
+    db.flush()
+
+    year = _date.today().year
+    _charset = string.ascii_uppercase + string.digits
+    _charset = _charset.replace("O", "").replace("I", "").replace("L", "").replace("0", "")
+    for _attempt in range(20):
+        rand_part = "".join(secrets.choice(_charset) for _ in range(6))
+        candidate = f"ANT-{year}-{rand_part}"
+        exists = db.query(MembershipApplication.id).filter(
+            MembershipApplication.antragsnummer == candidate
+        ).first()
+        if not exists:
+            application.antragsnummer = candidate
+            break
+    else:
+        application.antragsnummer = f"ANT-{year}-{uuid.uuid4().hex[:8].upper()}"
+
+    application.upload_token = str(uuid.uuid4())
+
+    _app_settings = db.query(AppSettings).filter(AppSettings.id == 1).first()
+    from app.schemas.club_config import ClubConfig
+    _club = _app_settings.get_club_config() if _app_settings else ClubConfig()
+    application.mandatsreferenz = f"{_club.sepa_mandate_prefix}{year}-{application.id:05d}"
+
+    filename = f"{application.antragsnummer}_legacy_{uuid.uuid4().hex[:8]}{ext}"
+    content_type = {
+        ".pdf": "application/pdf",
+        ".jpg": "image/jpeg", ".jpeg": "image/jpeg",
+        ".png": "image/png",
+        ".heic": "image/heic", ".heif": "image/heif",
+    }.get(ext, "application/octet-stream")
+    storage.upload_file(filename, contents, content_type=content_type)
+    application.uploaded_file = filename
+    application.uploaded_at = datetime.utcnow()
+
+    try:
+        db.commit()
+    except Exception:
+        db.rollback()
+        storage.delete_file(filename)
+        raise
+    db.refresh(application)
+
+    posthog_capture(
+        "membership_application_legacy_imported",
+        get_admin_distinct_id(request),
+        properties={
+            "app_area": "admin",
+            "source": "backend",
+            "application_id": application.id,
+            "antragsnummer": application.antragsnummer,
+            "antragstyp": application.antragstyp or "einzel",
+            "mitgliedschaft_typ": application.mitgliedschaft_typ,
+            "jahresbeitrag": float(application.jahresbeitrag),
+            "abteilungen_count": len(application.get_abteilungen()),
+            "file_extension": ext,
+            "file_size_bytes": len(contents),
+            "has_signed_on_date": parsed.signed_on is not None,
+        },
+    )
+
+    return ApplicationResponse.model_validate(application)
+
+
 # --- Test data for admin test mode ---
 
 @router.get("/test-data")
@@ -1127,6 +1291,7 @@ async def export_csv(
         "Jahresbeitrag", "Kontoinhaber", "IBAN", "BIC", "Kreditinstitut",
         "Status", "Notizen", "E-Mail gesendet", "Eingereicht am",
         "Datenschutz akzeptiert", "Satzung akzeptiert", "Einwilligung am", "Einwilligung IP",
+        "Quelle",
     ])
 
     for app in applications:
@@ -1149,6 +1314,7 @@ async def export_csv(
             "Ja" if app.satzung_accepted else ("Nein" if app.satzung_accepted is False else "N/A"),
             app.consent_at.strftime("%d.%m.%Y %H:%M") if app.consent_at else "N/A",
             app.consent_ip or "N/A",
+            app.source or "online",
         ])
 
     posthog_capture(

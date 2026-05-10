@@ -309,8 +309,16 @@ export default function AdminApplicationDetail() {
               <ArrowLeft className="w-5 h-5" />
             </Link>
             <div>
-              <h1 className="text-lg font-bold text-gray-900">
+              <h1 className="text-lg font-bold text-gray-900 flex items-center gap-2">
                 {app.antragsnummer || `Antrag #${app.id}`}
+                {app.source === "legacy" && (
+                  <span
+                    className="inline-flex items-center px-2 py-0.5 text-[10px] font-semibold rounded bg-amber-100 text-amber-800"
+                    title="Papier-Antrag (manuell erfasst)"
+                  >
+                    PAPIER
+                  </span>
+                )}
               </h1>
               <p className="text-xs text-gray-500">
                 {app.nachname}, {app.vorname}
