@@ -137,11 +137,11 @@ export default function AdminDashboard() {
           </div>
 
           {/* Desktop nav */}
-          <div className="hidden lg:flex items-center gap-2">
+          <div className="hidden xl:flex items-center gap-1">
             <button
               type="button"
               onClick={() => window.dispatchEvent(new CustomEvent("svums:open-palette"))}
-              className="flex items-center gap-2 px-3 py-2 text-sm text-gray-500 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-colors border border-gray-200"
+              className="flex shrink-0 items-center gap-2 px-3 py-2 text-sm whitespace-nowrap text-gray-500 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-colors border border-gray-200"
               title="Befehlspalette öffnen"
               aria-label="Befehlspalette öffnen"
             >
@@ -150,7 +150,7 @@ export default function AdminDashboard() {
               <kbd className="ml-1 text-[10px] px-1.5 py-0.5 rounded border border-gray-300 bg-gray-50 text-gray-500 font-mono">⌘K</kbd>
             </button>
             {/* Test Application */}
-            <div className="flex items-center gap-1.5 border-r pr-2 mr-1">
+            <div className="flex shrink-0 items-center gap-1.5 border-r pr-2 mr-1">
               <select
                 value={testModeType}
                 onChange={(e) => setTestModeType(e.target.value as "einzel" | "kind" | "familie")}
@@ -163,7 +163,7 @@ export default function AdminDashboard() {
               <button
                 onClick={handleLaunchTestMode}
                 disabled={launchingTest}
-                className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-orange-700 bg-orange-50 border border-orange-200 rounded-lg hover:bg-orange-100 transition-colors disabled:opacity-50"
+                className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium whitespace-nowrap text-orange-700 bg-orange-50 border border-orange-200 rounded-lg hover:bg-orange-100 transition-colors disabled:opacity-50"
                 title="Testantrag mit Beispieldaten öffnen"
               >
                 <FlaskConical className="w-3.5 h-3.5" />
@@ -172,63 +172,63 @@ export default function AdminDashboard() {
             </div>
             <Link
               to="/admin/legacy-application"
-              className="flex items-center gap-1.5 px-3 py-2 text-sm text-amber-700 hover:text-amber-800 hover:bg-amber-50 rounded-lg transition-colors"
+              className="flex shrink-0 items-center gap-1.5 px-3 py-2 text-sm whitespace-nowrap text-amber-700 hover:text-amber-800 hover:bg-amber-50 rounded-lg transition-colors"
               title="Papier-Antrag erfassen"
             >
               <ScrollText className="w-4 h-4" /> Papier-Antrag
             </Link>
             <Link
               to="/admin/documents"
-              className="flex items-center gap-1.5 px-3 py-2 text-sm text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-colors"
+              className="flex shrink-0 items-center gap-1.5 px-3 py-2 text-sm whitespace-nowrap text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-colors"
               title="Dokumente verwalten"
             >
               <FileText className="w-4 h-4" /> Dokumente
             </Link>
             <Link
               to="/admin/email-log"
-              className="flex items-center gap-1.5 px-3 py-2 text-sm text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-colors"
+              className="flex shrink-0 items-center gap-1.5 px-3 py-2 text-sm whitespace-nowrap text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-colors"
               title="E-Mail-Log anzeigen"
             >
               <Mail className="w-4 h-4" /> E-Mail-Log
             </Link>
             <Link
               to="/admin/cancellation"
-              className="flex items-center gap-1.5 px-3 py-2 text-sm text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-colors"
+              className="flex shrink-0 items-center gap-1.5 px-3 py-2 text-sm whitespace-nowrap text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-colors"
               title="Kündigungsbestätigung erstellen"
             >
               <UserX className="w-4 h-4" /> Kündigung
             </Link>
             <Link
               to="/admin/club-settings"
-              className="flex items-center gap-1.5 px-3 py-2 text-sm text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-colors"
+              className="flex shrink-0 items-center gap-1.5 px-3 py-2 text-sm whitespace-nowrap text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-colors"
               title="Vereinseinstellungen"
             >
               <Building2 className="w-4 h-4" /> Verein
             </Link>
             <Link
               to="/admin/settings"
-              className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+              className="shrink-0 p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
               title="Einstellungen"
             >
               <Settings className="w-5 h-5" />
             </Link>
             <button
               onClick={() => setShowExportDialog(true)}
-              className="flex items-center gap-1.5 px-3 py-2 text-sm text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-colors"
+              className="flex shrink-0 items-center gap-1.5 px-3 py-2 text-sm whitespace-nowrap text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-colors"
               title="CSV Export"
             >
               <Download className="w-4 h-4" /> Export
             </button>
             <button
               onClick={handleLogout}
-              className="flex items-center gap-1.5 px-3 py-2 text-sm text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors"
+              className="flex shrink-0 items-center gap-1.5 px-3 py-2 text-sm whitespace-nowrap text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors"
             >
               <LogOut className="w-4 h-4" /> Abmelden
             </button>
           </div>
 
           {/* Mobile: key actions + hamburger */}
-          <div className="flex lg:hidden items-center gap-1.5">
+          <div className="flex xl:hidden items-center gap-1.5">
             <button
               onClick={fetchData}
               className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
@@ -247,7 +247,7 @@ export default function AdminDashboard() {
 
         {/* Mobile dropdown menu */}
         {mobileMenuOpen && (
-          <div className="lg:hidden border-t bg-white px-4 py-3 space-y-1">
+          <div className="xl:hidden border-t bg-white px-4 py-3 space-y-1">
             <Link
               to="/admin/legacy-application"
               className="flex items-center gap-2 px-3 py-2.5 text-sm text-amber-700 hover:bg-amber-50 rounded-lg"
@@ -402,7 +402,7 @@ export default function AdminDashboard() {
 
           <button
             onClick={fetchData}
-            className="hidden lg:block p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+            className="hidden xl:block p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
             title="Aktualisieren"
           >
             <RefreshCw className={`w-5 h-5 ${loading ? "animate-spin" : ""}`} />
