@@ -70,6 +70,7 @@ async def lifespan(app: FastAPI):
                 ("satzung_accepted", "BOOLEAN"),
                 ("consent_ip", "VARCHAR(45)"),
                 ("is_test", "BOOLEAN DEFAULT 0"),
+                ("source", "VARCHAR(20) NOT NULL DEFAULT 'online'"),
             ]:
                 if col_name not in columns:
                     cursor.execute(f"ALTER TABLE membership_applications ADD COLUMN {col_name} {col_type}")
@@ -134,6 +135,10 @@ async def lifespan(app: FastAPI):
                 conn.execute(text(
                     "ALTER TABLE membership_applications "
                     "ADD COLUMN IF NOT EXISTS is_test BOOLEAN DEFAULT FALSE"
+                ))
+                conn.execute(text(
+                    "ALTER TABLE membership_applications "
+                    "ADD COLUMN IF NOT EXISTS source VARCHAR(20) NOT NULL DEFAULT 'online'"
                 ))
             logger.info("Widened iban column to VARCHAR(500)")
         except Exception as e:

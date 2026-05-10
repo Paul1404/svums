@@ -274,6 +274,160 @@ class ApplicationCreate(BaseModel):
         return self
 
 
+class LegacyApplicationCreate(BaseModel):
+    """Schema for admin-entered legacy paper applications.
+
+    Mirrors ApplicationCreate but: no inline digital signature (the paper form
+    is already signed), no digital consent flags (paper signature implies
+    consent), and no test-mode flag.
+    """
+    antragstyp: str = "einzel"
+    geschlecht: Optional[str] = None
+    vorname: str
+    nachname: str
+    geburtsdatum: date
+    strasse: str
+    plz: str
+    ort: str
+    telefon: Optional[str] = None
+    email: EmailStr
+    abteilungen: list[str]
+    mitgliedschaft_typ: str
+    elternteil_mitglied: Optional[bool] = None
+    erziehungsberechtigter_vorname: Optional[str] = None
+    erziehungsberechtigter_nachname: Optional[str] = None
+    partner_vorname: Optional[str] = None
+    partner_nachname: Optional[str] = None
+    partner_geburtsdatum: Optional[date] = None
+    partner_abteilungen: Optional[list[str]] = None
+    kinder: Optional[list[ChildData]] = None
+    kontoinhaber: Optional[str] = None
+    iban: str
+    bic: Optional[str] = None
+    kreditinstitut: Optional[str] = None
+    # Date the paper form was originally signed (optional). Falls back to today.
+    signed_on: Optional[date] = None
+
+    @field_validator("partner_geburtsdatum", "signed_on", mode="before")
+    @classmethod
+    def coerce_empty_date(cls, v):
+        if v == "" or v is None:
+            return None
+        return v
+
+    @field_validator("antragstyp")
+    @classmethod
+    def validate_antragstyp(cls, v):
+        if v not in VALID_ANTRAGSTYPEN:
+            raise ValueError(f"Ungültiger Antragstyp: {v}")
+        return v
+
+    @field_validator("geschlecht")
+    @classmethod
+    def validate_geschlecht(cls, v):
+        if v is not None and v not in VALID_GESCHLECHT:
+            raise ValueError(f"Ungültige Anrede: {v}. Erlaubt: Herr, Frau, keine Angabe")
+        return v
+
+    @field_validator("abteilungen")
+    @classmethod
+    def validate_abteilungen(cls, v):
+        for abt in v:
+            if abt not in VALID_ABTEILUNGEN:
+                raise ValueError(f"Ungültige Abteilung: {abt}")
+        if len(v) == 0:
+            raise ValueError("Mindestens eine Abteilung muss ausgewählt werden")
+        return v
+
+    @field_validator("mitgliedschaft_typ")
+    @classmethod
+    def validate_mitgliedschaft_typ(cls, v):
+        if v not in VALID_MITGLIEDSCHAFT_TYPEN:
+            raise ValueError(f"Ungültiger Mitgliedschaftstyp: {v}")
+        return v
+
+    @field_validator("plz")
+    @classmethod
+    def validate_plz(cls, v):
+        if not v.isdigit() or len(v) != 5:
+            raise ValueError("PLZ muss 5 Ziffern haben")
+        return v
+
+    @field_validator("vorname", "nachname")
+    @classmethod
+    def validate_names(cls, v):
+        if len(v.strip()) < 2:
+            raise ValueError("Mindestens 2 Zeichen erforderlich")
+        return v.strip()
+
+    @field_validator("geburtsdatum")
+    @classmethod
+    def validate_geburtsdatum(cls, v):
+        today = date.today()
+        if v >= today:
+            raise ValueError("Geburtsdatum muss in der Vergangenheit liegen")
+        if (today - v).days > 120 * 365:
+            raise ValueError("Ungültiges Geburtsdatum")
+        return v
+
+    @field_validator("signed_on")
+    @classmethod
+    def validate_signed_on(cls, v):
+        if v is None:
+            return v
+        today = date.today()
+        if v > today:
+            raise ValueError("Datum der Unterschrift darf nicht in der Zukunft liegen")
+        return v
+
+    @field_validator("iban")
+    @classmethod
+    def validate_iban(cls, v):
+        cleaned = v.replace(" ", "").upper()
+        if len(cleaned) < 15 or len(cleaned) > 34:
+            raise ValueError("IBAN muss zwischen 15 und 34 Zeichen lang sein")
+        if not cleaned[:2].isalpha() or not cleaned[2:4].isdigit():
+            raise ValueError("Ungültiges IBAN-Format")
+        rearranged = cleaned[4:] + cleaned[:4]
+        num_str = ""
+        for ch in rearranged:
+            num_str += str(ord(ch) - ord("A") + 10) if ch.isalpha() else ch
+        if int(num_str) % 97 != 1:
+            raise ValueError("IBAN-Prüfsumme ist ungültig")
+        return cleaned
+
+    @field_validator("bic")
+    @classmethod
+    def validate_bic(cls, v):
+        if v and v.strip():
+            import re
+            if not re.match(r'^[A-Z]{4}[A-Z]{2}[A-Z0-9]{2}([A-Z0-9]{3})?$', v.strip().upper()):
+                raise ValueError("Ungültiges BIC-Format (8 oder 11 Zeichen)")
+            return v.strip().upper()
+        return v
+
+    @model_validator(mode="after")
+    def validate_type_specific(self):
+        if self.antragstyp == "kind":
+            if not self.erziehungsberechtigter_vorname or not self.erziehungsberechtigter_nachname:
+                raise ValueError("Erziehungsberechtigter ist bei Kind-Antrag erforderlich")
+        if self.antragstyp == "familie":
+            if not self.kinder or len(self.kinder) == 0:
+                raise ValueError("Bei Familienmitgliedschaft muss mindestens ein Kind angegeben werden")
+            if not self.partner_vorname or not self.partner_nachname:
+                raise ValueError(
+                    "Bei Familienmitgliedschaft ist ein Partner/2. Elternteil "
+                    "(Vorname und Nachname) erforderlich"
+                )
+            if not self.partner_geburtsdatum:
+                raise ValueError("Geburtsdatum des Partners ist erforderlich")
+            if self.partner_abteilungen:
+                for abt in self.partner_abteilungen:
+                    if abt not in VALID_ABTEILUNGEN:
+                        raise ValueError(f"Ungültige Abteilung für Partner: {abt}")
+        return self
+
+
 class ApplicationResponse(BaseModel):
     id: int
     antragsnummer: Optional[str] = None
@@ -316,6 +470,7 @@ class ApplicationResponse(BaseModel):
     satzung_accepted: Optional[bool] = None
     consent_ip: Optional[str] = None
     is_test: bool = False
+    source: str = "online"
     created_at: datetime
 
     @field_validator("is_test", mode="before")
@@ -323,6 +478,12 @@ class ApplicationResponse(BaseModel):
     def coerce_is_test(cls, v):
         """Coerce None to False for older rows that predate the is_test column."""
         return bool(v) if v is not None else False
+
+    @field_validator("source", mode="before")
+    @classmethod
+    def coerce_source(cls, v):
+        """Default to 'online' for older rows that predate the source column."""
+        return v if v else "online"
 
     @field_validator("iban", mode="before")
     @classmethod
