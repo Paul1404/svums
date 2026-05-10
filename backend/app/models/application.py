@@ -69,6 +69,8 @@ class MembershipApplication(Base):
     satzung_accepted = Column(Boolean, nullable=True)  # Satzung accepted
     consent_ip = Column(String(45), nullable=True)  # IP address at time of consent
     is_test = Column(Boolean, nullable=False, default=False)  # True for test-mode applications
+    # "online" for digitally submitted applications, "legacy" for paper forms transcribed by an admin
+    source = Column(String(20), nullable=False, default="online")
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
 
     def get_abteilungen(self) -> list[str]:
