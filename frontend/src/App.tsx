@@ -13,6 +13,7 @@ import AdminClubSettings from "./pages/AdminClubSettings";
 import AdminCancellation from "./pages/AdminCancellation";
 import AdminEmailLog from "./pages/AdminEmailLog";
 import AdminDocuments from "./pages/AdminDocuments";
+import AdminLegacyApplication from "./pages/AdminLegacyApplication";
 import { AdminProvider, useAdmin } from "./context/AdminContext";
 import { ClubConfigProvider } from "./context/ClubConfigContext";
 import { ThemeProvider } from "./context/ThemeContext";
@@ -100,6 +101,14 @@ function AdminRoutes() {
             </AdminRoute>
           }
         />
+        <Route
+          path="legacy-application"
+          element={
+            <AdminRoute>
+              <AdminLegacyApplication />
+            </AdminRoute>
+          }
+        />
       </Routes>
     </AdminProvider>
   );
@@ -149,6 +158,9 @@ function RouteAnalytics() {
       appArea = "admin";
     } else if (location.pathname === "/admin/documents") {
       routeName = "admin_documents";
+      appArea = "admin";
+    } else if (location.pathname === "/admin/legacy-application") {
+      routeName = "admin_legacy_application";
       appArea = "admin";
     }
 

@@ -92,7 +92,36 @@ export interface ApplicationResponse {
   satzung_accepted: boolean | null;
   consent_ip: string | null;
   is_test: boolean;
+  source: string;
   created_at: string;
+}
+
+export interface LegacyApplicationData {
+  antragstyp: "einzel" | "kind" | "familie";
+  geschlecht: "Herr" | "Frau" | "keine Angabe" | null;
+  vorname: string;
+  nachname: string;
+  geburtsdatum: string;
+  strasse: string;
+  plz: string;
+  ort: string;
+  telefon: string | null;
+  email: string;
+  abteilungen: string[];
+  mitgliedschaft_typ: string;
+  elternteil_mitglied: boolean | null;
+  erziehungsberechtigter_vorname: string | null;
+  erziehungsberechtigter_nachname: string | null;
+  partner_vorname: string | null;
+  partner_nachname: string | null;
+  partner_geburtsdatum: string | null;
+  partner_abteilungen: string[] | null;
+  kinder: ChildData[] | null;
+  kontoinhaber: string | null;
+  iban: string;
+  bic: string | null;
+  kreditinstitut: string | null;
+  signed_on: string | null;
 }
 
 export interface ApplicationListResponse {
@@ -634,6 +663,19 @@ export async function adminUploadDocument(
   const form = new FormData();
   form.append("file", file);
   return apiRequest(`/api/admin/applications/${id}/admin-upload`, {
+    method: "POST",
+    body: form,
+  });
+}
+
+export async function createLegacyApplication(
+  data: LegacyApplicationData,
+  file: File
+): Promise<ApplicationResponse> {
+  const form = new FormData();
+  form.append("data", JSON.stringify(data));
+  form.append("file", file);
+  return apiRequest("/api/admin/applications/legacy", {
     method: "POST",
     body: form,
   });
