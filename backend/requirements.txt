@@ -3,7 +3,7 @@ psycopg2-binary==2.9.12
 uvicorn[standard]==0.46.0
 sqlalchemy==2.0.49
 pydantic[email]==2.13.3
-pydantic-settings==2.14.0
+pydantic-settings==2.14.1
 python-multipart==0.0.27
 aiosmtplib==5.1.0
 jinja2==3.1.6
