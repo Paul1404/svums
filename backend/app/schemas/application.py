@@ -29,7 +29,14 @@ VALID_MITGLIEDSCHAFT_TYPEN = [
 
 VALID_ANTRAGSTYPEN = ["einzel", "kind", "familie"]
 
-VALID_STATUS = ["neu", "dokument_hochgeladen", "in_bearbeitung", "genehmigt", "abgelehnt"]
+VALID_STATUS = [
+    "neu",
+    "scan_eingegangen",
+    "dokument_hochgeladen",
+    "in_bearbeitung",
+    "genehmigt",
+    "abgelehnt",
+]
 
 
 class ChildData(BaseModel):
@@ -290,7 +297,7 @@ class LegacyApplicationCreate(BaseModel):
     plz: str
     ort: str
     telefon: Optional[str] = None
-    email: EmailStr
+    email: Optional[EmailStr] = None
     abteilungen: list[str]
     mitgliedschaft_typ: str
     elternteil_mitglied: Optional[bool] = None
@@ -307,6 +314,14 @@ class LegacyApplicationCreate(BaseModel):
     kreditinstitut: Optional[str] = None
     # Date the paper form was originally signed (optional). Falls back to today.
     signed_on: Optional[date] = None
+
+    @field_validator("email", "telefon", mode="before")
+    @classmethod
+    def coerce_empty_contact(cls, v):
+        # Empty strings from form inputs should be treated as not provided.
+        if isinstance(v, str) and not v.strip():
+            return None
+        return v
 
     @field_validator("partner_geburtsdatum", "signed_on", mode="before")
     @classmethod
@@ -440,7 +455,7 @@ class ApplicationResponse(BaseModel):
     plz: str
     ort: str
     telefon: Optional[str]
-    email: str
+    email: Optional[str] = None
     erziehungsberechtigter_vorname: Optional[str] = None
     erziehungsberechtigter_nachname: Optional[str] = None
     partner_vorname: Optional[str] = None

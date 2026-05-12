@@ -14,7 +14,9 @@ FROM python:3.14-slim
 
 WORKDIR /app
 
-# Install system dependencies for WeasyPrint
+# Install system dependencies for WeasyPrint (PDF generation) and Tesseract OCR
+# (text extraction from uploaded paper-form scans). tesseract-ocr-deu adds the
+# German language model; eng is included by the base tesseract-ocr package.
 RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc \
     libpango-1.0-0 \
@@ -25,6 +27,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libffi-dev \
     libglib2.0-0 \
     shared-mime-info \
+    tesseract-ocr \
+    tesseract-ocr-deu \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Python dependencies (pytest excluded — dev only)

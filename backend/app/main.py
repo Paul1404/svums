@@ -71,6 +71,7 @@ async def lifespan(app: FastAPI):
                 ("consent_ip", "VARCHAR(45)"),
                 ("is_test", "BOOLEAN DEFAULT 0"),
                 ("source", "VARCHAR(20) NOT NULL DEFAULT 'online'"),
+                ("uploaded_file_ocr", "TEXT"),
             ]:
                 if col_name not in columns:
                     cursor.execute(f"ALTER TABLE membership_applications ADD COLUMN {col_name} {col_type}")
@@ -139,6 +140,14 @@ async def lifespan(app: FastAPI):
                 conn.execute(text(
                     "ALTER TABLE membership_applications "
                     "ADD COLUMN IF NOT EXISTS source VARCHAR(20) NOT NULL DEFAULT 'online'"
+                ))
+                conn.execute(text(
+                    "ALTER TABLE membership_applications "
+                    "ALTER COLUMN email DROP NOT NULL"
+                ))
+                conn.execute(text(
+                    "ALTER TABLE membership_applications "
+                    "ADD COLUMN IF NOT EXISTS uploaded_file_ocr TEXT"
                 ))
             logger.info("Widened iban column to VARCHAR(500)")
         except Exception as e:
@@ -220,34 +229,43 @@ async def request_logging_middleware(request: Request, call_next):
     return response
 
 
+_RATE_LIMITED_POST_PATHS = {
+    "/api/apply": ("apply", 3, 600),
+    "/api/upload-paper-form": ("upload_paper_form", 3, 600),
+}
+
+
 @app.middleware("http")
 async def rate_limit_middleware(request: Request, call_next):
-    """Rate limit on /api/apply — 3 requests per 10 minutes per IP."""
-    if request.url.path == "/api/apply" and request.method == "POST":
-        db = SessionLocal()
-        try:
-            client_ip = normalize_client_ip(request.client.host if request.client else None)
-            decision = consume_rate_limit(
-                db,
-                scope="apply",
-                key=client_ip,
-                limit=3,
-                window_seconds=600,
-            )
-        finally:
-            db.close()
+    """Rate limit anonymous public POSTs by IP."""
+    if request.method == "POST":
+        config = _RATE_LIMITED_POST_PATHS.get(request.url.path)
+        if config is not None:
+            scope, limit, window = config
+            db = SessionLocal()
+            try:
+                client_ip = normalize_client_ip(request.client.host if request.client else None)
+                decision = consume_rate_limit(
+                    db,
+                    scope=scope,
+                    key=client_ip,
+                    limit=limit,
+                    window_seconds=window,
+                )
+            finally:
+                db.close()
 
-        if not decision.allowed:
-            logger.warning(
-                "Rate limit hit on /api/apply from %s (retry_after=%ss)",
-                client_ip, decision.retry_after_seconds,
-            )
-            return JSONResponse(
-                status_code=429,
-                content={
-                    "detail": "Zu viele Anfragen. Bitte versuchen Sie es in einigen Minuten erneut."
-                },
-            )
+            if not decision.allowed:
+                logger.warning(
+                    "Rate limit hit on %s from %s (retry_after=%ss)",
+                    request.url.path, client_ip, decision.retry_after_seconds,
+                )
+                return JSONResponse(
+                    status_code=429,
+                    content={
+                        "detail": "Zu viele Anfragen. Bitte versuchen Sie es in einigen Minuten erneut."
+                    },
+                )
 
     response = await call_next(request)
     return response

@@ -1,9 +1,21 @@
 import { useState, useRef, useMemo } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
-import { ArrowLeft, FileText, Loader2, Plus, Save, Trash2, Upload } from "lucide-react";
+import {
+  ArrowLeft,
+  Copy,
+  FileText,
+  Loader2,
+  Plus,
+  RefreshCw,
+  Save,
+  ScanText,
+  Trash2,
+  Upload,
+} from "lucide-react";
 import {
   createLegacyApplication,
+  ocrPreview,
   type ChildData,
   type LegacyApplicationData,
 } from "../services/api";
@@ -59,6 +71,12 @@ export default function AdminLegacyApplication() {
   const [submitting, setSubmitting] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
+  // OCR state — runs against the picked file before submission.
+  const [ocrText, setOcrText] = useState<string | null>(null);
+  const [ocrLoading, setOcrLoading] = useState(false);
+  const [ocrAvailable, setOcrAvailable] = useState<boolean | null>(null);
+  const [ocrError, setOcrError] = useState<string | null>(null);
+
   const [antragstyp, setAntragstyp] = useState<Antragstyp>("einzel");
   const [geschlecht, setGeschlecht] = useState<"Herr" | "Frau" | "keine Angabe" | "">("");
   const [vorname, setVorname] = useState("");
@@ -94,6 +112,12 @@ export default function AdminLegacyApplication() {
   );
 
   const handleFile = (f: File | null) => {
+    // Reset OCR state on every (re)selection — stale text for the previous
+    // file would mislead the admin.
+    setOcrText(null);
+    setOcrAvailable(null);
+    setOcrError(null);
+
     if (!f) {
       setFile(null);
       setPreviewUrl(null);
@@ -109,7 +133,9 @@ export default function AdminLegacyApplication() {
       return;
     }
     setFile(f);
-    if (f.type.startsWith("image/")) {
+    // Preview both images and PDFs via blob URL — admins can read the scan
+    // while transcribing fields below.
+    if (f.type.startsWith("image/") || f.type === "application/pdf") {
       const url = URL.createObjectURL(f);
       setPreviewUrl(url);
     } else {
@@ -143,7 +169,7 @@ export default function AdminLegacyApplication() {
       errs.strasse = "Bitte vollständige Straße und Hausnummer angeben";
     if (!/^\d{5}$/.test(plz)) errs.plz = "PLZ muss 5 Ziffern haben";
     if (!ort.trim()) errs.ort = "Pflichtfeld";
-    if (!email.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) errs.email = "Ungültige E-Mail";
+    if (email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) errs.email = "Ungültige E-Mail";
     if (abteilungen.length === 0) errs.abteilungen = "Mindestens eine Abteilung wählen";
     if (!iban.trim()) errs.iban = "Pflichtfeld";
 
@@ -188,7 +214,7 @@ export default function AdminLegacyApplication() {
         plz: plz.trim(),
         ort: ort.trim(),
         telefon: telefon.trim() || null,
-        email: email.trim(),
+        email: email.trim() || null,
         abteilungen,
         mitgliedschaft_typ: mitgliedschaftTyp,
         elternteil_mitglied: antragstyp === "kind" ? elternteilMitglied : null,
@@ -318,11 +344,107 @@ export default function AdminLegacyApplication() {
             )}
             {previewUrl && (
               <div className="mt-3 rounded-lg border border-gray-200 p-2 bg-gray-50">
-                <img
-                  src={previewUrl}
-                  alt="Vorschau"
-                  className="max-h-64 mx-auto object-contain"
-                />
+                {file?.type === "application/pdf" ? (
+                  <iframe
+                    src={previewUrl}
+                    title="Scan-Vorschau"
+                    className="w-full h-[600px] rounded border border-gray-200 bg-white"
+                  />
+                ) : (
+                  <img
+                    src={previewUrl}
+                    alt="Vorschau"
+                    className="max-h-[600px] w-full object-contain"
+                  />
+                )}
+              </div>
+            )}
+            {file && (
+              <div className="mt-3">
+                <div className="flex items-center justify-between mb-1.5">
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      setOcrLoading(true);
+                      setOcrError(null);
+                      try {
+                        const res = await ocrPreview(file);
+                        setOcrAvailable(res.available);
+                        setOcrText(res.text);
+                        if (!res.available) {
+                          setOcrError(res.error ?? "OCR nicht verfügbar.");
+                        }
+                      } catch (err: unknown) {
+                        const msg =
+                          err instanceof Error
+                            ? err.message
+                            : "OCR fehlgeschlagen";
+                        setOcrError(msg);
+                        setOcrAvailable(false);
+                      } finally {
+                        setOcrLoading(false);
+                      }
+                    }}
+                    disabled={ocrLoading}
+                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-svu-700 bg-svu-50 hover:bg-svu-100 border border-svu-200 rounded transition-colors disabled:opacity-50"
+                    title="Text aus dem Scan auslesen (zum Abtippen)"
+                  >
+                    {ocrLoading ? (
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    ) : (
+                      <ScanText className="w-3.5 h-3.5" />
+                    )}
+                    {ocrText !== null && !ocrLoading
+                      ? "OCR neu auslesen"
+                      : "Text per OCR auslesen"}
+                  </button>
+                  {ocrText && (
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        try {
+                          await navigator.clipboard.writeText(ocrText);
+                          toast.success("OCR-Text kopiert");
+                        } catch {
+                          toast.error("Kopieren fehlgeschlagen");
+                        }
+                      }}
+                      className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium text-gray-600 hover:text-svu-700 hover:bg-gray-100 rounded transition-colors"
+                    >
+                      <Copy className="w-3.5 h-3.5" /> Alles kopieren
+                    </button>
+                  )}
+                </div>
+                {ocrLoading && (
+                  <div className="rounded-lg border border-gray-200 p-3 bg-white text-xs text-gray-500 flex items-center gap-2">
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    Text wird ausgelesen…
+                  </div>
+                )}
+                {!ocrLoading && ocrAvailable === false && (
+                  <div className="rounded-lg border border-amber-200 p-3 bg-amber-50 text-xs text-amber-800">
+                    <strong>OCR nicht verfügbar:</strong>{" "}
+                    {ocrError ?? "Tesseract ist auf diesem Server nicht installiert."}
+                  </div>
+                )}
+                {!ocrLoading && ocrAvailable !== false && ocrText !== null && (
+                  <div className="rounded-lg border border-gray-200 bg-white">
+                    <div className="px-3 py-2 border-b text-[11px] text-gray-500 flex items-center gap-2">
+                      <RefreshCw className="w-3 h-3" />
+                      Maschinell ausgelesen — bitte mit dem Scan abgleichen, bevor
+                      Sie etwas übernehmen.
+                    </div>
+                    {ocrText.trim() ? (
+                      <pre className="max-h-72 overflow-auto p-3 whitespace-pre-wrap font-mono text-xs text-gray-800 select-text">
+                        {ocrText}
+                      </pre>
+                    ) : (
+                      <p className="p-3 text-xs text-gray-400">
+                        Kein lesbarer Text erkannt.
+                      </p>
+                    )}
+                  </div>
+                )}
               </div>
             )}
           </section>
@@ -456,10 +578,10 @@ export default function AdminLegacyApplication() {
                 <FormField
                   label="E-Mail"
                   type="email"
-                  required
                   value={email}
                   onChange={setEmail}
                   error={errors.email}
+                  placeholder="Optional — leer lassen wenn nicht angegeben"
                 />
               </div>
             </div>
