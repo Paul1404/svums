@@ -7,7 +7,7 @@ from pathlib import Path
 
 from app.config import get_settings
 from app.services.posthog import capture as posthog_capture
-from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, Request, UploadFile, File
+from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, Request, UploadFile, File, Form
 
 from app.services import storage
 from sqlalchemy import func
@@ -24,7 +24,11 @@ from app.schemas.application import (
 )
 from app.services.fees import calculate_fee, determine_mitgliedschaft_typ, calculate_age
 from app.services.pdf import generate_pdf
-from app.services.email import send_application_email, send_upload_notification
+from app.services.email import (
+    send_application_email,
+    send_paper_scan_received,
+    send_upload_notification,
+)
 from app.services.crypto import encrypt_iban, decrypt_iban_safe
 from app.services.urls import build_public_url, public_host_display
 
@@ -763,18 +767,23 @@ _PAPER_PLACEHOLDER_ADDR = "—"
 _PAPER_PLACEHOLDER_PLZ = "00000"
 
 
+_EMAIL_RE = __import__("re").compile(r"^[^\s@]+@[^\s@]+\.[^\s@]+$")
+
+
 @router.post("/upload-paper-form")
 async def upload_paper_form(
     request: Request,
     file: UploadFile = File(...),
+    email: str | None = Form(None),
     db: Session = Depends(get_db),
 ):
     """Unauthenticated upload of a scanned legacy paper Beitrittserklärung.
 
-    The applicant uploads only the scan; no contact data is collected on this
-    route. A placeholder MembershipApplication row is created with
-    ``status='scan_eingegangen'`` and ``source='legacy'`` so the admin sees it
-    in the queue and can transcribe the fields from the scan preview.
+    The applicant uploads the scan and may optionally provide an email so the
+    club can send a "Scan eingegangen" confirmation. A placeholder
+    MembershipApplication row is created with ``status='scan_eingegangen'`` and
+    ``source='legacy'`` so the admin sees it in the queue and can transcribe
+    the fields from the scan preview.
     """
     import secrets
     import string
@@ -791,6 +800,10 @@ async def upload_paper_form(
     if len(contents) == 0:
         raise HTTPException(status_code=400, detail="Leere Datei")
 
+    applicant_email = (email or "").strip() or None
+    if applicant_email and not _EMAIL_RE.match(applicant_email):
+        raise HTTPException(status_code=400, detail="Ungültige E-Mail-Adresse")
+
     application = MembershipApplication(
         antragstyp="einzel",
         vorname=_PAPER_PLACEHOLDER_VORNAME,
@@ -800,7 +813,7 @@ async def upload_paper_form(
         plz=_PAPER_PLACEHOLDER_PLZ,
         ort=_PAPER_PLACEHOLDER_ADDR,
         telefon=None,
-        email=None,
+        email=applicant_email,
         abteilungen="[]",
         mitgliedschaft_typ="erwachsener",
         elternteil_mitglied=None,
@@ -812,6 +825,8 @@ async def upload_paper_form(
         consent_ip=request.client.host if request.client else None,
         is_test=False,
         source="legacy",
+        # Suppress later automated dispatch; the applicant gets a dedicated
+        # confirmation below (if email + SMTP available).
         email_sent=True,
         status="scan_eingegangen",
     )
@@ -922,6 +937,43 @@ async def upload_paper_form(
             asyncio.ensure_future(_notify_admin())
     except Exception as e:
         logger.error(f"Failed to send paper-form notification: {e}")
+
+    # Confirmation to applicant (only if they provided an email).
+    if applicant_email:
+        try:
+            app_settings = db.query(AppSettings).filter(AppSettings.id == 1).first()
+            if app_settings and app_settings.smtp_host:
+                import asyncio
+                from app.schemas.club_config import ClubConfig as _CC
+
+                _smtp = app_settings
+                _club = (
+                    _smtp.get_club_config().to_template_dict()
+                    if _smtp
+                    else _CC().to_template_dict()
+                )
+                _antragsnummer = application.antragsnummer
+                _to = applicant_email
+
+                async def _confirm_to_applicant():
+                    try:
+                        await send_paper_scan_received(
+                            smtp_host=_smtp.smtp_host,
+                            smtp_port=_smtp.smtp_port,
+                            smtp_user=_smtp.smtp_user,
+                            smtp_password=_smtp.smtp_password,
+                            smtp_from=_smtp.smtp_from,
+                            smtp_use_tls=_smtp.smtp_use_tls,
+                            applicant_email=_to,
+                            antragsnummer=_antragsnummer,
+                            club_config=_club,
+                        )
+                    except Exception as _e:
+                        logger.error(f"Failed to send paper-scan confirmation: {_e}")
+
+                asyncio.ensure_future(_confirm_to_applicant())
+        except Exception as e:
+            logger.error(f"Failed to schedule paper-scan confirmation: {e}")
 
     return {
         "message": "Scan erfolgreich hochgeladen. Der Verein meldet sich.",

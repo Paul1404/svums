@@ -1,5 +1,5 @@
-import { useState, useRef, useMemo } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useState, useRef, useMemo, useEffect } from "react";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 import {
   ArrowLeft,
@@ -15,7 +15,10 @@ import {
 } from "lucide-react";
 import {
   createLegacyApplication,
+  getApplication,
+  getApplicationOcr,
   ocrPreview,
+  type ApplicationResponse,
   type ChildData,
   type LegacyApplicationData,
 } from "../services/api";
@@ -65,13 +68,24 @@ export default function AdminLegacyApplication() {
   const navigate = useNavigate();
   const club = useClubConfig();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [searchParams] = useSearchParams();
+
+  // When ?from=<id> is set we replace an existing placeholder application
+  // (created by the public /papier-antrag upload) in-place: same antragsnummer,
+  // same scan, but the admin transcribes the data. No re-upload required.
+  const fromIdRaw = searchParams.get("from");
+  const fromId = fromIdRaw && /^\d+$/.test(fromIdRaw) ? parseInt(fromIdRaw, 10) : null;
+  const [placeholder, setPlaceholder] = useState<ApplicationResponse | null>(null);
+  const [placeholderLoading, setPlaceholderLoading] = useState<boolean>(fromId !== null);
+  const [placeholderError, setPlaceholderError] = useState<string | null>(null);
 
   const [file, setFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
-  // OCR state — runs against the picked file before submission.
+  // OCR state — for the picked file (fresh upload) or for the placeholder's
+  // existing scan (replace mode).
   const [ocrText, setOcrText] = useState<string | null>(null);
   const [ocrLoading, setOcrLoading] = useState(false);
   const [ocrAvailable, setOcrAvailable] = useState<boolean | null>(null);
@@ -110,6 +124,39 @@ export default function AdminLegacyApplication() {
     () => (geburtsdatum ? determineMitgliedschaftTyp(geburtsdatum, antragstyp) : ""),
     [geburtsdatum, antragstyp]
   );
+
+  // Load the placeholder application when ?from=<id> is set. Prefill the
+  // applicant email if the public uploader provided one and validate that
+  // the row is actually a paper-scan placeholder.
+  useEffect(() => {
+    if (fromId === null) return;
+    let cancelled = false;
+    setPlaceholderLoading(true);
+    setPlaceholderError(null);
+    getApplication(fromId)
+      .then((app) => {
+        if (cancelled) return;
+        if (app.status !== "scan_eingegangen" || app.source !== "legacy") {
+          setPlaceholderError(
+            "Dieser Antrag ist kein Papier-Platzhalter — bitte regulär bearbeiten."
+          );
+          setPlaceholder(null);
+          return;
+        }
+        setPlaceholder(app);
+        if (app.email) setEmail(app.email);
+      })
+      .catch((err: unknown) => {
+        if (cancelled) return;
+        setPlaceholderError(errorMessage(err, "Platzhalter konnte nicht geladen werden"));
+      })
+      .finally(() => {
+        if (!cancelled) setPlaceholderLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [fromId]);
 
   const handleFile = (f: File | null) => {
     // Reset OCR state on every (re)selection — stale text for the previous
@@ -161,7 +208,9 @@ export default function AdminLegacyApplication() {
 
   const validate = (): boolean => {
     const errs: Record<string, string> = {};
-    if (!file) errs.file = "Bitte einen Scan der Beitrittserklärung hochladen";
+    if (!file && !placeholder) {
+      errs.file = "Bitte einen Scan der Beitrittserklärung hochladen";
+    }
     if (!vorname.trim()) errs.vorname = "Pflichtfeld";
     if (!nachname.trim()) errs.nachname = "Pflichtfeld";
     if (!geburtsdatum) errs.geburtsdatum = "Pflichtfeld";
@@ -200,7 +249,8 @@ export default function AdminLegacyApplication() {
       toast.error("Bitte überprüfen Sie die rot markierten Felder");
       return;
     }
-    if (!file) return;
+    // Either a freshly uploaded scan OR a placeholder whose scan we reuse.
+    if (!file && !placeholder) return;
 
     setSubmitting(true);
     try {
@@ -242,8 +292,16 @@ export default function AdminLegacyApplication() {
         signed_on: signedOn || null,
       };
 
-      const created = await createLegacyApplication(data, file);
-      toast.success("Legacy-Antrag erfolgreich angelegt");
+      const created = await createLegacyApplication(
+        data,
+        file,
+        placeholder ? placeholder.id : undefined
+      );
+      toast.success(
+        placeholder
+          ? "Papier-Antrag erfasst"
+          : "Legacy-Antrag erfolgreich angelegt"
+      );
       navigate(`/admin/applications/${created.id}`);
     } catch (err: unknown) {
       toast.error(errorMessage(err, "Antrag konnte nicht angelegt werden"));
@@ -273,27 +331,71 @@ export default function AdminLegacyApplication() {
       </header>
 
       <div className="max-w-4xl mx-auto px-4 py-8">
+        {placeholderLoading && (
+          <div className="bg-white rounded-xl shadow-sm border p-10 flex items-center justify-center text-gray-500">
+            <Loader2 className="w-5 h-5 animate-spin mr-2" />
+            Platzhalter wird geladen…
+          </div>
+        )}
+        {placeholderError && (
+          <div className="mb-4 p-4 rounded-lg bg-red-50 border border-red-200 text-sm text-red-700">
+            {placeholderError}{" "}
+            <Link to="/admin" className="underline font-medium">
+              Zurück zur Übersicht
+            </Link>
+          </div>
+        )}
+        {!placeholderLoading && !placeholderError && (
         <div className="bg-white rounded-xl shadow-sm border p-6 space-y-6">
           {/* Info box */}
           <div className="flex gap-3 p-4 bg-amber-50 border border-amber-200 rounded-lg">
             <FileText className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
             <div className="text-sm text-amber-800 space-y-1">
-              <p>
-                <strong>Für papierhafte Beitrittserklärungen.</strong> Es werden
-                keine automatischen Bestätigungs-E-Mails versandt — die unterschriebene
-                Papier-Erklärung gilt als rechtsgültiger Beleg und wird hochgeladen.
-              </p>
-              <p>
-                Die Datenschutz- und Satzungserklärung gelten durch die Unterschrift
-                auf dem Papier-Formular automatisch als anerkannt.
-              </p>
+              {placeholder ? (
+                <>
+                  <p>
+                    <strong>
+                      Sie erfassen einen vom Antragsteller hochgeladenen Papier-Scan
+                      ({placeholder.antragsnummer}).
+                    </strong>{" "}
+                    Der Scan unten ist bereits hinterlegt — Sie können ihn
+                    weiterverwenden oder optional durch eine bessere Version
+                    ersetzen.
+                  </p>
+                  <p>
+                    Beim Speichern wird der Platzhalter <em>an Ort und Stelle</em>{" "}
+                    durch den vollständigen Antrag ersetzt. Antragsnummer und Scan
+                    bleiben dabei erhalten.
+                  </p>
+                </>
+              ) : (
+                <>
+                  <p>
+                    <strong>Für papierhafte Beitrittserklärungen.</strong> Es werden
+                    keine automatischen Bestätigungs-E-Mails versandt — die
+                    unterschriebene Papier-Erklärung gilt als rechtsgültiger Beleg
+                    und wird hochgeladen.
+                  </p>
+                  <p>
+                    Die Datenschutz- und Satzungserklärung gelten durch die
+                    Unterschrift auf dem Papier-Formular automatisch als anerkannt.
+                  </p>
+                </>
+              )}
             </div>
           </div>
 
           {/* File upload */}
           <section>
             <h3 className="text-sm font-semibold text-gray-800 uppercase tracking-wide mb-3">
-              1. Scan der Beitrittserklärung <span className="text-red-500">*</span>
+              1. Scan der Beitrittserklärung{" "}
+              {placeholder ? (
+                <span className="text-xs text-gray-500 normal-case">
+                  (bereits hochgeladen)
+                </span>
+              ) : (
+                <span className="text-red-500">*</span>
+              )}
             </h3>
             <input
               ref={fileInputRef}
@@ -305,6 +407,11 @@ export default function AdminLegacyApplication() {
                 e.target.value = "";
               }}
             />
+            {placeholder && !file && (
+              <div className="mb-3 rounded-lg border border-gray-200 p-2 bg-gray-50">
+                <ExistingScanPreview applicationId={placeholder.id} filename={placeholder.uploaded_file ?? ""} />
+              </div>
+            )}
             <div
               onClick={() => fileInputRef.current?.click()}
               onDragOver={(e) => e.preventDefault()}
@@ -326,6 +433,16 @@ export default function AdminLegacyApplication() {
                   <p className="text-sm font-medium text-gray-900">{file.name}</p>
                   <p className="text-xs text-gray-500">
                     {(file.size / 1024 / 1024).toFixed(2)} MB · Klicken zum Ersetzen
+                  </p>
+                </>
+              ) : placeholder ? (
+                <>
+                  <p className="text-sm font-medium text-gray-700">
+                    Scan ersetzen (optional)
+                  </p>
+                  <p className="text-xs text-gray-500">
+                    Nur falls der bereits hochgeladene Scan nicht ausreicht — PDF,
+                    JPG, PNG, HEIC · max. 20 MB
                   </p>
                 </>
               ) : (
@@ -359,7 +476,7 @@ export default function AdminLegacyApplication() {
                 )}
               </div>
             )}
-            {file && (
+            {(file || (placeholder && !file)) && (
               <div className="mt-3">
                 <div className="flex items-center justify-between mb-1.5">
                   <button
@@ -368,7 +485,12 @@ export default function AdminLegacyApplication() {
                       setOcrLoading(true);
                       setOcrError(null);
                       try {
-                        const res = await ocrPreview(file);
+                        const res = file
+                          ? await ocrPreview(file)
+                          : placeholder
+                          ? await getApplicationOcr(placeholder.id, false)
+                          : null;
+                        if (!res) return;
                         setOcrAvailable(res.available);
                         setOcrText(res.text);
                         if (!res.available) {
@@ -883,7 +1005,7 @@ export default function AdminLegacyApplication() {
           {/* Submit */}
           <div className="pt-4 border-t flex gap-3">
             <Link
-              to="/admin"
+              to={placeholder ? `/admin/applications/${placeholder.id}` : "/admin"}
               className="flex-1 px-4 py-2.5 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 text-center"
             >
               Abbrechen
@@ -899,11 +1021,55 @@ export default function AdminLegacyApplication() {
               ) : (
                 <Save className="w-4 h-4" />
               )}
-              Antrag anlegen
+              {placeholder ? "Antrag speichern" : "Antrag anlegen"}
             </button>
           </div>
         </div>
+        )}
       </div>
+    </div>
+  );
+}
+
+function ExistingScanPreview({
+  applicationId,
+  filename,
+}: {
+  applicationId: number;
+  filename: string;
+}) {
+  const src = `/api/admin/applications/${applicationId}/upload`;
+  const ext = (filename.split(".").pop() ?? "").toLowerCase();
+  const isPdf = ext === "pdf";
+  const isImage = ["jpg", "jpeg", "png", "heic", "heif"].includes(ext);
+  return (
+    <div>
+      <div className="px-2 py-1 text-[11px] text-gray-500 font-medium flex items-center gap-1.5">
+        <FileText className="w-3.5 h-3.5" />
+        Bereits hochgeladener Scan ({filename || "unbekannte Datei"})
+      </div>
+      {isPdf ? (
+        <iframe
+          src={src}
+          title="Hochgeladener Scan"
+          className="w-full h-[600px] rounded border border-gray-200 bg-white"
+        />
+      ) : isImage ? (
+        <img
+          src={src}
+          alt="Hochgeladener Scan"
+          className="max-h-[600px] w-full object-contain rounded border border-gray-200 bg-white"
+        />
+      ) : (
+        <a
+          href={src}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="block p-4 text-sm text-svu-700 underline"
+        >
+          Vorschau für dieses Format nicht möglich — im neuen Tab öffnen
+        </a>
+      )}
     </div>
   );
 }

@@ -305,7 +305,7 @@ async def security_headers_middleware(request: Request, call_next):
     """Add security headers to all responses."""
     response = await call_next(request)
     response.headers["X-Content-Type-Options"] = "nosniff"
-    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["X-Frame-Options"] = "SAMEORIGIN"
     response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
     response.headers["Content-Security-Policy"] = (
         "default-src 'self'; "
@@ -314,7 +314,8 @@ async def security_headers_middleware(request: Request, call_next):
         "img-src 'self' data: blob:; "
         "font-src 'self'; "
         "connect-src 'self'; "
-        "frame-ancestors 'none'; "
+        "frame-src 'self' blob:; "
+        "frame-ancestors 'self'; "
         "base-uri 'self'; "
         "form-action 'self'"
     )
