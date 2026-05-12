@@ -310,8 +310,41 @@
   .dark .bg-amber-50 {
     background-color: rgba(245, 158, 11, 0.16) !important;
   }
+  .dark .bg-amber-200 {
+    background-color: rgba(245, 158, 11, 0.24) !important;
+  }
+  .dark .hover\:bg-amber-50:hover {
+    background-color: rgba(245, 158, 11, 0.18) !important;
+  }
+  .dark .hover\:bg-amber-200:hover {
+    background-color: rgba(245, 158, 11, 0.3) !important;
+  }
   .dark .text-amber-700 {
     color: #fcd34d !important;
+  }
+  .dark .text-amber-800,
+  .dark .text-amber-800\/80 {
+    color: #fde68a !important;
+  }
+  .dark .text-amber-900,
+  .dark .text-amber-950 {
+    color: #fef3c7 !important;
+  }
+  .dark .hover\:text-amber-800:hover {
+    color: #fde68a !important;
+  }
+  .dark .hover\:text-amber-900:hover,
+  .dark .hover\:text-amber-950:hover {
+    color: #fef3c7 !important;
+  }
+  .dark .border-amber-200 {
+    border-color: rgba(245, 158, 11, 0.35) !important;
+  }
+  .dark .border-amber-300 {
+    border-color: rgba(245, 158, 11, 0.45) !important;
+  }
+  .dark .border-amber-400 {
+    border-color: rgba(245, 158, 11, 0.55) !important;
   }
   .dark .bg-green-100,
   .dark .bg-green-50 {
