@@ -33,6 +33,11 @@ import {
 const STATUS_OPTIONS = [
   { value: "neu", label: "Neu", color: "bg-blue-100 text-blue-700" },
   {
+    value: "scan_eingegangen",
+    label: "Papier-Scan",
+    color: "bg-amber-100 text-amber-800",
+  },
+  {
     value: "dokument_hochgeladen",
     label: "Dok. hochgeladen",
     color: "bg-cyan-100 text-cyan-700",
@@ -345,6 +350,41 @@ export default function AdminApplicationDetail() {
       </header>
 
       <div className="max-w-5xl mx-auto px-4 py-6">
+        {/* Banner for unprocessed paper-form scans */}
+        {app.status === "scan_eingegangen" && (
+          <div className="mb-6 p-4 bg-amber-50 border border-amber-200 rounded-xl flex items-start gap-3">
+            <FileCheck className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
+            <div className="text-sm text-amber-900 space-y-1">
+              <p className="font-semibold">
+                Papier-Antrag eingegangen — Daten noch nicht erfasst.
+              </p>
+              <p>
+                Ein Antragsteller hat einen Scan einer Papier-Beitrittserklärung
+                hochgeladen. Bitte übertragen Sie die Felder anhand der Vorschau
+                unten. Verwenden Sie dazu{" "}
+                <Link
+                  to="/admin/legacy-application"
+                  className="underline font-medium hover:text-amber-950"
+                >
+                  „Papier-Antrag erfassen"
+                </Link>
+                {" "}und löschen Sie diesen Platzhalter anschließend.
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* Scan preview — prominent for legacy/paper applications */}
+        {app.source === "legacy" && app.uploaded_file && (
+          <div className="mb-6">
+            <ScanPreview
+              applicationId={app.id}
+              filename={app.uploaded_file}
+              isPlaceholder={app.status === "scan_eingegangen"}
+            />
+          </div>
+        )}
+
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Main data */}
           <div className="lg:col-span-2 space-y-6">
@@ -356,7 +396,7 @@ export default function AdminApplicationDetail() {
               />
               <DataRow label="Adresse" value={`${app.strasse}, ${app.plz} ${app.ort}`} />
               <DataRow label="Telefon" value={app.telefon || "–"} />
-              <DataRow label="E-Mail" value={app.email} />
+              <DataRow label="E-Mail" value={app.email || "–"} />
             </Section>
 
             <Section title="Mitgliedschaft">
@@ -1020,6 +1060,95 @@ function DataRow({
       >
         {value}
       </span>
+    </div>
+  );
+}
+
+function ScanPreview({
+  applicationId,
+  filename,
+  isPlaceholder,
+}: {
+  applicationId: number;
+  filename: string;
+  isPlaceholder: boolean;
+}) {
+  const [expanded, setExpanded] = useState(true);
+  const src = `/api/admin/applications/${applicationId}/upload`;
+  const ext = (filename.split(".").pop() ?? "").toLowerCase();
+  const isImage = ["jpg", "jpeg", "png", "heic", "heif"].includes(ext);
+  const isPdf = ext === "pdf";
+
+  return (
+    <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
+      <div className="flex items-center justify-between px-5 py-3 border-b bg-gray-50">
+        <div className="flex items-center gap-2">
+          <FileCheck className="w-4 h-4 text-amber-600" />
+          <h3 className="font-semibold text-gray-900 text-sm">
+            Scan der Papier-Beitrittserklärung
+          </h3>
+          {isPlaceholder && (
+            <span className="text-[10px] font-semibold uppercase tracking-wide text-amber-700 bg-amber-100 rounded px-1.5 py-0.5">
+              zur Erfassung
+            </span>
+          )}
+        </div>
+        <div className="flex items-center gap-1">
+          <a
+            href={src}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="p-1.5 text-gray-500 hover:text-svu-600 hover:bg-white rounded transition-colors"
+            title="In neuem Tab öffnen"
+          >
+            <Eye className="w-4 h-4" />
+          </a>
+          <a
+            href={src}
+            download
+            className="p-1.5 text-gray-500 hover:text-svu-600 hover:bg-white rounded transition-colors"
+            title="Herunterladen"
+          >
+            <Download className="w-4 h-4" />
+          </a>
+          <button
+            type="button"
+            onClick={() => setExpanded((v) => !v)}
+            className="ml-1 px-2 py-1 text-xs font-medium text-gray-600 hover:text-gray-900 hover:bg-white rounded transition-colors"
+          >
+            {expanded ? "Ausblenden" : "Anzeigen"}
+          </button>
+        </div>
+      </div>
+      {expanded && (
+        <div className="bg-gray-100 p-2">
+          {isPdf ? (
+            <iframe
+              src={src}
+              title="Scan der Beitrittserklärung"
+              className="w-full h-[800px] rounded border border-gray-200 bg-white"
+            />
+          ) : isImage ? (
+            <img
+              src={src}
+              alt="Scan der Beitrittserklärung"
+              className="w-full max-h-[800px] object-contain rounded border border-gray-200 bg-white"
+            />
+          ) : (
+            <div className="p-8 text-center text-sm text-gray-500">
+              Vorschau für dieses Format nicht verfügbar.{" "}
+              <a
+                href={src}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-svu-600 underline"
+              >
+                Im neuen Tab öffnen
+              </a>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

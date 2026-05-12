@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import SignatureCanvas from "../lib/SignatureCanvas";
 import type { SignatureCanvasType } from "../lib/SignatureCanvas";
@@ -1047,6 +1047,21 @@ export default function ApplicationForm() {
           </div>
         </div>
       )}
+
+      {/* Paper-form shortcut: applicants who already have a filled-in paper form */}
+      <div className="bg-amber-50 border-b border-amber-200">
+        <div className="max-w-3xl mx-auto px-4 py-2.5 flex items-center justify-between gap-3 text-sm">
+          <span className="text-amber-900">
+            Sie haben das <strong>Papier-Formular</strong> bereits ausgefüllt?
+          </span>
+          <Link
+            to="/papierformular"
+            className="inline-flex items-center gap-1 px-3 py-1 rounded-md bg-amber-100 hover:bg-amber-200 text-amber-900 font-medium border border-amber-300 transition-colors whitespace-nowrap"
+          >
+            Scan hochladen →
+          </Link>
+        </div>
+      </div>
 
       {/* Stepper */}
       <div className="max-w-3xl mx-auto px-4 mt-8">

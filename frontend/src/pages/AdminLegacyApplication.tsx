@@ -109,7 +109,9 @@ export default function AdminLegacyApplication() {
       return;
     }
     setFile(f);
-    if (f.type.startsWith("image/")) {
+    // Preview both images and PDFs via blob URL — admins can read the scan
+    // while transcribing fields below.
+    if (f.type.startsWith("image/") || f.type === "application/pdf") {
       const url = URL.createObjectURL(f);
       setPreviewUrl(url);
     } else {
@@ -143,7 +145,7 @@ export default function AdminLegacyApplication() {
       errs.strasse = "Bitte vollständige Straße und Hausnummer angeben";
     if (!/^\d{5}$/.test(plz)) errs.plz = "PLZ muss 5 Ziffern haben";
     if (!ort.trim()) errs.ort = "Pflichtfeld";
-    if (!email.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) errs.email = "Ungültige E-Mail";
+    if (email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) errs.email = "Ungültige E-Mail";
     if (abteilungen.length === 0) errs.abteilungen = "Mindestens eine Abteilung wählen";
     if (!iban.trim()) errs.iban = "Pflichtfeld";
 
@@ -188,7 +190,7 @@ export default function AdminLegacyApplication() {
         plz: plz.trim(),
         ort: ort.trim(),
         telefon: telefon.trim() || null,
-        email: email.trim(),
+        email: email.trim() || null,
         abteilungen,
         mitgliedschaft_typ: mitgliedschaftTyp,
         elternteil_mitglied: antragstyp === "kind" ? elternteilMitglied : null,
@@ -318,11 +320,19 @@ export default function AdminLegacyApplication() {
             )}
             {previewUrl && (
               <div className="mt-3 rounded-lg border border-gray-200 p-2 bg-gray-50">
-                <img
-                  src={previewUrl}
-                  alt="Vorschau"
-                  className="max-h-64 mx-auto object-contain"
-                />
+                {file?.type === "application/pdf" ? (
+                  <iframe
+                    src={previewUrl}
+                    title="Scan-Vorschau"
+                    className="w-full h-[600px] rounded border border-gray-200 bg-white"
+                  />
+                ) : (
+                  <img
+                    src={previewUrl}
+                    alt="Vorschau"
+                    className="max-h-[600px] w-full object-contain"
+                  />
+                )}
               </div>
             )}
           </section>
@@ -456,10 +466,10 @@ export default function AdminLegacyApplication() {
                 <FormField
                   label="E-Mail"
                   type="email"
-                  required
                   value={email}
                   onChange={setEmail}
                   error={errors.email}
+                  placeholder="Optional — leer lassen wenn nicht angegeben"
                 />
               </div>
             </div>
