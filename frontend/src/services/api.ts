@@ -670,11 +670,15 @@ export async function adminUploadDocument(
 
 export async function createLegacyApplication(
   data: LegacyApplicationData,
-  file: File
+  file: File | null,
+  fromApplicationId?: number
 ): Promise<ApplicationResponse> {
   const form = new FormData();
   form.append("data", JSON.stringify(data));
-  form.append("file", file);
+  if (file) form.append("file", file);
+  if (fromApplicationId !== undefined) {
+    form.append("from_application_id", String(fromApplicationId));
+  }
   return apiRequest("/api/admin/applications/legacy", {
     method: "POST",
     body: form,
@@ -682,10 +686,12 @@ export async function createLegacyApplication(
 }
 
 export async function uploadPaperForm(
-  file: File
+  file: File,
+  email?: string
 ): Promise<{ message: string; antragsnummer: string }> {
   const form = new FormData();
   form.append("file", file);
+  if (email && email.trim()) form.append("email", email.trim());
   return apiRequest("/api/upload-paper-form", {
     method: "POST",
     body: form,
