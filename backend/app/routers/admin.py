@@ -45,6 +45,7 @@ from app.services.pdf import (
 )
 from app.services.crypto import decrypt_iban_safe, encrypt_iban
 from app.services.email import send_status_email
+from app.services import ocr as ocr_service
 from app.services import storage
 from app.services.rate_limit import (
     is_rate_limited,
@@ -859,6 +860,8 @@ async def delete_upload(
     previous_status = app.status
     app.uploaded_file = None
     app.uploaded_at = None
+    # Drop the cached OCR — it belongs to the file we're about to remove.
+    app.uploaded_file_ocr = None
     try:
         db.commit()
     except Exception:
@@ -877,6 +880,115 @@ async def delete_upload(
         },
     )
     return {"ok": True}
+
+
+@router.get("/applications/{application_id}/ocr")
+async def get_application_ocr(
+    application_id: int,
+    refresh: bool = False,
+    is_admin: bool = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    """Return OCR text for an application's uploaded scan.
+
+    Result is cached on the application row (``uploaded_file_ocr``); pass
+    ``?refresh=true`` to re-run OCR against the current file. Tesseract is
+    optional at runtime — when missing, ``available`` is ``false`` and the
+    frontend hides the panel.
+    """
+    app = db.query(MembershipApplication).filter(
+        MembershipApplication.id == application_id
+    ).first()
+    if not app:
+        raise HTTPException(status_code=404, detail="Antrag nicht gefunden")
+    if not app.uploaded_file:
+        raise HTTPException(status_code=404, detail="Kein Dokument hochgeladen")
+
+    if not refresh and app.uploaded_file_ocr is not None:
+        return {
+            "available": True,
+            "cached": True,
+            "text": app.uploaded_file_ocr,
+        }
+
+    if not ocr_service.is_available():
+        return {
+            "available": False,
+            "cached": False,
+            "text": None,
+            "error": "OCR ist auf diesem Server nicht installiert.",
+        }
+
+    _validate_filename(app.uploaded_file)
+    content = storage.download_file(app.uploaded_file)
+    if content is None:
+        raise HTTPException(status_code=404, detail="Datei nicht gefunden")
+
+    text = ocr_service.extract_text(content, app.uploaded_file)
+    if text is None:
+        return {
+            "available": False,
+            "cached": False,
+            "text": None,
+            "error": "OCR konnte nicht ausgeführt werden.",
+        }
+
+    app.uploaded_file_ocr = text
+    try:
+        db.commit()
+    except Exception:
+        db.rollback()
+        # Don't block the response — the OCR result is still useful even if
+        # we failed to persist it.
+        logger.warning("Failed to cache OCR text for application %d", app.id)
+
+    return {
+        "available": True,
+        "cached": False,
+        "text": text,
+    }
+
+
+@router.post("/ocr-preview")
+async def ocr_preview(
+    file: UploadFile = File(...),
+    is_admin: bool = Depends(require_admin),
+):
+    """Run OCR on a freshly uploaded file without persisting it anywhere.
+
+    Used by the legacy-import form while the admin is still composing the
+    submission — the file isn't tied to an application row yet, so we can't
+    cache. The result is one-shot and discarded after the response.
+    """
+    from app.constants import ALLOWED_UPLOAD_EXTENSIONS, MAX_UPLOAD_FILE_SIZE
+
+    ext = Path(file.filename).suffix.lower() if file.filename else ""
+    if ext not in ALLOWED_UPLOAD_EXTENSIONS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Nicht erlaubtes Dateiformat. Erlaubt: {', '.join(ALLOWED_UPLOAD_EXTENSIONS)}",
+        )
+    contents = await file.read()
+    if len(contents) > MAX_UPLOAD_FILE_SIZE:
+        raise HTTPException(status_code=400, detail="Datei zu groß (max. 20 MB)")
+    if len(contents) == 0:
+        raise HTTPException(status_code=400, detail="Leere Datei")
+
+    if not ocr_service.is_available():
+        return {
+            "available": False,
+            "text": None,
+            "error": "OCR ist auf diesem Server nicht installiert.",
+        }
+
+    text = ocr_service.extract_text(contents, file.filename or "")
+    if text is None:
+        return {
+            "available": False,
+            "text": None,
+            "error": "OCR konnte nicht ausgeführt werden.",
+        }
+    return {"available": True, "text": text}
 
 
 @router.get("/applications/{application_id}/approved")
@@ -993,6 +1105,8 @@ async def admin_upload_document(
 
     app.uploaded_file = filename
     app.uploaded_at = datetime.utcnow()
+    # Drop the previous OCR cache — it belongs to the file we're replacing.
+    app.uploaded_file_ocr = None
     if app.status == "neu":
         app.status = "dokument_hochgeladen"
 

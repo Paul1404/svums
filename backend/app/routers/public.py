@@ -629,6 +629,8 @@ async def upload_signed_document(
 
     app.uploaded_file = filename
     app.uploaded_at = datetime.utcnow()
+    # Drop the previous OCR cache — it belongs to the file we're replacing.
+    app.uploaded_file_ocr = None
     # Auto-advance status
     if app.status == "neu":
         app.status = "dokument_hochgeladen"

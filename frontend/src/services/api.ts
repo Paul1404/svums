@@ -692,6 +692,30 @@ export async function uploadPaperForm(
   });
 }
 
+export interface OcrResponse {
+  available: boolean;
+  cached?: boolean;
+  text: string | null;
+  error?: string;
+}
+
+export async function getApplicationOcr(
+  id: number,
+  refresh = false
+): Promise<OcrResponse> {
+  const qs = refresh ? "?refresh=true" : "";
+  return apiRequest(`/api/admin/applications/${id}/ocr${qs}`);
+}
+
+export async function ocrPreview(file: File): Promise<OcrResponse> {
+  const form = new FormData();
+  form.append("file", file);
+  return apiRequest(`/api/admin/ocr-preview`, {
+    method: "POST",
+    body: form,
+  });
+}
+
 export async function deleteApplicationUpload(
   id: number
 ): Promise<{ ok: boolean }> {
