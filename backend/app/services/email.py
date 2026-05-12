@@ -253,3 +253,67 @@ async def send_status_email(
     except Exception as e:
         logger.error(f"Failed to send status email: {e}")
         return False
+
+
+async def send_paper_scan_received(
+    smtp_host: str,
+    smtp_port: int,
+    smtp_user: str,
+    smtp_password: str,
+    smtp_from: str,
+    smtp_use_tls: bool,
+    applicant_email: str,
+    antragsnummer: str,
+    club_config: dict | None = None,
+) -> bool:
+    """Send a "Scan eingegangen" confirmation to a paper-form applicant.
+
+    Sent right after the unauthenticated /upload-paper-form endpoint accepts
+    the file when the applicant opted in by entering an email. The club still
+    has to transcribe the data; this just lets the applicant know we received
+    the scan.
+    """
+    try:
+        if club_config is None:
+            from app.schemas.club_config import ClubConfig
+            club_config = ClubConfig().to_template_dict()
+        subject_prefix = club_config.get("email_subject_prefix", "Verein")
+        club_name = club_config.get("name", subject_prefix)
+        contact_email = club_config.get("email", "")
+        status_url = build_public_url(f"/status?nr={antragsnummer}")
+
+        html_body = (
+            "<div style=\"font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#111;\">"
+            f"<h2 style=\"color:#b91c1c;margin-bottom:6px;\">Scan eingegangen</h2>"
+            "<p>Vielen Dank — der Scan Ihrer Beitrittserklärung ist beim Verein "
+            f"<strong>{club_name}</strong> eingegangen.</p>"
+            "<p>Ihre Vorgangsnummer lautet:</p>"
+            f"<p style=\"font-family:Menlo,Consolas,monospace;font-size:15px;background:#f8fafc;border:1px solid #e5e7eb;padding:8px 12px;border-radius:6px;display:inline-block;\">{antragsnummer}</p>"
+            "<p>Wir prüfen den Scan und melden uns bei Ihnen, sobald Ihr Antrag erfasst und bearbeitet wurde. "
+            "Bitte sorgen Sie dafür, dass auf dem Scan Name, Adresse, IBAN und Unterschrift gut leserlich sind.</p>"
+            f"<p><a href=\"{status_url}\" style=\"color:#b91c1c;\">Status online prüfen</a></p>"
+            "<hr style=\"border:none;border-top:1px solid #e5e7eb;margin:18px 0;\">"
+            f"<p style=\"font-size:12px;color:#64748b;\">{club_name}"
+            + (f" · <a href=\"mailto:{contact_email}\" style=\"color:#64748b;\">{contact_email}</a>" if contact_email else "")
+            + "</p></div>"
+        )
+
+        msg = MIMEMultipart()
+        msg["From"] = smtp_from
+        msg["To"] = applicant_email
+        msg["Subject"] = f"Scan eingegangen – {subject_prefix} · {antragsnummer}"
+        msg.attach(MIMEText(html_body, "html", "utf-8"))
+
+        await aiosmtplib.send(
+            msg,
+            hostname=smtp_host,
+            port=smtp_port,
+            username=smtp_user if smtp_user else None,
+            password=smtp_password if smtp_password else None,
+            start_tls=smtp_use_tls,
+        )
+        logger.info(f"Paper-scan confirmation sent to {applicant_email} for {antragsnummer}")
+        return True
+    except Exception as e:
+        logger.error(f"Failed to send paper-scan confirmation: {e}")
+        return False

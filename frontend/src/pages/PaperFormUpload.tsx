@@ -12,6 +12,7 @@ import {
   Loader2,
   FileText,
   ArrowLeft,
+  Mail,
   ScanLine,
   X,
 } from "lucide-react";
@@ -22,10 +23,14 @@ const MAX_FILE_SIZE = 20 * 1024 * 1024;
 export default function PaperFormUpload() {
   const club = useClubConfig();
   const [file, setFile] = useState<File | null>(null);
+  const [email, setEmail] = useState("");
+  const [emailError, setEmailError] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState<{ antragsnummer: string } | null>(null);
+  const [success, setSuccess] = useState<{ antragsnummer: string; emailSent: boolean } | null>(null);
   const [dragActive, setDragActive] = useState(false);
+
+  const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
   const validate = (f: File): string | null => {
     const ext = "." + (f.name.split(".").pop()?.toLowerCase() ?? "");
@@ -64,11 +69,17 @@ export default function PaperFormUpload() {
 
   const handleUpload = async () => {
     if (!file) return;
+    const trimmedEmail = email.trim();
+    if (trimmedEmail && !EMAIL_RE.test(trimmedEmail)) {
+      setEmailError("Bitte eine gültige E-Mail-Adresse eingeben oder das Feld leer lassen.");
+      return;
+    }
+    setEmailError(null);
     setUploading(true);
     setError(null);
     try {
-      const result = await uploadPaperForm(file);
-      setSuccess({ antragsnummer: result.antragsnummer });
+      const result = await uploadPaperForm(file, trimmedEmail || undefined);
+      setSuccess({ antragsnummer: result.antragsnummer, emailSent: Boolean(trimmedEmail) });
     } catch (err: unknown) {
       const msg =
         err instanceof ApiError
@@ -122,6 +133,11 @@ export default function PaperFormUpload() {
                 sich bei Ihnen — bitte sorgen Sie dafür, dass auf dem Scan Ihre
                 Kontaktdaten gut leserlich sind.
               </p>
+              {success.emailSent && (
+                <p className="text-xs text-gray-500 mb-2">
+                  Eine Bestätigung wurde an die angegebene E-Mail-Adresse gesendet.
+                </p>
+              )}
               <p className="text-xs text-gray-500 mt-4">
                 Vorgangsnummer:{" "}
                 <span className="font-mono font-semibold">
@@ -200,6 +216,40 @@ export default function PaperFormUpload() {
                       Scan oder Foto der unterschriebenen Papier-Beitrittserklärung
                     </p>
                   </>
+                )}
+              </div>
+
+              <div className="mt-5">
+                <label
+                  htmlFor="paper-email-input"
+                  className="flex items-center gap-1.5 text-sm font-medium text-gray-700 mb-1"
+                >
+                  <Mail className="w-4 h-4 text-gray-400" />
+                  E-Mail-Adresse{" "}
+                  <span className="text-xs font-normal text-gray-400">(optional)</span>
+                </label>
+                <input
+                  id="paper-email-input"
+                  type="email"
+                  inputMode="email"
+                  autoComplete="email"
+                  value={email}
+                  onChange={(e) => {
+                    setEmail(e.target.value);
+                    if (emailError) setEmailError(null);
+                  }}
+                  placeholder="name@beispiel.de"
+                  className={`w-full px-3 py-2 text-sm border rounded-lg focus:ring-2 focus:ring-svu-500 focus:border-svu-500 outline-none ${
+                    emailError ? "border-red-400" : "border-gray-300"
+                  }`}
+                />
+                <p className="mt-1 text-xs text-gray-500">
+                  Wenn Sie Ihre E-Mail eintragen, senden wir Ihnen eine Bestätigung
+                  über den Eingang des Scans. Andernfalls meldet sich der Verein
+                  über die Angaben auf dem Papier-Antrag.
+                </p>
+                {emailError && (
+                  <p className="mt-1 text-xs text-red-600">{emailError}</p>
                 )}
               </div>
 
