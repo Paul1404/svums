@@ -62,7 +62,7 @@ export interface ApplicationResponse {
   plz: string;
   ort: string;
   telefon: string | null;
-  email: string;
+  email: string | null;
   erziehungsberechtigter_vorname: string | null;
   erziehungsberechtigter_nachname: string | null;
   partner_vorname: string | null;
@@ -106,7 +106,7 @@ export interface LegacyApplicationData {
   plz: string;
   ort: string;
   telefon: string | null;
-  email: string;
+  email: string | null;
   abteilungen: string[];
   mitgliedschaft_typ: string;
   elternteil_mitglied: boolean | null;
@@ -676,6 +676,41 @@ export async function createLegacyApplication(
   form.append("data", JSON.stringify(data));
   form.append("file", file);
   return apiRequest("/api/admin/applications/legacy", {
+    method: "POST",
+    body: form,
+  });
+}
+
+export async function uploadPaperForm(
+  file: File
+): Promise<{ message: string; antragsnummer: string }> {
+  const form = new FormData();
+  form.append("file", file);
+  return apiRequest("/api/upload-paper-form", {
+    method: "POST",
+    body: form,
+  });
+}
+
+export interface OcrResponse {
+  available: boolean;
+  cached?: boolean;
+  text: string | null;
+  error?: string;
+}
+
+export async function getApplicationOcr(
+  id: number,
+  refresh = false
+): Promise<OcrResponse> {
+  const qs = refresh ? "?refresh=true" : "";
+  return apiRequest(`/api/admin/applications/${id}/ocr${qs}`);
+}
+
+export async function ocrPreview(file: File): Promise<OcrResponse> {
+  const form = new FormData();
+  form.append("file", file);
+  return apiRequest(`/api/admin/ocr-preview`, {
     method: "POST",
     body: form,
   });

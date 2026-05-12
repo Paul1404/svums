@@ -42,6 +42,7 @@ import {
 
 const STATUS_LABELS: Record<string, { label: string; color: string }> = {
   neu: { label: "Neu", color: "bg-blue-100 text-blue-700" },
+  scan_eingegangen: { label: "Papier-Scan", color: "bg-amber-100 text-amber-800" },
   dokument_hochgeladen: { label: "Dok. hochgeladen", color: "bg-cyan-100 text-cyan-700" },
   in_bearbeitung: { label: "In Bearbeitung", color: "bg-amber-100 text-amber-700" },
   genehmigt: { label: "Genehmigt", color: "bg-green-100 text-green-700" },
@@ -351,7 +352,7 @@ export default function AdminDashboard() {
           </form>
 
           <div className="flex gap-2 flex-nowrap overflow-x-auto pb-1 sm:flex-wrap sm:overflow-visible sm:pb-0">
-            {["", "neu", "dokument_hochgeladen", "in_bearbeitung", "genehmigt", "abgelehnt"].map((s) => (
+            {["", "neu", "scan_eingegangen", "dokument_hochgeladen", "in_bearbeitung", "genehmigt", "abgelehnt"].map((s) => (
               <button
                 key={s}
                 data-active={statusFilter === s}
