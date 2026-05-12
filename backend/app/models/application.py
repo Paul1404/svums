@@ -27,7 +27,9 @@ class MembershipApplication(Base):
     plz = Column(String(10), nullable=False)
     ort = Column(String(100), nullable=False)
     telefon = Column(String(50), nullable=True)
-    email = Column(String(200), nullable=False)
+    # Email is optional for legacy paper-form applications where the applicant
+    # did not provide one. Required for digital applications (enforced in schema).
+    email = Column(String(200), nullable=True)
 
     # Guardian (only for Kind type)
     erziehungsberechtigter_vorname = Column(String(100), nullable=True)

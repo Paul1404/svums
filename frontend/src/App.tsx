@@ -4,6 +4,7 @@ import { Toaster } from "sonner";
 import ApplicationForm from "./pages/ApplicationForm";
 import Success from "./pages/Success";
 import UploadPage from "./pages/Upload";
+import PaperFormUpload from "./pages/PaperFormUpload";
 import StatusPage from "./pages/StatusPage";
 import AdminLogin from "./pages/AdminLogin";
 import AdminDashboard from "./pages/AdminDashboard";
@@ -132,6 +133,9 @@ function RouteAnalytics() {
     } else if (location.pathname.startsWith("/upload/")) {
       routeName = "upload";
       appArea = "public";
+    } else if (location.pathname === "/papierformular") {
+      routeName = "paper_form_upload";
+      appArea = "public";
     } else if (location.pathname === "/status") {
       routeName = "status";
       appArea = "public";
@@ -188,6 +192,7 @@ export default function App() {
             <Route path="/" element={<ApplicationForm />} />
             <Route path="/erfolg" element={<Success />} />
             <Route path="/upload/:token" element={<UploadPage />} />
+            <Route path="/papierformular" element={<PaperFormUpload />} />
             <Route path="/status" element={<StatusPage />} />
             <Route path="/admin/*" element={<AdminRoutes />} />
             <Route path="*" element={<Navigate to="/" replace />} />

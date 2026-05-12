@@ -752,10 +752,186 @@ async def upload_signed_document(
     }
 
 
+# --- Public paper-form scan upload (legacy form, no auth, no metadata) ---
+
+_PAPER_PLACEHOLDER_IBAN = ""  # encrypts/decrypts to "" — admin must transcribe.
+_PAPER_PLACEHOLDER_VORNAME = "(Papier-Antrag)"
+_PAPER_PLACEHOLDER_NACHNAME = "noch nicht erfasst"
+_PAPER_PLACEHOLDER_ADDR = "—"
+_PAPER_PLACEHOLDER_PLZ = "00000"
+
+
+@router.post("/upload-paper-form")
+async def upload_paper_form(
+    request: Request,
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+):
+    """Unauthenticated upload of a scanned legacy paper Beitrittserklärung.
+
+    The applicant uploads only the scan; no contact data is collected on this
+    route. A placeholder MembershipApplication row is created with
+    ``status='scan_eingegangen'`` and ``source='legacy'`` so the admin sees it
+    in the queue and can transcribe the fields from the scan preview.
+    """
+    import secrets
+    import string
+
+    ext = Path(file.filename).suffix.lower() if file.filename else ""
+    if ext not in ALLOWED_UPLOAD_EXTENSIONS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Nicht erlaubtes Dateiformat. Erlaubt: {', '.join(ALLOWED_UPLOAD_EXTENSIONS)}",
+        )
+    contents = await file.read()
+    if len(contents) > MAX_UPLOAD_FILE_SIZE:
+        raise HTTPException(status_code=400, detail="Datei zu groß (max. 20 MB)")
+    if len(contents) == 0:
+        raise HTTPException(status_code=400, detail="Leere Datei")
+
+    application = MembershipApplication(
+        antragstyp="einzel",
+        vorname=_PAPER_PLACEHOLDER_VORNAME,
+        nachname=_PAPER_PLACEHOLDER_NACHNAME,
+        geburtsdatum=date.today(),
+        strasse=_PAPER_PLACEHOLDER_ADDR,
+        plz=_PAPER_PLACEHOLDER_PLZ,
+        ort=_PAPER_PLACEHOLDER_ADDR,
+        telefon=None,
+        email=None,
+        abteilungen="[]",
+        mitgliedschaft_typ="erwachsener",
+        elternteil_mitglied=None,
+        jahresbeitrag=0,
+        iban=_PAPER_PLACEHOLDER_IBAN,
+        consent_at=None,
+        datenschutz_accepted=None,
+        satzung_accepted=None,
+        consent_ip=request.client.host if request.client else None,
+        is_test=False,
+        source="legacy",
+        email_sent=True,
+        status="scan_eingegangen",
+    )
+    db.add(application)
+    db.flush()
+
+    year = date.today().year
+    _charset = string.ascii_uppercase + string.digits
+    _charset = _charset.replace("O", "").replace("I", "").replace("L", "").replace("0", "")
+    for _attempt in range(20):
+        rand_part = "".join(secrets.choice(_charset) for _ in range(6))
+        candidate = f"ANT-{year}-{rand_part}"
+        exists = db.query(MembershipApplication.id).filter(
+            MembershipApplication.antragsnummer == candidate
+        ).first()
+        if not exists:
+            application.antragsnummer = candidate
+            break
+    else:
+        application.antragsnummer = f"ANT-{year}-{uuid.uuid4().hex[:8].upper()}"
+
+    application.upload_token = str(uuid.uuid4())
+
+    filename = f"{application.antragsnummer}_papier_{uuid.uuid4().hex[:8]}{ext}"
+    content_type = {
+        ".pdf": "application/pdf",
+        ".jpg": "image/jpeg", ".jpeg": "image/jpeg",
+        ".png": "image/png",
+        ".heic": "image/heic", ".heif": "image/heif",
+    }.get(ext, "application/octet-stream")
+    storage.upload_file(filename, contents, content_type=content_type)
+    application.uploaded_file = filename
+    application.uploaded_at = datetime.utcnow()
+
+    try:
+        db.commit()
+    except Exception:
+        db.rollback()
+        storage.delete_file(filename)
+        raise
+    db.refresh(application)
+
+    logger.info(
+        "Public paper-form scan received: %s (%d bytes, ext=%s)",
+        application.antragsnummer, len(contents), ext,
+    )
+
+    posthog_capture(
+        "membership_paper_form_uploaded",
+        application.antragsnummer,
+        properties={
+            "app_area": "public",
+            "source": "backend",
+            "application_id": application.id,
+            "antragsnummer": application.antragsnummer,
+            "file_extension": ext,
+            "file_size_bytes": len(contents),
+        },
+    )
+
+    # Notify admin so they can start the transcription. Best-effort; the
+    # submission is already saved if email fails.
+    try:
+        app_settings = db.query(AppSettings).filter(AppSettings.id == 1).first()
+        if app_settings and app_settings.smtp_host and app_settings.notification_email:
+            import asyncio
+            from app.routers.admin import _log_email as _log, _make_engine
+            from app.config import get_settings as _get_cfg
+            from sqlalchemy.orm import sessionmaker as _sm
+
+            _db_url = _get_cfg().database_url
+            _smtp = app_settings
+            _antragsnummer = application.antragsnummer
+            _filename = filename
+
+            async def _notify_admin():
+                _eng = _make_engine(_db_url)
+                _ldb = _sm(bind=_eng)()
+                _subject = f"Papier-Antrag (Scan) eingegangen: {_antragsnummer}"
+                _ok, _err = False, None
+                try:
+                    await send_upload_notification(
+                        smtp_host=_smtp.smtp_host,
+                        smtp_port=_smtp.smtp_port,
+                        smtp_user=_smtp.smtp_user,
+                        smtp_password=_smtp.smtp_password,
+                        smtp_from=_smtp.smtp_from,
+                        smtp_use_tls=_smtp.smtp_use_tls,
+                        notification_email=_smtp.notification_email,
+                        antragsnummer=_antragsnummer,
+                        vorname=_PAPER_PLACEHOLDER_VORNAME,
+                        nachname=_PAPER_PLACEHOLDER_NACHNAME,
+                        filename=_filename,
+                    )
+                    _ok = True
+                except Exception as _e:
+                    _err = _e
+                finally:
+                    _log(
+                        _ldb, "upload_notification", _smtp.notification_email,
+                        _subject, _ok, _err,
+                        _antragsnummer,
+                        _PAPER_PLACEHOLDER_VORNAME, _PAPER_PLACEHOLDER_NACHNAME,
+                    )
+                    _ldb.close()
+                    _eng.dispose()
+
+            asyncio.ensure_future(_notify_admin())
+    except Exception as e:
+        logger.error(f"Failed to send paper-form notification: {e}")
+
+    return {
+        "message": "Scan erfolgreich hochgeladen. Der Verein meldet sich.",
+        "antragsnummer": application.antragsnummer,
+    }
+
+
 # --- Status lookup ---
 
 STATUS_LABELS = {
     "neu": "Eingegangen",
+    "scan_eingegangen": "Papier-Scan eingegangen",
     "dokument_hochgeladen": "Dokument hochgeladen",
     "in_bearbeitung": "In Bearbeitung",
     "genehmigt": "Genehmigt",
