@@ -310,6 +310,9 @@
   .dark .bg-amber-50 {
     background-color: rgba(245, 158, 11, 0.16) !important;
   }
+  .dark .bg-amber-50\/60 {
+    background-color: rgba(245, 158, 11, 0.12) !important;
+  }
   .dark .bg-amber-200 {
     background-color: rgba(245, 158, 11, 0.24) !important;
   }
@@ -363,6 +366,9 @@
   }
   .dark .bg-orange-100 {
     background-color: rgba(249, 115, 22, 0.18) !important;
+  }
+  .dark .bg-orange-50\/60 {
+    background-color: rgba(249, 115, 22, 0.12) !important;
   }
 
   /* Inputs look better with a translucent, elevated surface */
