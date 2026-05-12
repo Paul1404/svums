@@ -71,6 +71,7 @@ async def lifespan(app: FastAPI):
                 ("consent_ip", "VARCHAR(45)"),
                 ("is_test", "BOOLEAN DEFAULT 0"),
                 ("source", "VARCHAR(20) NOT NULL DEFAULT 'online'"),
+                ("uploaded_file_ocr", "TEXT"),
             ]:
                 if col_name not in columns:
                     cursor.execute(f"ALTER TABLE membership_applications ADD COLUMN {col_name} {col_type}")
@@ -143,6 +144,10 @@ async def lifespan(app: FastAPI):
                 conn.execute(text(
                     "ALTER TABLE membership_applications "
                     "ALTER COLUMN email DROP NOT NULL"
+                ))
+                conn.execute(text(
+                    "ALTER TABLE membership_applications "
+                    "ADD COLUMN IF NOT EXISTS uploaded_file_ocr TEXT"
                 ))
             logger.info("Widened iban column to VARCHAR(500)")
         except Exception as e:

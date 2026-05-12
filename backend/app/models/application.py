@@ -63,6 +63,7 @@ class MembershipApplication(Base):
     email_sent = Column(Boolean, nullable=False, default=False)
     uploaded_file = Column(String(500), nullable=True)  # path to uploaded signed document
     uploaded_at = Column(DateTime, nullable=True)
+    uploaded_file_ocr = Column(Text, nullable=True)  # cached OCR transcript of uploaded_file
     admin_decline_reason = Column(Text, nullable=True)  # reason when status is abgelehnt
     admin_approved_file = Column(String(500), nullable=True)  # cross-signed PDF when genehmigt
     mitgliedsnummer = Column(String(500), nullable=True)  # membership number(s) from Linear Webverein (may contain multiple for families)

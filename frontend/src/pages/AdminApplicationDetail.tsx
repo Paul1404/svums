@@ -9,6 +9,7 @@ import {
   deleteApplication,
   resendEmail,
   adminUploadDocument,
+  getApplicationOcr,
   getSettings,
   updateSettings,
   formatFee,
@@ -17,6 +18,7 @@ import {
 import { captureEvent } from "../lib/analytics";
 import {
   ArrowLeft,
+  Copy,
   Download,
   Trash2,
   Save,
@@ -26,6 +28,7 @@ import {
   FileCheck,
   Eye,
   RefreshCw,
+  ScanText,
   Upload,
   X,
 } from "lucide-react";
@@ -1074,10 +1077,46 @@ function ScanPreview({
   isPlaceholder: boolean;
 }) {
   const [expanded, setExpanded] = useState(true);
+  const [ocrShown, setOcrShown] = useState(false);
+  const [ocrLoading, setOcrLoading] = useState(false);
+  const [ocrText, setOcrText] = useState<string | null>(null);
+  const [ocrAvailable, setOcrAvailable] = useState<boolean | null>(null);
+  const [ocrError, setOcrError] = useState<string | null>(null);
+  const [ocrCached, setOcrCached] = useState(false);
+
   const src = `/api/admin/applications/${applicationId}/upload`;
   const ext = (filename.split(".").pop() ?? "").toLowerCase();
   const isImage = ["jpg", "jpeg", "png", "heic", "heif"].includes(ext);
   const isPdf = ext === "pdf";
+
+  const runOcr = async (refresh: boolean) => {
+    setOcrShown(true);
+    setOcrLoading(true);
+    setOcrError(null);
+    try {
+      const res = await getApplicationOcr(applicationId, refresh);
+      setOcrAvailable(res.available);
+      setOcrText(res.text);
+      setOcrCached(Boolean(res.cached));
+      if (!res.available) setOcrError(res.error ?? "OCR nicht verfügbar.");
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "OCR fehlgeschlagen";
+      setOcrError(msg);
+      setOcrAvailable(false);
+    } finally {
+      setOcrLoading(false);
+    }
+  };
+
+  const copyOcr = async () => {
+    if (!ocrText) return;
+    try {
+      await navigator.clipboard.writeText(ocrText);
+      toast.success("OCR-Text kopiert");
+    } catch {
+      toast.error("Kopieren fehlgeschlagen");
+    }
+  };
 
   return (
     <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
@@ -1094,6 +1133,22 @@ function ScanPreview({
           )}
         </div>
         <div className="flex items-center gap-1">
+          <button
+            type="button"
+            onClick={() => (ocrShown ? setOcrShown(false) : runOcr(false))}
+            disabled={ocrLoading}
+            className="flex items-center gap-1 px-2 py-1 text-xs font-medium text-gray-700 hover:text-svu-700 hover:bg-white rounded transition-colors disabled:opacity-50"
+            title="Text per OCR aus dem Scan auslesen"
+          >
+            {ocrLoading ? (
+              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+            ) : (
+              <ScanText className="w-3.5 h-3.5" />
+            )}
+            <span className="hidden sm:inline">
+              {ocrShown ? "Text ausblenden" : "Text auslesen"}
+            </span>
+          </button>
           <a
             href={src}
             target="_blank"
@@ -1122,33 +1177,131 @@ function ScanPreview({
       </div>
       {expanded && (
         <div className="bg-gray-100 p-2">
-          {isPdf ? (
-            <iframe
-              src={src}
-              title="Scan der Beitrittserklärung"
-              className="w-full h-[800px] rounded border border-gray-200 bg-white"
-            />
-          ) : isImage ? (
-            <img
-              src={src}
-              alt="Scan der Beitrittserklärung"
-              className="w-full max-h-[800px] object-contain rounded border border-gray-200 bg-white"
-            />
-          ) : (
-            <div className="p-8 text-center text-sm text-gray-500">
-              Vorschau für dieses Format nicht verfügbar.{" "}
-              <a
-                href={src}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-svu-600 underline"
-              >
-                Im neuen Tab öffnen
-              </a>
+          <div className={`grid gap-2 ${ocrShown ? "lg:grid-cols-2" : "grid-cols-1"}`}>
+            <div>
+              {isPdf ? (
+                <iframe
+                  src={src}
+                  title="Scan der Beitrittserklärung"
+                  className="w-full h-[800px] rounded border border-gray-200 bg-white"
+                />
+              ) : isImage ? (
+                <img
+                  src={src}
+                  alt="Scan der Beitrittserklärung"
+                  className="w-full max-h-[800px] object-contain rounded border border-gray-200 bg-white"
+                />
+              ) : (
+                <div className="p-8 text-center text-sm text-gray-500">
+                  Vorschau für dieses Format nicht verfügbar.{" "}
+                  <a
+                    href={src}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-svu-600 underline"
+                  >
+                    Im neuen Tab öffnen
+                  </a>
+                </div>
+              )}
             </div>
-          )}
+            {ocrShown && (
+              <OcrPanel
+                loading={ocrLoading}
+                text={ocrText}
+                available={ocrAvailable}
+                error={ocrError}
+                cached={ocrCached}
+                onRefresh={() => runOcr(true)}
+                onCopy={copyOcr}
+              />
+            )}
+          </div>
         </div>
       )}
+    </div>
+  );
+}
+
+function OcrPanel({
+  loading,
+  text,
+  available,
+  error,
+  cached,
+  onRefresh,
+  onCopy,
+}: {
+  loading: boolean;
+  text: string | null;
+  available: boolean | null;
+  error: string | null;
+  cached: boolean;
+  onRefresh: () => void;
+  onCopy: () => void;
+}) {
+  return (
+    <div className="bg-white rounded border border-gray-200 flex flex-col h-[800px]">
+      <div className="flex items-center justify-between px-3 py-2 border-b bg-gray-50/60 text-xs">
+        <div className="flex items-center gap-2 text-gray-600 font-medium">
+          <ScanText className="w-3.5 h-3.5" />
+          <span>OCR-Text</span>
+          {cached && !loading && (
+            <span
+              className="text-[10px] uppercase tracking-wide text-gray-400"
+              title="Zwischengespeichertes Ergebnis"
+            >
+              aus Cache
+            </span>
+          )}
+        </div>
+        <div className="flex items-center gap-1">
+          <button
+            type="button"
+            onClick={onCopy}
+            disabled={!text}
+            className="p-1 text-gray-500 hover:text-svu-600 disabled:opacity-30 rounded transition-colors"
+            title="Gesamten OCR-Text kopieren"
+          >
+            <Copy className="w-3.5 h-3.5" />
+          </button>
+          <button
+            type="button"
+            onClick={onRefresh}
+            disabled={loading}
+            className="p-1 text-gray-500 hover:text-svu-600 disabled:opacity-30 rounded transition-colors"
+            title="Neu auslesen"
+          >
+            <RefreshCw
+              className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`}
+            />
+          </button>
+        </div>
+      </div>
+      <div className="flex-1 overflow-auto p-3 bg-white">
+        {loading ? (
+          <div className="flex flex-col items-center justify-center h-full text-sm text-gray-400 gap-2">
+            <Loader2 className="w-5 h-5 animate-spin" />
+            <span>Text wird ausgelesen…</span>
+          </div>
+        ) : available === false ? (
+          <div className="text-sm text-gray-500">
+            <p className="font-medium text-gray-700 mb-1">OCR nicht verfügbar</p>
+            <p>{error || "Tesseract ist auf diesem Server nicht installiert."}</p>
+          </div>
+        ) : text && text.trim() ? (
+          <pre className="whitespace-pre-wrap font-mono text-xs text-gray-800 select-text">
+            {text}
+          </pre>
+        ) : (
+          <div className="text-sm text-gray-400">
+            Kein lesbarer Text erkannt.
+          </div>
+        )}
+      </div>
+      <div className="px-3 py-2 border-t bg-gray-50/60 text-[11px] text-gray-400">
+        Maschinelles Auslesen — bitte vor dem Übernehmen mit dem Scan abgleichen.
+      </div>
     </div>
   );
 }
