@@ -1146,16 +1146,28 @@ async def admin_upload_document(
 async def create_legacy_application(
     request: Request,
     data: str = Form(...),
-    file: UploadFile = File(...),
+    file: UploadFile | None = File(None),
+    from_application_id: int | None = Form(None),
     is_admin: bool = Depends(require_admin),
     db: Session = Depends(get_db),
 ):
     """Create a membership application from a legacy paper form.
 
-    Admin uploads a scan of the (already paper-signed) form and transcribes the
-    fields. The application is created with source='legacy', status set to
-    'dokument_hochgeladen' (paper signature == upload), and no confirmation
-    emails are dispatched.
+    Two modes:
+
+    1. Fresh entry (``from_application_id`` absent): admin uploads a scan of the
+       paper form and transcribes the fields; a new application is created.
+    2. Placeholder reuse (``from_application_id`` set): the public uploader
+       already submitted a scan via ``/upload-paper-form`` and a placeholder
+       row exists with ``status='scan_eingegangen'``. The admin transcribes
+       the fields against that placeholder. The existing scan is reused (no
+       re-upload required) and the placeholder is upgraded in-place — same
+       ``antragsnummer``, same ``uploaded_file``, no separate row to clean up.
+       Optionally, the admin may supply a replacement ``file``.
+
+    The resulting application has ``source='legacy'``,
+    ``status='dokument_hochgeladen'`` (paper signature == upload), and no
+    automated confirmation emails are dispatched.
     """
     import json as _json
     import secrets
@@ -1171,25 +1183,54 @@ async def create_legacy_application(
     try:
         parsed = LegacyApplicationCreate(**payload)
     except ValidationError as exc:
-        # Pydantic errors() may contain non-JSON-serializable ctx values, so we
-        # project them down to plain strings.
         sanitized = [
             {"loc": list(e.get("loc", [])), "msg": str(e.get("msg", "")), "type": e.get("type", "")}
             for e in exc.errors()
         ]
         raise HTTPException(status_code=422, detail=sanitized)
 
-    ext = Path(file.filename).suffix.lower() if file.filename else ""
-    if ext not in ALLOWED_UPLOAD_EXTENSIONS:
+    # Resolve the placeholder application up-front (if reusing).
+    placeholder: MembershipApplication | None = None
+    if from_application_id is not None:
+        placeholder = db.query(MembershipApplication).filter(
+            MembershipApplication.id == from_application_id
+        ).first()
+        if not placeholder:
+            raise HTTPException(status_code=404, detail="Platzhalter-Antrag nicht gefunden")
+        if placeholder.status != "scan_eingegangen" or placeholder.source != "legacy":
+            raise HTTPException(
+                status_code=400,
+                detail="Antrag ist kein Papier-Platzhalter (Status muss 'scan_eingegangen' sein)",
+            )
+        if not placeholder.uploaded_file:
+            raise HTTPException(
+                status_code=400,
+                detail="Platzhalter hat keinen hinterlegten Scan",
+            )
+
+    has_upload = file is not None and (file.filename or "")
+    if not has_upload and placeholder is None:
         raise HTTPException(
             status_code=400,
-            detail=f"Nicht erlaubtes Dateiformat. Erlaubt: {', '.join(ALLOWED_UPLOAD_EXTENSIONS)}",
+            detail="Bitte einen Scan der Beitrittserklärung hochladen",
         )
-    contents = await file.read()
-    if len(contents) > MAX_UPLOAD_FILE_SIZE:
-        raise HTTPException(status_code=400, detail="Datei zu groß (max. 20 MB)")
-    if len(contents) == 0:
-        raise HTTPException(status_code=400, detail="Leere Datei")
+
+    new_filename: str | None = None
+    contents_len = 0
+    ext = ""
+    if has_upload:
+        ext = Path(file.filename).suffix.lower() if file.filename else ""
+        if ext not in ALLOWED_UPLOAD_EXTENSIONS:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Nicht erlaubtes Dateiformat. Erlaubt: {', '.join(ALLOWED_UPLOAD_EXTENSIONS)}",
+            )
+        contents = await file.read()
+        contents_len = len(contents)
+        if contents_len > MAX_UPLOAD_FILE_SIZE:
+            raise HTTPException(status_code=400, detail="Datei zu groß (max. 20 MB)")
+        if contents_len == 0:
+            raise HTTPException(status_code=400, detail="Leere Datei")
 
     fee_amount, _fee_label = calculate_fee(parsed.mitgliedschaft_typ, parsed.elternteil_mitglied)
 
@@ -1199,88 +1240,146 @@ async def create_legacy_application(
         else datetime.utcnow()
     )
 
-    application = MembershipApplication(
-        antragstyp=parsed.antragstyp,
-        geschlecht=parsed.geschlecht,
-        vorname=parsed.vorname,
-        nachname=parsed.nachname,
-        geburtsdatum=parsed.geburtsdatum,
-        strasse=parsed.strasse,
-        plz=parsed.plz,
-        ort=parsed.ort,
-        telefon=parsed.telefon,
-        email=parsed.email,
-        erziehungsberechtigter_vorname=parsed.erziehungsberechtigter_vorname,
-        erziehungsberechtigter_nachname=parsed.erziehungsberechtigter_nachname,
-        partner_vorname=parsed.partner_vorname,
-        partner_nachname=parsed.partner_nachname,
-        partner_geburtsdatum=parsed.partner_geburtsdatum,
-        partner_abteilungen=json.dumps(parsed.partner_abteilungen) if parsed.partner_abteilungen else None,
-        kinder=json.dumps([k.model_dump(mode="json") for k in parsed.kinder]) if parsed.kinder else None,
-        abteilungen=json.dumps(parsed.abteilungen),
-        mitgliedschaft_typ=parsed.mitgliedschaft_typ,
-        elternteil_mitglied=parsed.elternteil_mitglied,
-        jahresbeitrag=fee_amount,
-        kontoinhaber=parsed.kontoinhaber,
-        iban=encrypt_iban(parsed.iban),
-        bic=parsed.bic,
-        kreditinstitut=parsed.kreditinstitut,
-        # Paper signature implies consent at the time the form was signed.
-        consent_at=consent_dt,
-        datenschutz_accepted=True,
-        satzung_accepted=True,
-        consent_ip=None,
-        is_test=False,
-        source="legacy",
-        # Suppress later email dispatch attempts; admin can still resend if needed.
-        email_sent=True,
-        # Paper form is already signed → treat upload as the signed document.
-        status="dokument_hochgeladen",
-    )
-
-    db.add(application)
-    db.flush()
-
-    year = _date.today().year
-    _charset = string.ascii_uppercase + string.digits
-    _charset = _charset.replace("O", "").replace("I", "").replace("L", "").replace("0", "")
-    for _attempt in range(20):
-        rand_part = "".join(secrets.choice(_charset) for _ in range(6))
-        candidate = f"ANT-{year}-{rand_part}"
-        exists = db.query(MembershipApplication.id).filter(
-            MembershipApplication.antragsnummer == candidate
-        ).first()
-        if not exists:
-            application.antragsnummer = candidate
-            break
+    if placeholder is not None:
+        # Upgrade the placeholder in-place so antragsnummer and scan stay stable.
+        application = placeholder
+        application.antragstyp = parsed.antragstyp
+        application.geschlecht = parsed.geschlecht
+        application.vorname = parsed.vorname
+        application.nachname = parsed.nachname
+        application.geburtsdatum = parsed.geburtsdatum
+        application.strasse = parsed.strasse
+        application.plz = parsed.plz
+        application.ort = parsed.ort
+        application.telefon = parsed.telefon
+        application.email = parsed.email or application.email
+        application.erziehungsberechtigter_vorname = parsed.erziehungsberechtigter_vorname
+        application.erziehungsberechtigter_nachname = parsed.erziehungsberechtigter_nachname
+        application.partner_vorname = parsed.partner_vorname
+        application.partner_nachname = parsed.partner_nachname
+        application.partner_geburtsdatum = parsed.partner_geburtsdatum
+        application.partner_abteilungen = (
+            json.dumps(parsed.partner_abteilungen) if parsed.partner_abteilungen else None
+        )
+        application.kinder = (
+            json.dumps([k.model_dump(mode="json") for k in parsed.kinder])
+            if parsed.kinder
+            else None
+        )
+        application.abteilungen = json.dumps(parsed.abteilungen)
+        application.mitgliedschaft_typ = parsed.mitgliedschaft_typ
+        application.elternteil_mitglied = parsed.elternteil_mitglied
+        application.jahresbeitrag = fee_amount
+        application.kontoinhaber = parsed.kontoinhaber
+        application.iban = encrypt_iban(parsed.iban)
+        application.bic = parsed.bic
+        application.kreditinstitut = parsed.kreditinstitut
+        application.consent_at = consent_dt
+        application.datenschutz_accepted = True
+        application.satzung_accepted = True
+        application.source = "legacy"
+        application.email_sent = True
+        application.status = "dokument_hochgeladen"
     else:
-        application.antragsnummer = f"ANT-{year}-{uuid.uuid4().hex[:8].upper()}"
+        application = MembershipApplication(
+            antragstyp=parsed.antragstyp,
+            geschlecht=parsed.geschlecht,
+            vorname=parsed.vorname,
+            nachname=parsed.nachname,
+            geburtsdatum=parsed.geburtsdatum,
+            strasse=parsed.strasse,
+            plz=parsed.plz,
+            ort=parsed.ort,
+            telefon=parsed.telefon,
+            email=parsed.email,
+            erziehungsberechtigter_vorname=parsed.erziehungsberechtigter_vorname,
+            erziehungsberechtigter_nachname=parsed.erziehungsberechtigter_nachname,
+            partner_vorname=parsed.partner_vorname,
+            partner_nachname=parsed.partner_nachname,
+            partner_geburtsdatum=parsed.partner_geburtsdatum,
+            partner_abteilungen=json.dumps(parsed.partner_abteilungen) if parsed.partner_abteilungen else None,
+            kinder=json.dumps([k.model_dump(mode="json") for k in parsed.kinder]) if parsed.kinder else None,
+            abteilungen=json.dumps(parsed.abteilungen),
+            mitgliedschaft_typ=parsed.mitgliedschaft_typ,
+            elternteil_mitglied=parsed.elternteil_mitglied,
+            jahresbeitrag=fee_amount,
+            kontoinhaber=parsed.kontoinhaber,
+            iban=encrypt_iban(parsed.iban),
+            bic=parsed.bic,
+            kreditinstitut=parsed.kreditinstitut,
+            consent_at=consent_dt,
+            datenschutz_accepted=True,
+            satzung_accepted=True,
+            consent_ip=None,
+            is_test=False,
+            source="legacy",
+            email_sent=True,
+            status="dokument_hochgeladen",
+        )
+        db.add(application)
+        db.flush()
 
-    application.upload_token = str(uuid.uuid4())
+        year = _date.today().year
+        _charset = string.ascii_uppercase + string.digits
+        _charset = _charset.replace("O", "").replace("I", "").replace("L", "").replace("0", "")
+        for _attempt in range(20):
+            rand_part = "".join(secrets.choice(_charset) for _ in range(6))
+            candidate = f"ANT-{year}-{rand_part}"
+            exists = db.query(MembershipApplication.id).filter(
+                MembershipApplication.antragsnummer == candidate
+            ).first()
+            if not exists:
+                application.antragsnummer = candidate
+                break
+        else:
+            application.antragsnummer = f"ANT-{year}-{uuid.uuid4().hex[:8].upper()}"
 
-    _app_settings = db.query(AppSettings).filter(AppSettings.id == 1).first()
-    from app.schemas.club_config import ClubConfig
-    _club = _app_settings.get_club_config() if _app_settings else ClubConfig()
-    application.mandatsreferenz = f"{_club.sepa_mandate_prefix}{year}-{application.id:05d}"
+        application.upload_token = str(uuid.uuid4())
 
-    filename = f"{application.antragsnummer}_legacy_{uuid.uuid4().hex[:8]}{ext}"
-    content_type = {
-        ".pdf": "application/pdf",
-        ".jpg": "image/jpeg", ".jpeg": "image/jpeg",
-        ".png": "image/png",
-        ".heic": "image/heic", ".heif": "image/heif",
-    }.get(ext, "application/octet-stream")
-    storage.upload_file(filename, contents, content_type=content_type)
-    application.uploaded_file = filename
-    application.uploaded_at = datetime.utcnow()
+    # Mandatsreferenz: keep an existing one (placeholder reuse) so we don't
+    # change it after the fact, but generate one if it's missing.
+    if not application.mandatsreferenz:
+        _app_settings = db.query(AppSettings).filter(AppSettings.id == 1).first()
+        from app.schemas.club_config import ClubConfig
+        _club = _app_settings.get_club_config() if _app_settings else ClubConfig()
+        _year = _date.today().year
+        application.mandatsreferenz = f"{_club.sepa_mandate_prefix}{_year}-{application.id:05d}"
+
+    old_filename_to_delete: str | None = None
+    if has_upload:
+        # New scan provided — store it; if reusing a placeholder, schedule the
+        # old scan for deletion after the commit succeeds.
+        new_filename = f"{application.antragsnummer}_legacy_{uuid.uuid4().hex[:8]}{ext}"
+        content_type = {
+            ".pdf": "application/pdf",
+            ".jpg": "image/jpeg", ".jpeg": "image/jpeg",
+            ".png": "image/png",
+            ".heic": "image/heic", ".heif": "image/heif",
+        }.get(ext, "application/octet-stream")
+        storage.upload_file(new_filename, contents, content_type=content_type)
+        if placeholder is not None and placeholder.uploaded_file and placeholder.uploaded_file != new_filename:
+            old_filename_to_delete = placeholder.uploaded_file
+        application.uploaded_file = new_filename
+        application.uploaded_at = datetime.utcnow()
+    # else: reusing placeholder.uploaded_file as-is — no storage I/O needed.
 
     try:
         db.commit()
     except Exception:
         db.rollback()
-        storage.delete_file(filename)
+        if new_filename:
+            storage.delete_file(new_filename)
         raise
     db.refresh(application)
+
+    if old_filename_to_delete:
+        try:
+            storage.delete_file(old_filename_to_delete)
+        except Exception as _e:
+            logger.error(
+                "Failed to delete replaced placeholder scan: key=%s error=%s",
+                old_filename_to_delete, _e,
+            )
 
     posthog_capture(
         "membership_application_legacy_imported",
@@ -1294,9 +1393,11 @@ async def create_legacy_application(
             "mitgliedschaft_typ": application.mitgliedschaft_typ,
             "jahresbeitrag": float(application.jahresbeitrag),
             "abteilungen_count": len(application.get_abteilungen()),
-            "file_extension": ext,
-            "file_size_bytes": len(contents),
+            "file_extension": ext or Path(application.uploaded_file or "").suffix.lower().lstrip("."),
+            "file_size_bytes": contents_len,
             "has_signed_on_date": parsed.signed_on is not None,
+            "from_placeholder": placeholder is not None,
+            "scan_replaced": placeholder is not None and has_upload,
         },
     )
 

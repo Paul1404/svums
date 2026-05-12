@@ -366,12 +366,14 @@ export default function AdminApplicationDetail() {
                 hochgeladen. Bitte übertragen Sie die Felder anhand der Vorschau
                 unten. Verwenden Sie dazu{" "}
                 <Link
-                  to="/admin/legacy-application"
+                  to={`/admin/legacy-application?from=${app.id}`}
                   className="underline font-medium hover:text-amber-950"
                 >
                   „Papier-Antrag erfassen"
                 </Link>
-                {" "}und löschen Sie diesen Platzhalter anschließend.
+                . Der hochgeladene Scan und die Antragsnummer bleiben dabei
+                erhalten — beim Speichern wird der Platzhalter automatisch
+                durch den vollständigen Antrag ersetzt.
               </p>
             </div>
           </div>
@@ -574,48 +576,57 @@ export default function AdminApplicationDetail() {
                     </span>
                   </div>
                 )}
-                <div className="flex items-center justify-between">
-                  <span className="text-gray-500">E-Mail gesendet:</span>
-                  <div className="flex items-center gap-2">
-                    {app.email_sent ? (
-                      <span className="flex items-center gap-1 text-green-600">
-                        <Mail className="w-3.5 h-3.5" /> Ja
-                      </span>
-                    ) : (
-                      <span className="flex items-center gap-1 text-amber-600">
-                        <MailX className="w-3.5 h-3.5" /> Nein
-                      </span>
-                    )}
-                    <button
-                      onClick={async () => {
-                        if (!app) return;
-                        setResending(true);
-                        try {
-                          await resendEmail(app.id);
-                          toast.success("E-Mail wird erneut gesendet");
-                          // Refresh after a short delay
-                          setTimeout(async () => {
-                            const updated = await getApplication(app.id);
-                            setApp(updated);
-                          }, 3000);
-                        } catch (err: any) {
-                          toast.error(err.message);
-                        } finally {
-                          setResending(false);
-                        }
-                      }}
-                      disabled={resending}
-                      className="p-1 text-gray-400 hover:text-svu-600 rounded transition-colors"
-                      title={app.email_sent ? "E-Mail erneut senden" : "E-Mail senden"}
-                    >
-                      {resending ? (
-                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                {app.email ? (
+                  <div className="flex items-center justify-between">
+                    <span className="text-gray-500">E-Mail gesendet:</span>
+                    <div className="flex items-center gap-2">
+                      {app.email_sent ? (
+                        <span className="flex items-center gap-1 text-green-600">
+                          <Mail className="w-3.5 h-3.5" /> Ja
+                        </span>
                       ) : (
-                        <RefreshCw className="w-3.5 h-3.5" />
+                        <span className="flex items-center gap-1 text-amber-600">
+                          <MailX className="w-3.5 h-3.5" /> Nein
+                        </span>
                       )}
-                    </button>
+                      <button
+                        onClick={async () => {
+                          if (!app) return;
+                          setResending(true);
+                          try {
+                            await resendEmail(app.id);
+                            toast.success("E-Mail wird erneut gesendet");
+                            // Refresh after a short delay
+                            setTimeout(async () => {
+                              const updated = await getApplication(app.id);
+                              setApp(updated);
+                            }, 3000);
+                          } catch (err: any) {
+                            toast.error(err.message);
+                          } finally {
+                            setResending(false);
+                          }
+                        }}
+                        disabled={resending}
+                        className="p-1 text-gray-400 hover:text-svu-600 rounded transition-colors"
+                        title={app.email_sent ? "E-Mail erneut senden" : "E-Mail senden"}
+                      >
+                        {resending ? (
+                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        ) : (
+                          <RefreshCw className="w-3.5 h-3.5" />
+                        )}
+                      </button>
+                    </div>
                   </div>
-                </div>
+                ) : app.source === "legacy" ? (
+                  <div className="flex items-center justify-between">
+                    <span className="text-gray-500">E-Mail:</span>
+                    <span className="text-xs text-gray-400">
+                      Keine hinterlegt (Papier-Antrag)
+                    </span>
+                  </div>
+                ) : null}
                 <div className="flex items-center justify-between">
                   <span className="text-gray-500">Dokument hochgeladen:</span>
                   {app.uploaded_file ? (
