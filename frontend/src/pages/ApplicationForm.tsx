@@ -27,6 +27,7 @@ import {
   ChevronLeft,
   ChevronRight,
   CreditCard,
+  FlaskConical,
   HelpCircle,
   Loader2,
   Maximize2,
@@ -153,6 +154,47 @@ function clearDraft() {
 // =============================================
 // MAIN COMPONENT
 // =============================================
+
+// Magnetic-hover effect: button shifts slightly toward the cursor.
+// Pointer-only (skipped on coarse-pointer / reduced-motion).
+function useMagnetic<T extends HTMLElement>(strength = 0.25) {
+  const ref = useRef<T | null>(null);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    if (typeof window === "undefined") return;
+    if (window.matchMedia("(pointer: coarse)").matches) return;
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+
+    let raf = 0;
+    const onMove = (e: PointerEvent) => {
+      const rect = el.getBoundingClientRect();
+      const cx = rect.left + rect.width / 2;
+      const cy = rect.top + rect.height / 2;
+      const dx = (e.clientX - cx) * strength;
+      const dy = (e.clientY - cy) * strength;
+      cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(() => {
+        el.style.setProperty("--mx", `${dx.toFixed(2)}px`);
+        el.style.setProperty("--my", `${dy.toFixed(2)}px`);
+      });
+    };
+    const onLeave = () => {
+      cancelAnimationFrame(raf);
+      el.style.setProperty("--mx", "0px");
+      el.style.setProperty("--my", "0px");
+    };
+    el.addEventListener("pointermove", onMove);
+    el.addEventListener("pointerleave", onLeave);
+    return () => {
+      cancelAnimationFrame(raf);
+      el.removeEventListener("pointermove", onMove);
+      el.removeEventListener("pointerleave", onLeave);
+    };
+  }, [strength]);
+  return ref;
+}
+
 // ---- Test mode helpers ----
 const TEST_DATA_KEY = "svums_test_data";
 
@@ -1020,6 +1062,69 @@ export default function ApplicationForm() {
       ? `${erzVorname} ${erzNachname}`.trim()
       : `${vorname} ${nachname}`.trim();
 
+  const submitBtnRef = useMagnetic<HTMLButtonElement>(0.22);
+  const nextBtnRef = useMagnetic<HTMLButtonElement>(0.18);
+
+  // Micro step-progress: fraction of required fields filled for the current step.
+  // No validation noise — just shows momentum as the user fills in fields.
+  const stepProgress = (() => {
+    const filled = (v: string) => v.trim().length > 0;
+    if (step === 0) {
+      const checks: boolean[] = [
+        !isMinor && geschlecht !== null,
+        isMinor || true,
+        filled(vorname),
+        filled(nachname),
+        filled(geburtsdatum),
+        abteilungen.length > 0,
+      ];
+      // Branch-specific required fields
+      if (antragstyp === "einzel" || antragstyp === "familie") {
+        checks.push(
+          filled(strasse) && strasse.trim().length >= 5,
+          /^\d{5}$/.test(plz),
+          filled(ort),
+          /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email),
+          telefonOptOut || filled(telefon),
+        );
+      } else if (antragstyp === "kind") {
+        checks.push(
+          filled(erzVorname),
+          filled(erzNachname),
+          filled(strasse) && strasse.trim().length >= 5,
+          /^\d{5}$/.test(plz),
+          filled(ort),
+          /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email),
+          telefonOptOut || filled(telefon),
+          !isChildType || elternteilMitglied !== null,
+        );
+      }
+      const done = checks.filter(Boolean).length;
+      return checks.length > 0 ? done / checks.length : 0;
+    }
+    if (step === 1) {
+      const cleanIban = iban.replace(/\s/g, "").toUpperCase();
+      const ibanOk =
+        cleanIban.length >= 15 &&
+        cleanIban.length <= 34 &&
+        validateIbanChecksum(cleanIban);
+      const checks = [filled(kontoinhaber), ibanOk];
+      return checks.filter(Boolean).length / checks.length;
+    }
+    if (step === 2) {
+      const checks: boolean[] = [
+        consentDatenschutz,
+        consentSatzung,
+        signatureMode === "upload" ||
+          !!capturedSigDataUrl ||
+          !!uploadedSignatureDataUrl ||
+          !sigEmpty,
+      ];
+      return checks.filter(Boolean).length / checks.length;
+    }
+    return 0;
+  })();
+
   return (
     <div className="min-h-screen">
       {/* Header */}
@@ -1042,7 +1147,7 @@ export default function ApplicationForm() {
       {isTestMode && (
         <div className="bg-orange-100 border-b border-orange-200">
           <div className="max-w-3xl mx-auto px-4 py-2 flex items-center gap-2 text-orange-800 text-sm font-medium">
-            <span className="text-base">🧪</span>
+            <FlaskConical className="w-4 h-4 flex-shrink-0" />
             Testmodus — Formulardaten sind vorausgefüllt
           </div>
         </div>
@@ -1113,6 +1218,21 @@ export default function ApplicationForm() {
               </div>
             );
           })}
+        </div>
+
+        {/* Micro step-progress (fraction of required fields filled) */}
+        <div
+          className="step-progress mb-2"
+          role="progressbar"
+          aria-valuenow={Math.round(stepProgress * 100)}
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-label={`Fortschritt: ${STEPS[step]?.label}`}
+        >
+          <div
+            className="step-progress-fill"
+            style={{ "--p": stepProgress.toFixed(3) } as React.CSSProperties}
+          />
         </div>
 
         {/* Auto-save indicator */}
@@ -2013,7 +2133,24 @@ export default function ApplicationForm() {
                     ) : (
                       <div
                         ref={sigContainerCallbackRef}
-                        className="border-2 border-gray-300 rounded-lg bg-white overflow-hidden touch-none"
+                        className="ink-wrap border-2 border-gray-300 rounded-lg bg-white overflow-hidden touch-none"
+                        onPointerDown={(e) => {
+                          const el = e.currentTarget;
+                          const rect = el.getBoundingClientRect();
+                          el.style.setProperty("--ink-x", `${e.clientX - rect.left}px`);
+                          el.style.setProperty("--ink-y", `${e.clientY - rect.top}px`);
+                          el.classList.add("is-inking");
+                        }}
+                        onPointerMove={(e) => {
+                          if (!e.currentTarget.classList.contains("is-inking")) return;
+                          const el = e.currentTarget;
+                          const rect = el.getBoundingClientRect();
+                          el.style.setProperty("--ink-x", `${e.clientX - rect.left}px`);
+                          el.style.setProperty("--ink-y", `${e.clientY - rect.top}px`);
+                        }}
+                        onPointerUp={(e) => e.currentTarget.classList.remove("is-inking")}
+                        onPointerLeave={(e) => e.currentTarget.classList.remove("is-inking")}
+                        onPointerCancel={(e) => e.currentTarget.classList.remove("is-inking")}
                       >
                         <SignatureCanvas
                           ref={sigCanvasRef}
@@ -2092,8 +2229,8 @@ export default function ApplicationForm() {
             )}
 
             {step < STEPS.length - 1 ? (
-              <button type="button" onClick={nextStep}
-                className="flex items-center gap-2 px-5 py-2.5 text-sm font-medium text-white bg-svu-600 rounded-lg hover:bg-svu-700 transition-colors"
+              <button type="button" onClick={nextStep} ref={nextBtnRef}
+                className="btn-magnetic flex items-center gap-2 px-5 py-2.5 text-sm font-medium text-white bg-svu-600 rounded-lg hover:bg-svu-700"
               >
                 Weiter
                 <span className="hidden sm:inline text-white/70 font-normal ml-1">
@@ -2102,9 +2239,9 @@ export default function ApplicationForm() {
                 <ChevronRight className="w-4 h-4" />
               </button>
             ) : (
-              <button type="button" onClick={handleSubmit}
+              <button type="button" onClick={handleSubmit} ref={submitBtnRef}
                 disabled={submitting || !consentDatenschutz || !consentSatzung || (signatureMode === "inline" && sigEmpty && !capturedSigDataUrl && !uploadedSignatureDataUrl)}
-                className="btn-spring flex items-center gap-2 px-6 py-2.5 text-sm font-medium text-white bg-svu-600 rounded-lg"
+                className="btn-spring btn-magnetic btn-primary-glow flex items-center gap-2 px-6 py-2.5 text-sm font-medium text-white bg-svu-600 rounded-lg"
               >
                 {submitting ? (
                   <Loader2 className="w-4 h-4 animate-spin" />
@@ -2201,7 +2338,24 @@ export default function ApplicationForm() {
           {/* Canvas area – fills all remaining space */}
           <div
             ref={fullscreenContainerCallbackRef}
-            className="flex-1 overflow-hidden touch-none relative"
+            className="ink-wrap flex-1 overflow-hidden touch-none relative"
+            onPointerDown={(e) => {
+              const el = e.currentTarget;
+              const rect = el.getBoundingClientRect();
+              el.style.setProperty("--ink-x", `${e.clientX - rect.left}px`);
+              el.style.setProperty("--ink-y", `${e.clientY - rect.top}px`);
+              el.classList.add("is-inking");
+            }}
+            onPointerMove={(e) => {
+              if (!e.currentTarget.classList.contains("is-inking")) return;
+              const el = e.currentTarget;
+              const rect = el.getBoundingClientRect();
+              el.style.setProperty("--ink-x", `${e.clientX - rect.left}px`);
+              el.style.setProperty("--ink-y", `${e.clientY - rect.top}px`);
+            }}
+            onPointerUp={(e) => e.currentTarget.classList.remove("is-inking")}
+            onPointerLeave={(e) => e.currentTarget.classList.remove("is-inking")}
+            onPointerCancel={(e) => e.currentTarget.classList.remove("is-inking")}
           >
             <SignatureCanvas
               ref={fullscreenCanvasRef}
@@ -2325,11 +2479,15 @@ function AbteilungenPicker({
         {label}
       </label>
       {hint && <p className="text-xs text-gray-500 mb-2">{hint}</p>}
-      <div className={`grid ${compact ? "grid-cols-2 sm:grid-cols-3" : "grid-cols-1 sm:grid-cols-2"} gap-2`}>
-        {departments.map((abt) => (
+      <div
+        className={`grid ${compact ? "grid-cols-2 sm:grid-cols-3" : "grid-cols-1 sm:grid-cols-2"} gap-2`}
+        style={{ "--chip-stagger-step": "32ms" } as React.CSSProperties}
+      >
+        {departments.map((abt, i) => (
           <label
             key={abt}
-            className={`flex items-center ${compact ? "p-2" : "p-3"} rounded-lg border cursor-pointer transition-colors ${
+            style={{ "--i": i } as React.CSSProperties}
+            className={`chip-stagger flex items-center ${compact ? "p-2" : "p-3"} rounded-lg border cursor-pointer transition-colors ${
               selected.includes(abt)
                 ? "border-svu-500 bg-svu-50 text-svu-700"
                 : "border-gray-200 hover:border-gray-300"
