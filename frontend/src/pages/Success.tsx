@@ -101,20 +101,35 @@ export default function Success() {
 
       <div className="max-w-3xl mx-auto px-4 mt-8">
         <div className="bg-white rounded-xl shadow-sm border p-8 text-center">
-          <div className="w-16 h-16 bg-svu-100 rounded-full flex items-center justify-center mx-auto mb-4">
-            <CheckCircle2 className="w-8 h-8 text-svu-600" />
+          <div
+            className="success-check w-20 h-20 mx-auto mb-4 text-svu-600"
+            aria-hidden="true"
+          >
+            <svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
+              <circle className="ring" cx="32" cy="32" r="28" />
+              <path className="tick" d="M20 33 L29 42 L45 24" />
+            </svg>
           </div>
 
-          <h2 className="text-2xl font-bold text-gray-900 mb-2">
+          <h2
+            className="reveal-up text-2xl font-bold text-gray-900 mb-2"
+            style={{ "--i": 0 } as React.CSSProperties}
+          >
             Vielen Dank für Ihre Beitrittserklärung!
           </h2>
 
-          <p className="text-gray-600 mb-6">
+          <p
+            className="reveal-up text-gray-600 mb-6"
+            style={{ "--i": 1 } as React.CSSProperties}
+          >
             Ihre Beitrittserklärung wurde erfolgreich eingereicht.
           </p>
 
           {state.form && (
-            <div className="bg-gray-50 rounded-lg p-4 text-left mb-6 text-sm">
+            <div
+              className="reveal-up bg-gray-50 rounded-lg p-4 text-left mb-6 text-sm"
+              style={{ "--i": 2 } as React.CSSProperties}
+            >
               <div className="grid grid-cols-2 gap-2">
                 {state.antragsnummer && (
                   <>
@@ -164,7 +179,10 @@ export default function Success() {
           )}
 
           {/* Next steps timeline */}
-          <div className="bg-gray-50 rounded-lg p-5 text-left mb-6">
+          <div
+            className="reveal-up bg-gray-50 rounded-lg p-5 text-left mb-6"
+            style={{ "--i": 3 } as React.CSSProperties}
+          >
             <h3 className="font-semibold text-gray-900 mb-4 text-sm">So geht es weiter:</h3>
             <div className="space-y-0">
               {/* Step 1: Email confirmation - always done */}

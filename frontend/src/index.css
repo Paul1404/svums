@@ -118,24 +118,38 @@
     position: relative;
   }
 
-  /* Aurora mesh — subtle animated gradient backdrop */
-  body::before {
+  /* Aurora mesh — two independently animated gradient layers.
+     Inset -18% gives translate/rotate room without revealing edges. */
+  body::before,
+  body::after {
     content: "";
     position: fixed;
-    inset: 0;
+    inset: -18%;
     z-index: -1;
     pointer-events: none;
+    will-change: transform, opacity;
+  }
+
+  body::before {
     background:
-      radial-gradient(1200px 700px at 10% -10%, var(--aurora-1), transparent 60%),
-      radial-gradient(900px 600px at 100% 0%, var(--aurora-2), transparent 55%),
-      radial-gradient(900px 700px at 50% 120%, var(--aurora-3), transparent 60%);
-    filter: saturate(1.1);
-    opacity: 0.9;
-    animation: auroraDrift 28s ease-in-out infinite alternate;
+      radial-gradient(48vmax 42vmax at 20% 25%, var(--aurora-1), transparent 60%),
+      radial-gradient(40vmax 36vmax at 82% 72%, var(--aurora-2), transparent 60%);
+    filter: blur(32px) saturate(1.25);
+    animation: auroraA 22s cubic-bezier(0.6, 0.05, 0.4, 0.95) infinite;
+  }
+
+  body::after {
+    background:
+      radial-gradient(52vmax 46vmax at 55% 110%, var(--aurora-3), transparent 60%),
+      radial-gradient(32vmax 28vmax at 72% 8%, var(--aurora-1), transparent 60%);
+    filter: blur(38px) saturate(1.3);
+    opacity: 0.85;
+    animation: auroraB 31s cubic-bezier(0.6, 0.05, 0.4, 0.95) infinite;
   }
 
   @media (prefers-reduced-motion: reduce) {
-    body::before {
+    body::before,
+    body::after {
       animation: none;
     }
   }
@@ -864,6 +878,197 @@
   height: 14px;
 }
 
+/* ── Public-view animation polish ──────────────────────────── */
+
+/* Magnetic submit button: translates toward pointer; transition tames the
+   slight jitter between frames. Variables are written by JS pointer handler. */
+.btn-magnetic {
+  --mx: 0px;
+  --my: 0px;
+  transform: translate(var(--mx), var(--my));
+  transition: transform 0.18s cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 0.25s ease, background-color 0.25s ease, filter 0.2s ease;
+}
+
+.btn-magnetic:not(:disabled):hover {
+  filter: brightness(1.06);
+}
+
+.btn-magnetic:not(:disabled):active {
+  transform: translate(calc(var(--mx) * 0.6), calc(var(--my) * 0.6)) scale(0.97);
+}
+
+/* Staggered chip mount: parent sets --chip-stagger-step, children use --i */
+.chip-stagger {
+  opacity: 0;
+  transform: translateY(6px) scale(0.96);
+  animation: chipMount 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation-delay: calc(var(--i, 0) * var(--chip-stagger-step, 35ms));
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  @keyframes chipMount {
+    from {
+      opacity: 0;
+      transform: translateY(6px) scale(0.96);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chip-stagger,
+  .btn-magnetic,
+  .btn-magnetic:hover,
+  .btn-magnetic:active {
+    animation: none;
+    transition: none;
+    transform: none;
+    opacity: 1;
+  }
+}
+
+/* Wet-ink glow around signature canvas while user is drawing.
+   Toggled via .is-inking class set/cleared by pointer handlers. */
+.ink-wrap {
+  position: relative;
+  transition: box-shadow 0.35s ease, border-color 0.35s ease;
+}
+
+.ink-wrap.is-inking {
+  border-color: color-mix(in srgb, var(--color-svu-500) 65%, transparent);
+  box-shadow:
+    0 0 0 4px color-mix(in srgb, var(--color-svu-500) 18%, transparent),
+    0 12px 32px -10px color-mix(in srgb, var(--color-svu-500) 55%, transparent);
+}
+
+.ink-wrap::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background: radial-gradient(
+    160px 100px at var(--ink-x, 50%) var(--ink-y, 50%),
+    color-mix(in srgb, var(--color-svu-400) 22%, transparent),
+    transparent 70%
+  );
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.ink-wrap.is-inking::after {
+  opacity: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ink-wrap,
+  .ink-wrap.is-inking,
+  .ink-wrap::after {
+    transition: none;
+    box-shadow: none;
+  }
+  .ink-wrap.is-inking::after {
+    opacity: 0;
+  }
+}
+
+/* Micro step-progress bar: shows fraction of current step's required fields */
+.step-progress {
+  height: 3px;
+  width: 100%;
+  background: color-mix(in srgb, var(--border-subtle) 80%, transparent);
+  border-radius: 999px;
+  overflow: hidden;
+  position: relative;
+}
+
+.step-progress-fill {
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    var(--color-svu-500),
+    #f97316
+  );
+  border-radius: inherit;
+  transform-origin: left center;
+  transform: scaleX(var(--p, 0));
+  transition: transform 0.45s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .step-progress-fill {
+    transition: none;
+  }
+}
+
+/* Success-page staged reveal: SVG check stroke draws in, then content
+   fades-up in cascade. Each child sets --i and uses .reveal-up. */
+.success-check svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.success-check .ring {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.5;
+  stroke-linecap: round;
+  stroke-dasharray: 200;
+  stroke-dashoffset: 200;
+  animation: drawRing 0.7s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+.success-check .tick {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 3;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-dasharray: 30;
+  stroke-dashoffset: 30;
+  animation: drawTick 0.45s cubic-bezier(0.22, 1, 0.36, 1) 0.55s forwards;
+}
+
+.reveal-up {
+  opacity: 0;
+  transform: translateY(8px);
+  animation: revealUp 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation-delay: calc(0.75s + var(--i, 0) * 90ms);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  @keyframes drawRing {
+    to { stroke-dashoffset: 0; }
+  }
+  @keyframes drawTick {
+    to { stroke-dashoffset: 0; }
+  }
+  @keyframes revealUp {
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .success-check .ring,
+  .success-check .tick {
+    animation: none;
+    stroke-dashoffset: 0;
+  }
+  .reveal-up {
+    animation: none;
+    opacity: 1;
+    transform: none;
+  }
+}
+
 /* Subtle sheen on top of glass cards */
 .shine {
   position: relative;
@@ -889,18 +1094,30 @@
 
 /* Keyframe animations - respect prefers-reduced-motion */
 @media (prefers-reduced-motion: no-preference) {
-  @keyframes auroraDrift {
-    0% {
-      transform: translate3d(0, 0, 0) scale(1);
-      filter: saturate(1.1) hue-rotate(0deg);
+  @keyframes auroraA {
+    0%, 100% {
+      transform: translate3d(0, 0, 0) scale(1) rotate(0deg);
     }
-    50% {
-      transform: translate3d(-2%, 1%, 0) scale(1.05);
-      filter: saturate(1.2) hue-rotate(8deg);
+    33% {
+      transform: translate3d(6%, -4%, 0) scale(1.08) rotate(2deg);
     }
-    100% {
-      transform: translate3d(2%, -1%, 0) scale(1.02);
-      filter: saturate(1.15) hue-rotate(-6deg);
+    66% {
+      transform: translate3d(-5%, 6%, 0) scale(1.05) rotate(-2deg);
+    }
+  }
+
+  @keyframes auroraB {
+    0%, 100% {
+      transform: translate3d(0, 0, 0) scale(1) rotate(0deg);
+      opacity: 0.78;
+    }
+    40% {
+      transform: translate3d(-7%, 5%, 0) scale(1.12) rotate(-3deg);
+      opacity: 0.95;
+    }
+    75% {
+      transform: translate3d(5%, -6%, 0) scale(1.06) rotate(3deg);
+      opacity: 0.82;
     }
   }
 
