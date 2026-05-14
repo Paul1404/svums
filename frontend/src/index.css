@@ -931,78 +931,100 @@
   }
 }
 
-/* Wet-ink glow around signature canvas while user is drawing.
-   Toggled via .is-inking class set/cleared by pointer handlers. */
-.ink-wrap {
-  position: relative;
-  transition: box-shadow 0.35s ease, border-color 0.35s ease;
+/* Inline signature panel: brand-tone, theme-aware container. */
+.signature-panel {
+  background: color-mix(in srgb, var(--color-svu-500) 6%, var(--bg-surface));
+  border: 1px solid color-mix(in srgb, var(--color-svu-500) 22%, transparent);
 }
 
-.ink-wrap.is-inking {
-  border-color: color-mix(in srgb, var(--color-svu-500) 65%, transparent);
-  box-shadow:
-    0 0 0 4px color-mix(in srgb, var(--color-svu-500) 18%, transparent),
-    0 12px 32px -10px color-mix(in srgb, var(--color-svu-500) 55%, transparent);
+.dark .signature-panel {
+  background: color-mix(in srgb, var(--color-svu-500) 10%, var(--bg-surface));
+  border-color: color-mix(in srgb, var(--color-svu-500) 38%, transparent);
 }
 
-.ink-wrap::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  pointer-events: none;
-  background: radial-gradient(
-    160px 100px at var(--ink-x, 50%) var(--ink-y, 50%),
-    color-mix(in srgb, var(--color-svu-400) 22%, transparent),
-    transparent 70%
-  );
-  opacity: 0;
-  transition: opacity 0.3s ease;
+.signature-panel-hint {
+  color: var(--fg-secondary);
 }
 
-.ink-wrap.is-inking::after {
-  opacity: 1;
+.signature-panel-upload {
+  color: var(--fg-secondary);
+  border: 1px solid color-mix(in srgb, var(--color-svu-500) 35%, transparent);
+  background: transparent;
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .ink-wrap,
-  .ink-wrap.is-inking,
-  .ink-wrap::after {
-    transition: none;
-    box-shadow: none;
-  }
-  .ink-wrap.is-inking::after {
-    opacity: 0;
-  }
+.signature-panel-upload:hover {
+  background: color-mix(in srgb, var(--color-svu-500) 8%, transparent);
 }
 
-/* Micro step-progress bar: shows fraction of current step's required fields */
-.step-progress {
-  height: 3px;
-  width: 100%;
-  background: color-mix(in srgb, var(--border-subtle) 80%, transparent);
-  border-radius: 999px;
-  overflow: hidden;
-  position: relative;
+.signature-panel-quote {
+  color: var(--fg-primary);
+  border-left: 4px solid var(--color-svu-500);
 }
 
-.step-progress-fill {
-  height: 100%;
-  background: linear-gradient(
-    90deg,
-    var(--color-svu-500),
-    #f97316
-  );
-  border-radius: inherit;
-  transform-origin: left center;
-  transform: scaleX(var(--p, 0));
-  transition: transform 0.45s cubic-bezier(0.22, 1, 0.36, 1);
+.signature-preview-box {
+  background: #ffffff;
+  border: 1px solid color-mix(in srgb, var(--color-svu-500) 30%, transparent);
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .step-progress-fill {
-    transition: none;
-  }
+/* The signature canvas itself always keeps a paper-white background so the
+   black ink stays visible regardless of theme. */
+.signature-canvas-frame {
+  background: #ffffff;
+  border: 2px solid color-mix(in srgb, var(--color-svu-500) 30%, var(--border-strong));
+}
+
+/* Soft blue info card used for the family-members empty state. */
+.info-card-blue {
+  background: color-mix(in srgb, #3b82f6 8%, var(--bg-surface));
+  border: 1px solid color-mix(in srgb, #3b82f6 25%, transparent);
+}
+
+.dark .info-card-blue {
+  background: color-mix(in srgb, #3b82f6 14%, var(--bg-surface));
+  border-color: color-mix(in srgb, #3b82f6 40%, transparent);
+}
+
+.info-card-blue-text {
+  color: color-mix(in srgb, #1d4ed8 80%, var(--fg-primary));
+}
+
+.dark .info-card-blue-text {
+  color: #bfdbfe;
+}
+
+/* Suggestion popover used for address autocomplete. Theme-aware,
+   slightly translucent so it does not dominate when wrong. */
+.suggest-pop {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  color: var(--fg-primary);
+}
+
+.suggest-pop-header {
+  color: var(--fg-muted);
+  background: color-mix(in srgb, var(--bg-surface-2) 80%, transparent);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.suggest-pop-item {
+  color: var(--fg-secondary);
+  border-bottom: 1px solid color-mix(in srgb, var(--border-subtle) 60%, transparent);
+  transition: background-color 0.15s ease;
+}
+
+.suggest-pop-item:last-child {
+  border-bottom: 0;
+}
+
+.suggest-pop-item:hover {
+  background: color-mix(in srgb, var(--color-svu-500) 10%, transparent);
+  color: var(--fg-primary);
+}
+
+.suggest-pop-item.is-selected {
+  background: color-mix(in srgb, var(--color-svu-500) 14%, transparent);
+  color: var(--fg-primary);
+  font-weight: 500;
 }
 
 /* Success-page staged reveal: SVG check stroke draws in, then content
