@@ -235,8 +235,8 @@ export default function ApplicationForm() {
   const [duplicateWarning, setDuplicateWarning] = useState(false);
   const [saveIndicator, setSaveIndicator] = useState<string | null>(_d ? "Entwurf wiederhergestellt" : null);
 
-  // ---- Signature flow: "upload" (Option A, default) or "inline" (Option B)
-  const [signatureMode, setSignatureMode] = useState<"upload" | "inline">(_d?.signatureMode ?? "upload");
+  // ---- Signature flow: "inline" (default, online) or "upload" (print, sign, scan)
+  const [signatureMode, setSignatureMode] = useState<"upload" | "inline">(_d?.signatureMode ?? "inline");
   const [sigEmpty, setSigEmpty] = useState(true);
   const sigCanvasRef = useRef<SignatureCanvasType | null>(null);
   // Container ref + dynamic width so the canvas internal resolution always
@@ -1065,66 +1065,6 @@ export default function ApplicationForm() {
   const submitBtnRef = useMagnetic<HTMLButtonElement>(0.22);
   const nextBtnRef = useMagnetic<HTMLButtonElement>(0.18);
 
-  // Micro step-progress: fraction of required fields filled for the current step.
-  // No validation noise — just shows momentum as the user fills in fields.
-  const stepProgress = (() => {
-    const filled = (v: string) => v.trim().length > 0;
-    if (step === 0) {
-      const checks: boolean[] = [
-        !isMinor && geschlecht !== null,
-        isMinor || true,
-        filled(vorname),
-        filled(nachname),
-        filled(geburtsdatum),
-        abteilungen.length > 0,
-      ];
-      // Branch-specific required fields
-      if (antragstyp === "einzel" || antragstyp === "familie") {
-        checks.push(
-          filled(strasse) && strasse.trim().length >= 5,
-          /^\d{5}$/.test(plz),
-          filled(ort),
-          /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email),
-          telefonOptOut || filled(telefon),
-        );
-      } else if (antragstyp === "kind") {
-        checks.push(
-          filled(erzVorname),
-          filled(erzNachname),
-          filled(strasse) && strasse.trim().length >= 5,
-          /^\d{5}$/.test(plz),
-          filled(ort),
-          /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email),
-          telefonOptOut || filled(telefon),
-          !isChildType || elternteilMitglied !== null,
-        );
-      }
-      const done = checks.filter(Boolean).length;
-      return checks.length > 0 ? done / checks.length : 0;
-    }
-    if (step === 1) {
-      const cleanIban = iban.replace(/\s/g, "").toUpperCase();
-      const ibanOk =
-        cleanIban.length >= 15 &&
-        cleanIban.length <= 34 &&
-        validateIbanChecksum(cleanIban);
-      const checks = [filled(kontoinhaber), ibanOk];
-      return checks.filter(Boolean).length / checks.length;
-    }
-    if (step === 2) {
-      const checks: boolean[] = [
-        consentDatenschutz,
-        consentSatzung,
-        signatureMode === "upload" ||
-          !!capturedSigDataUrl ||
-          !!uploadedSignatureDataUrl ||
-          !sigEmpty,
-      ];
-      return checks.filter(Boolean).length / checks.length;
-    }
-    return 0;
-  })();
-
   return (
     <div className="min-h-screen">
       {/* Header */}
@@ -1218,21 +1158,6 @@ export default function ApplicationForm() {
               </div>
             );
           })}
-        </div>
-
-        {/* Micro step-progress (fraction of required fields filled) */}
-        <div
-          className="step-progress mb-2"
-          role="progressbar"
-          aria-valuenow={Math.round(stepProgress * 100)}
-          aria-valuemin={0}
-          aria-valuemax={100}
-          aria-label={`Fortschritt: ${STEPS[step]?.label}`}
-        >
-          <div
-            className="step-progress-fill"
-            style={{ "--p": stepProgress.toFixed(3) } as React.CSSProperties}
-          />
         </div>
 
         {/* Auto-save indicator */}
@@ -1395,11 +1320,11 @@ export default function ApplicationForm() {
                     </h3>
 
                     {kinder.length === 0 ? (
-                      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                        <p className="text-sm text-blue-800 mb-3">
+                      <div className="info-card-blue rounded-lg p-4">
+                        <p className="text-sm info-card-blue-text mb-3">
                           Möchten Sie weitere Familienmitglieder anmelden? Die Familienmitgliedschaft
                           (<strong>96 €/Jahr</strong>) gilt für 2 Erwachsene und beliebig viele Kinder
-                          bis 18 Jahre — unabhängig von der Kinderzahl.
+                          bis 18 Jahre, unabhängig von der Kinderzahl.
                         </p>
                         <button type="button" onClick={addChild}
                           className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-white bg-svu-600 rounded-lg hover:bg-svu-700 transition-colors"
@@ -2005,7 +1930,43 @@ export default function ApplicationForm() {
                 </p>
                 <div className="border border-gray-200 rounded-xl overflow-hidden divide-y divide-gray-200">
 
-                  {/* Option A – primary (default) */}
+                  {/* Option A – online (default) */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSignatureMode("inline");
+                      setSigEmpty(true);
+                      sigCanvasRef.current?.clear();
+                      setCapturedSigDataUrl(null);
+                      setUploadedSignatureDataUrl(null);
+                    }}
+                    className={`w-full text-left p-4 flex items-start gap-3 transition-colors ${
+                      signatureMode === "inline"
+                        ? "bg-svu-50"
+                        : "bg-white hover:bg-gray-50"
+                    }`}
+                  >
+                    <div className={`w-5 h-5 rounded-full border-2 flex-shrink-0 mt-0.5 flex items-center justify-center ${
+                      signatureMode === "inline" ? "border-svu-600" : "border-gray-300"
+                    }`}>
+                      {signatureMode === "inline" && (
+                        <div className="w-2.5 h-2.5 rounded-full bg-svu-600" />
+                      )}
+                    </div>
+                    <div>
+                      <p className="text-sm font-semibold text-gray-900 flex items-center gap-2">
+                        Jetzt direkt online unterschreiben
+                        <span className="px-1.5 py-0.5 text-xs bg-svu-100 text-svu-700 rounded font-normal">
+                          Standard
+                        </span>
+                      </p>
+                      <p className="text-xs text-gray-500 mt-0.5">
+                        Zeichnen Sie Ihre Unterschrift im Browser. Der Antrag wird sofort als unterzeichnet eingereicht. Kein Upload nötig.
+                      </p>
+                    </div>
+                  </button>
+
+                  {/* Option B – print, sign, scan */}
                   <button
                     type="button"
                     onClick={() => {
@@ -2026,60 +1987,24 @@ export default function ApplicationForm() {
                       )}
                     </div>
                     <div>
-                      <p className="text-sm font-semibold text-gray-900 flex items-center gap-2">
-                        Option A: PDF erhalten, drucken, unterschreiben &amp; hochladen
-                        <span className="px-1.5 py-0.5 text-xs bg-svu-100 text-svu-700 rounded font-normal">
-                          Standard
-                        </span>
+                      <p className="text-sm font-semibold text-gray-900">
+                        PDF erhalten, drucken, unterschreiben &amp; hochladen
                       </p>
                       <p className="text-xs text-gray-500 mt-0.5">
                         Sie erhalten das Dokument per E-Mail, unterschreiben es handschriftlich und laden den Scan über den beigefügten Link hoch.
                       </p>
                     </div>
                   </button>
-
-                  {/* Option B – inline */}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setSignatureMode("inline");
-                      setSigEmpty(true);
-                      sigCanvasRef.current?.clear();
-                      setCapturedSigDataUrl(null);
-                      setUploadedSignatureDataUrl(null);
-                    }}
-                    className={`w-full text-left p-4 flex items-start gap-3 transition-colors ${
-                      signatureMode === "inline"
-                        ? "bg-green-50"
-                        : "bg-white hover:bg-gray-50"
-                    }`}
-                  >
-                    <div className={`w-5 h-5 rounded-full border-2 flex-shrink-0 mt-0.5 flex items-center justify-center ${
-                      signatureMode === "inline" ? "border-green-600" : "border-gray-300"
-                    }`}>
-                      {signatureMode === "inline" && (
-                        <div className="w-2.5 h-2.5 rounded-full bg-green-600" />
-                      )}
-                    </div>
-                    <div>
-                      <p className="text-sm font-semibold text-gray-900">
-                        Option B: Jetzt direkt online unterschreiben
-                      </p>
-                      <p className="text-xs text-gray-500 mt-0.5">
-                        Zeichnen Sie Ihre Unterschrift im Browser. Der Antrag wird sofort als unterzeichnet eingereicht – kein Upload nötig.
-                      </p>
-                    </div>
-                  </button>
                 </div>
 
-                {/* Inline signature panel (Option B) */}
+                {/* Inline signature panel (online signing) */}
                 {signatureMode === "inline" && (
-                  <div className="mt-4 p-4 bg-green-50 border border-green-200 rounded-xl">
+                  <div className="signature-panel mt-4 p-4 rounded-xl">
                     {/* Optional: upload signature image instead of drawing */}
-                    <p className="text-xs text-green-800 mb-3">
+                    <p className="text-xs signature-panel-hint mb-3">
                       Optional: Sie können hier ein Foto/Scan Ihrer Unterschrift hochladen oder unten zeichnen.
                     </p>
-                    <label className="inline-flex items-center gap-2 px-3 py-2 text-xs font-medium text-gray-700 border border-green-300 rounded-lg cursor-pointer hover:bg-green-100/50 transition-colors">
+                    <label className="signature-panel-upload inline-flex items-center gap-2 px-3 py-2 text-xs font-medium rounded-lg cursor-pointer transition-colors">
                       <Upload className="w-3.5 h-3.5" />
                       Signaturbild auswählen
                       <input
@@ -2094,7 +2019,7 @@ export default function ApplicationForm() {
                       />
                     </label>
                     {uploadedSignatureDataUrl ? (
-                      <div className="mt-3 rounded-lg border border-green-300 bg-white p-2">
+                      <div className="signature-preview-box mt-3 rounded-lg p-2">
                         <img
                           src={uploadedSignatureDataUrl}
                           alt="Signaturvorschau"
@@ -2113,7 +2038,7 @@ export default function ApplicationForm() {
                     )}
 
                     {/* Confirmation text – non-skippable, always shown */}
-                    <p className="text-sm text-green-900 leading-relaxed mb-4 border-l-4 border-green-400 pl-3">
+                    <p className="signature-panel-quote text-sm leading-relaxed mb-4 mt-4 pl-3">
                       Mit meiner Unterschrift erkläre ich meinen Beitritt zum {club.club_short_name} und erteile das SEPA-Lastschriftmandat zur Einziehung des Mitgliedsbeitrags.
                     </p>
 
@@ -2123,7 +2048,7 @@ export default function ApplicationForm() {
 
                     {/* When a fullscreen signature was captured, show its preview instead of the canvas */}
                     {capturedSigDataUrl ? (
-                      <div className="border-2 border-green-400 rounded-lg bg-white overflow-hidden flex items-center justify-center" style={{ height: 220 }}>
+                      <div className="signature-canvas-frame rounded-lg overflow-hidden flex items-center justify-center" style={{ height: 220 }}>
                         <img
                           src={capturedSigDataUrl}
                           alt="Unterschrift"
@@ -2133,24 +2058,7 @@ export default function ApplicationForm() {
                     ) : (
                       <div
                         ref={sigContainerCallbackRef}
-                        className="ink-wrap border-2 border-gray-300 rounded-lg bg-white overflow-hidden touch-none"
-                        onPointerDown={(e) => {
-                          const el = e.currentTarget;
-                          const rect = el.getBoundingClientRect();
-                          el.style.setProperty("--ink-x", `${e.clientX - rect.left}px`);
-                          el.style.setProperty("--ink-y", `${e.clientY - rect.top}px`);
-                          el.classList.add("is-inking");
-                        }}
-                        onPointerMove={(e) => {
-                          if (!e.currentTarget.classList.contains("is-inking")) return;
-                          const el = e.currentTarget;
-                          const rect = el.getBoundingClientRect();
-                          el.style.setProperty("--ink-x", `${e.clientX - rect.left}px`);
-                          el.style.setProperty("--ink-y", `${e.clientY - rect.top}px`);
-                        }}
-                        onPointerUp={(e) => e.currentTarget.classList.remove("is-inking")}
-                        onPointerLeave={(e) => e.currentTarget.classList.remove("is-inking")}
-                        onPointerCancel={(e) => e.currentTarget.classList.remove("is-inking")}
+                        className="signature-canvas-frame rounded-lg overflow-hidden touch-none"
                       >
                         <SignatureCanvas
                           ref={sigCanvasRef}
@@ -2178,7 +2086,7 @@ export default function ApplicationForm() {
                           <button
                             type="button"
                             onClick={() => setFullscreenSig(true)}
-                            className="flex items-center gap-1 text-xs text-green-700 hover:text-green-900 font-medium underline transition-colors"
+                            className="flex items-center gap-1 text-xs text-svu-600 hover:text-svu-700 font-medium underline transition-colors"
                           >
                             <Maximize2 className="w-3 h-3" />
                             {capturedSigDataUrl ? "Neu zeichnen" : "Vollbild"}
@@ -2195,13 +2103,13 @@ export default function ApplicationForm() {
                     </div>
                     {sigEmpty && !capturedSigDataUrl && !uploadedSignatureDataUrl && (
                       <p className="text-xs text-amber-700 mt-2">
-                        Das Unterschriftsfeld ist noch leer – bitte unterschreiben oder ein Signaturbild hochladen.
+                        Das Unterschriftsfeld ist noch leer. Bitte unterschreiben oder ein Signaturbild hochladen.
                       </p>
                     )}
                     {(capturedSigDataUrl || uploadedSignatureDataUrl) && (
                       <p className="text-xs text-green-700 mt-2 flex items-center gap-1">
                         <CheckCircle2 className="w-3 h-3" />
-                        Unterschrift gespeichert – Sie können jetzt den Antrag absenden.
+                        Unterschrift gespeichert. Sie können jetzt den Antrag absenden.
                       </p>
                     )}
                   </div>
@@ -2308,8 +2216,8 @@ export default function ApplicationForm() {
       {/* ---- Fullscreen signing overlay (mobile) ---- */}
       {fullscreenSig && (
         <div
-          className="fixed inset-0 z-50 flex flex-col bg-white"
-          style={{ touchAction: "none" }}
+          className="fixed inset-0 z-50 flex flex-col signature-canvas-frame"
+          style={{ touchAction: "none", border: 0, borderRadius: 0 }}
         >
           {/* Header bar */}
           <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 bg-gray-50 shrink-0">
@@ -2338,24 +2246,8 @@ export default function ApplicationForm() {
           {/* Canvas area – fills all remaining space */}
           <div
             ref={fullscreenContainerCallbackRef}
-            className="ink-wrap flex-1 overflow-hidden touch-none relative"
-            onPointerDown={(e) => {
-              const el = e.currentTarget;
-              const rect = el.getBoundingClientRect();
-              el.style.setProperty("--ink-x", `${e.clientX - rect.left}px`);
-              el.style.setProperty("--ink-y", `${e.clientY - rect.top}px`);
-              el.classList.add("is-inking");
-            }}
-            onPointerMove={(e) => {
-              if (!e.currentTarget.classList.contains("is-inking")) return;
-              const el = e.currentTarget;
-              const rect = el.getBoundingClientRect();
-              el.style.setProperty("--ink-x", `${e.clientX - rect.left}px`);
-              el.style.setProperty("--ink-y", `${e.clientY - rect.top}px`);
-            }}
-            onPointerUp={(e) => e.currentTarget.classList.remove("is-inking")}
-            onPointerLeave={(e) => e.currentTarget.classList.remove("is-inking")}
-            onPointerCancel={(e) => e.currentTarget.classList.remove("is-inking")}
+            className="flex-1 overflow-hidden touch-none relative signature-canvas-frame"
+            style={{ border: 0, borderRadius: 0 }}
           >
             <SignatureCanvas
               ref={fullscreenCanvasRef}
