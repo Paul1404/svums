@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { lookupPlz, searchStreets } from "../services/api";
 import type { StreetResult } from "../services/api";
-import { MapPin, Loader2, Check, AlertCircle } from "lucide-react";
+import { MapPin, Loader2, CheckCircle2, AlertCircle, X } from "lucide-react";
 
 interface AddressFieldsProps {
   strasse: string;
@@ -38,6 +38,12 @@ export default function AddressFields({
   const [showStreetDropdown, setShowStreetDropdown] = useState(false);
   const [streetLoading, setStreetLoading] = useState(false);
 
+  // The user can dismiss a dropdown. We remember the dismissed-value so it
+  // does not pop open again for the same input — only when the value actually
+  // changes does it become eligible to show again.
+  const dismissedStreetForRef = useRef<string | null>(null);
+  const dismissedOrtForRef = useRef<string | null>(null);
+
   // Refs for click-outside handling
   const ortDropdownRef = useRef<HTMLDivElement>(null);
   const streetDropdownRef = useRef<HTMLDivElement>(null);
@@ -73,8 +79,8 @@ export default function AddressFields({
           ortAutoFilled.current = true;
           clearError("ort");
           setShowOrtDropdown(false);
-        } else {
-          // Multiple Orte → show dropdown
+        } else if (dismissedOrtForRef.current !== plzValue) {
+          // Multiple Orte → show dropdown (unless user already dismissed for this PLZ)
           setShowOrtDropdown(true);
           ortAutoFilled.current = false;
         }
@@ -120,7 +126,20 @@ export default function AddressFields({
     try {
       const result = await searchStreets(query, plz || undefined, ort || undefined);
       setStreetSuggestions(result.results);
-      setShowStreetDropdown(result.results.length > 0);
+      // Suppress the popover if the user already dismissed it for this exact
+      // query, or if the only suggestion already matches the typed value.
+      const onlyMatchExact =
+        result.results.length === 1 &&
+        result.results[0].strasse.toLowerCase().trim() === query.toLowerCase().trim();
+      if (
+        result.results.length > 0 &&
+        !onlyMatchExact &&
+        dismissedStreetForRef.current !== query
+      ) {
+        setShowStreetDropdown(true);
+      } else {
+        setShowStreetDropdown(false);
+      }
     } catch {
       setStreetSuggestions([]);
     } finally {
@@ -220,7 +239,7 @@ export default function AddressFields({
   const plzStatusIcon = plzLoading ? (
     <Loader2 className="w-4 h-4 text-gray-400 animate-spin" />
   ) : plzValid === true ? (
-    <Check className="w-4 h-4 text-green-500" />
+    <CheckCircle2 className="check-fade-in w-4 h-4 text-green-500" />
   ) : plzValid === false ? (
     <AlertCircle className="w-4 h-4 text-red-500" />
   ) : null;
@@ -240,9 +259,16 @@ export default function AddressFields({
             onChange={(e) => {
               onStrasseChange(e.target.value);
               clearError("strasse");
+              // Typing again clears any previous dismissal — relevant suggestions
+              // can show for the new value.
+              dismissedStreetForRef.current = null;
             }}
-            onFocus={() => {
-              if (streetSuggestions.length > 0) setShowStreetDropdown(true);
+            onKeyDown={(e) => {
+              if (e.key === "Escape" && showStreetDropdown) {
+                e.preventDefault();
+                setShowStreetDropdown(false);
+                dismissedStreetForRef.current = strasse.replace(/\s+\d+\s*[a-zA-Z]?\s*$/, "").trim();
+              }
             }}
             placeholder="z.B. Triebweg 9"
             className={`field-glow w-full px-3 py-2 border rounded-lg text-sm outline-none transition-all duration-200 pr-8 ${
@@ -261,17 +287,31 @@ export default function AddressFields({
 
         {/* Street suggestions dropdown */}
         {showStreetDropdown && streetSuggestions.length > 0 && (
-          <div className="absolute z-20 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg max-h-48 overflow-auto">
+          <div className="suggest-pop absolute z-20 mt-1 w-full rounded-lg shadow-lg max-h-56 overflow-auto">
+            <div className="suggest-pop-header flex items-center justify-between px-3 py-1.5 text-xs">
+              <span>Vorschläge — Esc zum Schließen</span>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowStreetDropdown(false);
+                  dismissedStreetForRef.current = strasse.replace(/\s+\d+\s*[a-zA-Z]?\s*$/, "").trim();
+                }}
+                aria-label="Vorschläge schließen"
+                className="p-0.5 rounded hover:bg-black/5 dark:hover:bg-white/10 transition-colors"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
             {streetSuggestions.map((s, i) => (
               <button
                 key={`${s.strasse}-${s.plz}-${i}`}
                 type="button"
                 onClick={() => selectStreet(s)}
-                className="w-full text-left px-3 py-2 text-sm hover:bg-svu-50 transition-colors flex items-center gap-2 border-b border-gray-50 last:border-0"
+                className="suggest-pop-item w-full text-left px-3 py-2 text-sm flex items-center gap-2"
               >
                 <MapPin className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
                 <span>
-                  <span className="font-medium text-gray-900">{s.strasse}</span>
+                  <span className="font-medium">{s.strasse}</span>
                   {s.hausnummer && (
                     <span className="text-gray-600"> {s.hausnummer}</span>
                   )}
@@ -315,7 +355,7 @@ export default function AddressFields({
                 : "border-gray-300"
             }`}
           />
-          <div className="absolute right-2 top-1/2 -translate-y-1/2">
+          <div className="absolute right-2.5 top-1/2 -translate-y-1/2">
             {plzStatusIcon}
           </div>
         </div>
@@ -341,8 +381,12 @@ export default function AddressFields({
               clearError("ort");
               ortAutoFilled.current = false;
             }}
-            onFocus={() => {
-              if (ortOptions.length > 1) setShowOrtDropdown(true);
+            onKeyDown={(e) => {
+              if (e.key === "Escape" && showOrtDropdown) {
+                e.preventDefault();
+                setShowOrtDropdown(false);
+                dismissedOrtForRef.current = plz;
+              }
             }}
             placeholder={plzValid ? "Ort wird automatisch ausgefüllt" : "z.B. Grettstadt"}
             readOnly={ortOptions.length === 1 && ortAutoFilled.current}
@@ -355,8 +399,8 @@ export default function AddressFields({
             } ${ortOptions.length === 1 && ortAutoFilled.current ? "bg-gray-50" : ""}`}
           />
           {ortAutoFilled.current && ort && (
-            <div className="absolute right-2 top-1/2 -translate-y-1/2">
-              <Check className="w-4 h-4 text-green-500" />
+            <div className="absolute right-2.5 top-1/2 -translate-y-1/2">
+              <CheckCircle2 className="check-fade-in w-4 h-4 text-green-500" />
             </div>
           )}
         </div>
@@ -366,17 +410,28 @@ export default function AddressFields({
 
         {/* Ort dropdown for multiple PLZ matches */}
         {showOrtDropdown && ortOptions.length > 1 && (
-          <div className="absolute z-20 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg max-h-40 overflow-auto">
-            <div className="px-3 py-1.5 text-xs text-gray-500 bg-gray-50 border-b">
-              Mehrere Orte für PLZ {plz} – bitte wählen:
+          <div className="suggest-pop absolute z-20 mt-1 w-full rounded-lg shadow-lg max-h-48 overflow-auto">
+            <div className="suggest-pop-header flex items-center justify-between px-3 py-1.5 text-xs">
+              <span>Mehrere Orte für PLZ {plz}. Bitte wählen.</span>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowOrtDropdown(false);
+                  dismissedOrtForRef.current = plz;
+                }}
+                aria-label="Vorschläge schließen"
+                className="p-0.5 rounded hover:bg-black/5 dark:hover:bg-white/10 transition-colors"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
             </div>
             {ortOptions.map((o) => (
               <button
                 key={o}
                 type="button"
                 onClick={() => selectOrt(o)}
-                className={`w-full text-left px-3 py-2 text-sm hover:bg-svu-50 transition-colors ${
-                  ort === o ? "bg-svu-50 font-medium text-svu-700" : "text-gray-700"
+                className={`suggest-pop-item w-full text-left px-3 py-2 text-sm ${
+                  ort === o ? "is-selected" : ""
                 }`}
               >
                 {o}
