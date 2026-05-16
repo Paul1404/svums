@@ -998,3 +998,16 @@ export async function startGeocode(
 export async function stopGeocode(): Promise<LwGeocodeStatus> {
   return apiRequest("/api/admin/imports/geocode/stop", { method: "POST" });
 }
+
+export async function clearGeocodeCoordinates(
+  scope: "all" | "approximate" = "all",
+): Promise<LwGeocodeStatus> {
+  const qs = new URLSearchParams({ scope });
+  return apiRequest(`/api/admin/imports/geocode/clear?${qs}`, { method: "POST" });
+}
+
+export async function clearMemberGeocode(adrNr: number): Promise<void> {
+  await apiRequest(`/api/admin/imports/members/${adrNr}/geocode`, {
+    method: "DELETE",
+  });
+}
