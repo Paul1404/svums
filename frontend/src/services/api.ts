@@ -937,6 +937,8 @@ export async function purgeImportedData(): Promise<void> {
   await apiRequest("/api/admin/imports/data", { method: "DELETE" });
 }
 
+export type LwGeocodePrecision = "house" | "street" | "city" | "none" | null;
+
 export interface LwMemberGeo {
   adr_nr: number;
   mitgliedsnummer: string | null;
@@ -946,7 +948,10 @@ export interface LwMemberGeo {
   ort: string | null;
   lat: number;
   lng: number;
+  precision: LwGeocodePrecision;
 }
+
+export type LwGeocodeScope = "pending" | "approximate" | "all";
 
 export interface LwGeocodeStatus {
   running: boolean;
@@ -962,6 +967,11 @@ export interface LwGeocodeStatus {
   pending: number;
   geocoded: number;
   total_with_address: number;
+  house_hits: number;
+  street_hits: number;
+  city_hits: number;
+  approximate: number;
+  scope: LwGeocodeScope;
 }
 
 export async function getMembersGeo(opts: {
@@ -978,8 +988,11 @@ export async function getGeocodeStatus(): Promise<LwGeocodeStatus> {
   return apiRequest("/api/admin/imports/geocode/status");
 }
 
-export async function startGeocode(): Promise<LwGeocodeStatus> {
-  return apiRequest("/api/admin/imports/geocode/start", { method: "POST" });
+export async function startGeocode(
+  scope: LwGeocodeScope = "pending",
+): Promise<LwGeocodeStatus> {
+  const qs = new URLSearchParams({ scope });
+  return apiRequest(`/api/admin/imports/geocode/start?${qs}`, { method: "POST" });
 }
 
 export async function stopGeocode(): Promise<LwGeocodeStatus> {

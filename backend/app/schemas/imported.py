@@ -161,6 +161,8 @@ class LwMemberGeo(BaseModel):
     ort: str | None
     lat: float
     lng: float
+    # "house" | "street" | "city" | "none" | None (unknown — legacy rows)
+    precision: str | None = None
 
 
 class LwGeocodeStatus(BaseModel):
@@ -177,3 +179,8 @@ class LwGeocodeStatus(BaseModel):
     pending: int  # members without coordinates yet
     geocoded: int  # members with coordinates
     total_with_address: int  # members that have any address fields
+    house_hits: int = 0  # members pinned to their actual house
+    street_hits: int = 0  # members pinned to a road centroid
+    city_hits: int = 0  # members pinned to a PLZ + Ort fallback
+    approximate: int = 0  # members with non-house precision (refine candidates)
+    scope: str = "pending"  # which scope the worker is/was running
