@@ -136,6 +136,7 @@ svums/
 | `CORS_ORIGINS` | `http://localhost:5173` | Comma-separated allowed origins |
 | `COOKIE_SECURE` | `false` | Set `true` in production (HTTPS) |
 | `AWS_*`, `BUCKET_NAME` | optional locally | S3/Tigris credentials for file storage |
+| `HERE_API_KEY` | optional locally | HERE Geocoding API key. Required for the member map; without it the geocoder refuses to start. Sign up at developer.here.com (freemium, no card). |
 
 ## Deployment
 
