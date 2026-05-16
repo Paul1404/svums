@@ -1044,7 +1044,7 @@ export default function ApplicationForm() {
         toast.error("Keine Internetverbindung. Bitte prüfen Sie Ihre Verbindung und versuchen Sie es erneut.");
       } else if (err instanceof ApiError) {
         if (err.status >= 500) {
-          toast.error("Ein Serverfehler ist aufgetreten. Ihre Daten wurden als Entwurf gespeichert – bitte versuchen Sie es in einigen Minuten erneut.");
+          toast.error("Ein Serverfehler ist aufgetreten. Ihre Daten wurden als Entwurf gespeichert. Bitte versuchen Sie es in einigen Minuten erneut.");
         } else if (err.status === 429) {
           toast.error("Zu viele Anfragen. Bitte warten Sie einige Minuten.");
         } else {
@@ -1090,7 +1090,7 @@ export default function ApplicationForm() {
         <div className="bg-orange-100 border-b border-orange-200">
           <div className="max-w-3xl mx-auto px-4 py-2 flex items-center gap-2 text-orange-800 text-sm font-medium">
             <FlaskConical className="w-4 h-4 flex-shrink-0" />
-            Testmodus — Formulardaten sind vorausgefüllt
+            Testmodus: Formulardaten sind vorausgefüllt
           </div>
         </div>
       )}
@@ -1187,7 +1187,7 @@ export default function ApplicationForm() {
 
               {/* Process overview */}
               <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 mb-6">
-                <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-2">So funktioniert's – 3 einfache Schritte</p>
+                <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-2">So funktioniert's: 3 einfache Schritte</p>
                 <div className="grid grid-cols-3 gap-3 text-center text-xs text-gray-500">
                   <div>
                     <div className="w-7 h-7 rounded-full bg-svu-100 text-svu-600 font-bold flex items-center justify-center mx-auto mb-1">1</div>
@@ -1259,8 +1259,8 @@ export default function ApplicationForm() {
                       {kinder.length > 0
                         ? hasPartner
                           ? <>Automatisch erkannt: <strong>Familienmitgliedschaft</strong> (96 €/Jahr pauschal)</>
-                          : <>Kinder hinzugefügt – für die <strong>Familienmitgliedschaft</strong> bitte Partner/2. Elternteil eintragen.</>
-                        : <>Automatisch erkannt: <strong>{typLabel[mitgliedschaftTyp]}</strong>{feeInfo ? <> – {formatFee(feeInfo.jahresbeitrag)}/Jahr</> : null}</>
+                          : <>Kinder hinzugefügt. Für die <strong>Familienmitgliedschaft</strong> bitte Partner oder 2. Elternteil eintragen.</>
+                        : <>Automatisch erkannt: <strong>{typLabel[mitgliedschaftTyp]}</strong>{feeInfo ? <>, {formatFee(feeInfo.jahresbeitrag)}/Jahr</> : null}</>
                       }
                     </p>
                   </div>
@@ -1403,7 +1403,7 @@ export default function ApplicationForm() {
                                       Kind {i + 1}
                                       {!isOpen && (kind.vorname || kind.nachname) && (
                                         <span className="text-gray-500 font-normal ml-1">
-                                          – {kind.vorname} {kind.nachname}
+                                          · {kind.vorname} {kind.nachname}
                                         </span>
                                       )}
                                     </span>
@@ -1445,7 +1445,7 @@ export default function ApplicationForm() {
                                     />
                                     {kind.geburtsdatum && !errors[`kind_${i}_geburtsdatum`] && (
                                       <span className="text-xs text-gray-500 mt-1 block">
-                                        {calculateAge(kind.geburtsdatum)} Jahre –{" "}
+                                        {calculateAge(kind.geburtsdatum)} Jahre,{" "}
                                         {typLabel[determineMitgliedschaftTyp(kind.geburtsdatum, "kind")] || ""}
                                       </span>
                                     )}
@@ -1488,7 +1488,7 @@ export default function ApplicationForm() {
                               {formatFee(96)} / Jahr
                             </div>
                             <div className="text-sm text-svu-700 mt-1">
-                              Familie (2 Erwachsene + Kinder bis 18 Jahre) – unabhängig von der Kinderzahl
+                              Familie (2 Erwachsene + Kinder bis 18 Jahre), unabhängig von der Kinderzahl
                             </div>
                           </div>
                         ) : (
@@ -1512,7 +1512,7 @@ export default function ApplicationForm() {
                   <div className="flex items-center gap-2 p-3 bg-svu-50 border border-svu-200 rounded-lg mt-2 mb-4">
                     <CheckCircle2 className="w-4 h-4 text-svu-600 flex-shrink-0" />
                     <p className="text-sm text-svu-700">
-                      Automatisch erkannt: <strong>{typLabel[mitgliedschaftTyp]}</strong> – die Angaben eines Erziehungsberechtigten sind erforderlich.
+                      Automatisch erkannt: <strong>{typLabel[mitgliedschaftTyp]}</strong>. Die Angaben eines Erziehungsberechtigten sind erforderlich.
                     </p>
                   </div>
                   {mitgliedschaftTyp && (
@@ -1634,7 +1634,7 @@ export default function ApplicationForm() {
               <p className="text-sm text-gray-500 mb-1">
                 Zahlungspflichtig:{" "}
                 <span className="font-semibold text-gray-700">
-                  {payerName || "–"}
+                  {payerName || ""}
                 </span>
               </p>
               <p className="text-xs text-gray-400 mb-4">
@@ -1828,7 +1828,7 @@ export default function ApplicationForm() {
                             value={`${k.nachname}, ${k.vorname}`} />
                           <SummaryRow label="Geburtsdatum"
                             value={k.geburtsdatum ?
-                              `${new Date(k.geburtsdatum).toLocaleDateString("de-DE")} (${calculateAge(k.geburtsdatum)} J.)` : "–"} />
+                              `${new Date(k.geburtsdatum).toLocaleDateString("de-DE")} (${calculateAge(k.geburtsdatum)} J.)` : ""} />
                           <SummaryRow label="Abteilungen"
                             value={k.abteilungen.join(", ")} />
                         </div>
@@ -2439,11 +2439,7 @@ function useAnimatedFee(target: number | null): { display: string; popping: bool
     };
   }, [numTarget]);
 
-  const formatted = (() => {
-    const n = display;
-    if (n % 1 === 0) return `${Math.round(n).toString()},– €`;
-    return `${n.toFixed(2).replace(".", ",")} €`;
-  })();
+  const formatted = `${display.toFixed(2).replace(".", ",")} €`;
 
   return { display: formatted, popping };
 }

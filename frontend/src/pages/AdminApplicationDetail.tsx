@@ -368,7 +368,7 @@ export default function AdminApplicationDetail() {
             <FileCheck className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
             <div className="text-sm text-amber-900 space-y-1">
               <p className="font-semibold">
-                Papier-Antrag eingegangen — Daten noch nicht erfasst.
+                Papier-Antrag eingegangen. Daten noch nicht erfasst.
               </p>
               <p>
                 Ein Antragsteller hat einen Scan einer Papier-Beitrittserklärung
@@ -381,7 +381,7 @@ export default function AdminApplicationDetail() {
                   „Papier-Antrag erfassen"
                 </Link>
                 . Der hochgeladene Scan und die Antragsnummer bleiben dabei
-                erhalten — beim Speichern wird der Platzhalter automatisch
+                erhalten. Beim Speichern wird der Platzhalter automatisch
                 durch den vollständigen Antrag ersetzt.
               </p>
             </div>
@@ -409,15 +409,15 @@ export default function AdminApplicationDetail() {
                 value={new Date(app.geburtsdatum).toLocaleDateString("de-DE")}
               />
               <DataRow label="Adresse" value={`${app.strasse}, ${app.plz} ${app.ort}`} />
-              <DataRow label="Telefon" value={app.telefon || "–"} />
-              <DataRow label="E-Mail" value={app.email || "–"} />
+              <DataRow label="Telefon" value={app.telefon || ""} />
+              <DataRow label="E-Mail" value={app.email || ""} />
             </Section>
 
             <Section title="Mitgliedschaft">
               <DataRow label="Antragstyp" value={
                 app.antragstyp === "einzel" ? "Einzel" :
                 app.antragstyp === "kind" ? "Kind / Jugendliche" :
-                app.antragstyp === "familie" ? "Familie" : (app.antragstyp || "–")
+                app.antragstyp === "familie" ? "Familie" : (app.antragstyp || "")
               } />
               <DataRow label="Abteilung(en)" value={app.abteilungen.join(", ")} />
               <DataRow
@@ -474,7 +474,7 @@ export default function AdminApplicationDetail() {
                     <DataRow label={`Kind ${i + 1}`} value={`${k.nachname}, ${k.vorname}`} />
                     <DataRow
                       label="Geburtsdatum"
-                      value={k.geburtsdatum ? new Date(k.geburtsdatum).toLocaleDateString("de-DE") : "–"}
+                      value={k.geburtsdatum ? new Date(k.geburtsdatum).toLocaleDateString("de-DE") : ""}
                     />
                     <DataRow label="Abteilung(en)" value={k.abteilungen.join(", ")} />
                   </div>
@@ -491,8 +491,8 @@ export default function AdminApplicationDetail() {
                 value={app.kontoinhaber || `${app.vorname} ${app.nachname}`}
               />
               <DataRow label="IBAN" value={app.iban} mono />
-              <DataRow label="BIC" value={app.bic || "–"} />
-              <DataRow label="Kreditinstitut" value={app.kreditinstitut || "–"} />
+              <DataRow label="BIC" value={app.bic || ""} />
+              <DataRow label="Kreditinstitut" value={app.kreditinstitut || ""} />
             </Section>
           </div>
 
@@ -832,7 +832,7 @@ export default function AdminApplicationDetail() {
                       </div>
                     ))}
                   </div>
-                  <p className="text-xs text-gray-400">Optional – wird in der Bestätigung und E-Mail an die Mitglieder übermittelt.</p>
+                  <p className="text-xs text-gray-400">Optional. Wird in der Bestätigung und E-Mail an die Mitglieder übermittelt.</p>
                 </div>
               ) : (
                 <div>
@@ -846,7 +846,7 @@ export default function AdminApplicationDetail() {
                     placeholder="z.B. 12345"
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-svu-500 focus:border-svu-500"
                   />
-                  <p className="text-xs text-gray-400 mt-1">Optional – wird in der Bestätigung und E-Mail an das Mitglied übermittelt.</p>
+                  <p className="text-xs text-gray-400 mt-1">Optional. Wird in der Bestätigung und E-Mail an das Mitglied übermittelt.</p>
                 </div>
               )}
               <p className="text-sm text-gray-600">
@@ -1338,7 +1338,7 @@ function OcrPanel({
         )}
       </div>
       <div className="px-3 py-2 border-t bg-gray-50/60 text-[11px] text-gray-400">
-        Maschinelles Auslesen — bitte vor dem Übernehmen mit dem Scan abgleichen.
+        Maschinelles Auslesen. Bitte vor dem Übernehmen mit dem Scan abgleichen.
       </div>
     </div>
   );

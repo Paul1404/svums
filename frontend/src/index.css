@@ -385,8 +385,119 @@
   .dark .bg-orange-100 {
     background-color: rgba(249, 115, 22, 0.18) !important;
   }
+  .dark .bg-orange-50,
   .dark .bg-orange-50\/60 {
     background-color: rgba(249, 115, 22, 0.12) !important;
+  }
+  .dark .text-orange-700 {
+    color: #fdba74 !important;
+  }
+  .dark .text-orange-800 {
+    color: #fed7aa !important;
+  }
+  .dark .border-orange-200 {
+    border-color: rgba(249, 115, 22, 0.35) !important;
+  }
+  .dark .border-orange-300 {
+    border-color: rgba(249, 115, 22, 0.45) !important;
+  }
+  .dark .hover\:bg-orange-100:hover {
+    background-color: rgba(249, 115, 22, 0.24) !important;
+  }
+
+  /* Blue: subtle infos */
+  .dark .bg-blue-50 {
+    background-color: rgba(59, 130, 246, 0.12) !important;
+  }
+  .dark .text-blue-600 {
+    color: #93c5fd !important;
+  }
+  .dark .text-blue-800 {
+    color: #bfdbfe !important;
+  }
+  .dark .border-blue-200 {
+    border-color: rgba(59, 130, 246, 0.35) !important;
+  }
+
+  /* Purple: optional tints */
+  .dark .bg-purple-50 {
+    background-color: rgba(168, 85, 247, 0.12) !important;
+  }
+  .dark .text-purple-700 {
+    color: #d8b4fe !important;
+  }
+  .dark .border-purple-200 {
+    border-color: rgba(168, 85, 247, 0.35) !important;
+  }
+  .dark .border-purple-300 {
+    border-color: rgba(168, 85, 247, 0.45) !important;
+  }
+
+  /* Green: success accents */
+  .dark .bg-green-50\/30 {
+    background-color: rgba(34, 197, 94, 0.08) !important;
+  }
+  .dark .border-green-200 {
+    border-color: rgba(34, 197, 94, 0.35) !important;
+  }
+  .dark .border-green-400 {
+    border-color: rgba(34, 197, 94, 0.55) !important;
+  }
+  .dark .border-green-500 {
+    border-color: rgba(34, 197, 94, 0.65) !important;
+  }
+  .dark .hover\:bg-green-100:hover {
+    background-color: rgba(34, 197, 94, 0.24) !important;
+  }
+
+  /* Amber: warnings */
+  .dark .bg-amber-50\/30 {
+    background-color: rgba(245, 158, 11, 0.08) !important;
+  }
+
+  /* Red: errors / destructive */
+  .dark .border-red-200 {
+    border-color: rgba(239, 68, 68, 0.35) !important;
+  }
+  .dark .border-red-300 {
+    border-color: rgba(239, 68, 68, 0.45) !important;
+  }
+  .dark .border-red-400 {
+    border-color: rgba(239, 68, 68, 0.55) !important;
+  }
+  .dark .hover\:bg-red-100:hover {
+    background-color: rgba(239, 68, 68, 0.24) !important;
+  }
+  .dark .text-red-800,
+  .dark .text-red-900 {
+    color: #fecaca !important;
+  }
+
+  /* Brand (svu): a few more variants used in form CTAs */
+  .dark .border-svu-400 {
+    border-color: rgba(220, 38, 38, 0.55) !important;
+  }
+  .dark .border-svu-500 {
+    border-color: rgba(220, 38, 38, 0.7) !important;
+  }
+  .dark .border-svu-800 {
+    border-color: rgba(220, 38, 38, 0.5) !important;
+  }
+  .dark .text-svu-200,
+  .dark .text-svu-300 {
+    color: #fecaca !important;
+  }
+  .dark .text-svu-400,
+  .dark .text-svu-500 {
+    color: #fca5a5 !important;
+  }
+  .dark .hover\:bg-svu-100:hover {
+    background-color: rgba(220, 38, 38, 0.24) !important;
+  }
+
+  /* Soft translucent grays used as table-row backgrounds */
+  .dark .bg-gray-50\/60 {
+    background-color: rgba(30, 41, 59, 0.6) !important;
   }
 
   /* Inputs look better with a translucent, elevated surface */
