@@ -270,6 +270,51 @@ def test_upload_endpoint_requires_admin(client):
     assert res.status_code in (401, 403)
 
 
+def test_members_geo_only_returns_geocoded(client, admin_cookie, db_session):
+    from app.services.imported_writer import write_dump
+    sql = """
+CREATE TABLE `adresse` (`AdrNr` int NOT NULL, `Vorname` varchar(30), `Nachname` varchar(40), `Ort` varchar(80), PRIMARY KEY (`AdrNr`));
+INSERT INTO `adresse` VALUES (1,'A','One','Berlin'),(2,'B','Two','Hamburg'),(3,'C','Three','München');
+"""
+    write_dump(db_session, parse_dump(sql), filename="t.sql", file_size_bytes=len(sql))
+
+    # Manually mark two as geocoded
+    rows = db_session.query(LwMember).all()
+    rows[0].lat = 52.52
+    rows[0].lng = 13.405
+    rows[0].geocode_status = "found"
+    rows[1].lat = 53.55
+    rows[1].lng = 9.99
+    rows[1].geocode_status = "found"
+    rows[2].geocode_status = "failed"
+    db_session.commit()
+
+    res = client.get("/api/admin/imports/members/geo", cookies=admin_cookie)
+    assert res.status_code == 200
+    items = res.json()
+    assert len(items) == 2
+    assert {m["ort"] for m in items} == {"Berlin", "Hamburg"}
+    assert all("lat" in m and "lng" in m for m in items)
+
+
+def test_geocode_status_endpoint(client, admin_cookie, db_session):
+    from app.services.imported_writer import write_dump
+    sql = """
+CREATE TABLE `adresse` (`AdrNr` int NOT NULL, `Vorname` varchar(30), `Strasse` varchar(200), `Ort` varchar(80), PRIMARY KEY (`AdrNr`));
+INSERT INTO `adresse` VALUES (1,'A','Mainstr. 1','Hamburg'),(2,'B',NULL,NULL);
+"""
+    write_dump(db_session, parse_dump(sql), filename="t.sql", file_size_bytes=len(sql))
+
+    res = client.get("/api/admin/imports/geocode/status", cookies=admin_cookie)
+    assert res.status_code == 200
+    body = res.json()
+    assert body["running"] is False
+    assert body["geocoded"] == 0
+    assert body["pending"] == 2
+    # Only one has any address fields
+    assert body["total_with_address"] == 1
+
+
 def test_purge_endpoint(client, admin_cookie, db_session):
     sql = """
 CREATE TABLE `adresse` (`AdrNr` int NOT NULL, `Vorname` varchar(30), PRIMARY KEY (`AdrNr`));

@@ -76,6 +76,11 @@ class LwMember(Base):
     bemerkung = Column(Text, nullable=True)
     imported_at = Column(DateTime, nullable=False, default=datetime.utcnow)
     batch_id = Column(Integer, ForeignKey("lw_import_batches.id", ondelete="SET NULL"), nullable=True)
+    # Geocoding (filled lazily via Nominatim)
+    lat = Column(Numeric(10, 7), nullable=True)
+    lng = Column(Numeric(10, 7), nullable=True)
+    geocoded_at = Column(DateTime, nullable=True)
+    geocode_status = Column(String(20), nullable=True)  # found, failed, no_address
 
     @property
     def full_name(self) -> str:

@@ -148,3 +148,32 @@ class LwImportStatsResponse(BaseModel):
     total_sepa: int
     total_fee_types: int
     last_import: LwImportBatchResponse | None
+
+
+class LwMemberGeo(BaseModel):
+    """Compact payload used to plot a member on the map."""
+
+    adr_nr: int
+    mitgliedsnummer: str | None
+    vorname: str | None
+    nachname: str | None
+    plz: str | None
+    ort: str | None
+    lat: float
+    lng: float
+
+
+class LwGeocodeStatus(BaseModel):
+    running: bool
+    total: int
+    processed: int
+    found: int
+    failed: int
+    skipped: int
+    started_at: datetime | None
+    completed_at: datetime | None
+    last_address: str | None
+    last_error: str | None
+    pending: int  # members without coordinates yet
+    geocoded: int  # members with coordinates
+    total_with_address: int  # members that have any address fields
