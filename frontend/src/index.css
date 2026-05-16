@@ -913,7 +913,14 @@ body[data-overlay-open] .theme-toggle-floating {
 }
 
 .svums-member-dot {
-  position: relative;
+  /* No `position` override. Leaflet sets `position: absolute; left:0; top:0`
+   * on `.leaflet-marker-icon` and encodes the marker's location entirely in
+   * an inline `transform: translate3d(...)`. Overriding to `position: relative`
+   * puts the marker back into document flow, so its in-flow position (which
+   * depends on DOM order inside `.leaflet-marker-pane`) gets added to the
+   * transform — pins end up in wrong spots and shift on every zoom when the
+   * cluster plugin reorders markers. The absolute children below still
+   * position correctly because `.leaflet-marker-icon` itself is positioned. */
 }
 
 .svums-member-dot__core {
