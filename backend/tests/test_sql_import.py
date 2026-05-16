@@ -318,43 +318,82 @@ INSERT INTO `adresse` VALUES (1,'A','Mainstr. 1','Hamburg'),(2,'B',NULL,NULL);
 def test_geocode_classify_house_when_housenumber_matches():
     from app.services.geocode import _classify
 
-    result = {
-        "class": "place",
-        "type": "house",
-        "address": {"house_number": "12", "road": "Hauptstraße"},
+    feature = {
+        "properties": {
+            "type": "house",
+            "housenumber": "12",
+            "street": "Hauptstraße",
+        }
     }
-    assert _classify(result, "12") == "house"
+    assert _classify(feature, "12") == "house"
 
 
 def test_geocode_classify_street_when_no_housenumber():
     from app.services.geocode import _classify
 
-    result = {
-        "class": "highway",
-        "type": "residential",
-        "address": {"road": "Hauptstraße"},
+    feature = {
+        "properties": {
+            "type": "street",
+            "street": "Hauptstraße",
+        }
     }
-    assert _classify(result, "12") == "street"
+    assert _classify(feature, "12") == "street"
 
 
 def test_geocode_classify_city_when_place_village():
     from app.services.geocode import _classify
 
-    result = {"class": "place", "type": "village", "address": {}}
-    assert _classify(result, None) == "city"
+    feature = {
+        "properties": {
+            "type": "locality",
+            "name": "Kleindorf",
+        }
+    }
+    assert _classify(feature, None) == "city"
 
 
 def test_geocode_classify_handles_alphanumeric_housenumber():
     from app.services.geocode import _classify
 
-    # Members commonly have "12a" — Nominatim may return "12" or "12 a";
+    # Members commonly have "12a" -- Photon may return "12" or "12 a";
     # we match leading digits to be lenient.
-    result = {
-        "class": "place",
-        "type": "house",
-        "address": {"house_number": "12 a", "road": "Hauptstraße"},
+    feature = {
+        "properties": {
+            "type": "house",
+            "housenumber": "12 a",
+            "street": "Hauptstraße",
+        }
     }
-    assert _classify(result, "12a") == "house"
+    assert _classify(feature, "12a") == "house"
+
+
+def test_geocode_address_key_groups_household():
+    from app.services.geocode import _address_key
+    from app.models.imported import LwMember
+
+    # Family at the same address: same key.
+    a = LwMember(adr_nr=1, strasse="Hauptstraße", hausnummer="12", plz="12345", ort="Musterstadt")
+    b = LwMember(adr_nr=2, strasse="hauptstraße ", hausnummer="12", plz="12345", ort="MUSTERSTADT")
+    # Different Hausnummer: different key.
+    c = LwMember(adr_nr=3, strasse="Hauptstraße", hausnummer="14", plz="12345", ort="Musterstadt")
+    assert _address_key(a) == _address_key(b)
+    assert _address_key(a) != _address_key(c)
+
+
+def test_geocode_classify_demotes_house_with_wrong_number():
+    from app.services.geocode import _classify
+
+    # Photon sometimes returns a nearby house when ours doesn't exist
+    # in OSM. That's misleading on the map, so we demote it to street
+    # precision and let the caller swap to the PLZ centroid.
+    feature = {
+        "properties": {
+            "type": "house",
+            "housenumber": "9",
+            "street": "Hauptstraße",
+        }
+    }
+    assert _classify(feature, "12") == "street"
 
 
 def test_geocode_reset_for_scope_approximate_clears_only_non_house(db_session):
