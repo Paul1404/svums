@@ -39,6 +39,7 @@ import {
   Map as MapIcon,
   Play,
   StopCircle,
+  Info,
 } from "lucide-react";
 
 function formatDate(value: string | null | undefined): string {
@@ -70,6 +71,17 @@ function formatBytes(bytes: number | null | undefined): string {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+const SECONDS_PER_REQUEST = 1.1;
+
+function formatEta(processed: number, total: number): string {
+  const remaining = Math.max(0, total - processed);
+  if (remaining === 0) return "fertig";
+  const seconds = remaining * SECONDS_PER_REQUEST;
+  if (seconds < 60) return `ca. ${Math.ceil(seconds)} Sek. verbleibend`;
+  const minutes = Math.ceil(seconds / 60);
+  return `ca. ${minutes} Min. verbleibend`;
 }
 
 function statusLabel(member: LwMemberSummary): { label: string; color: string } {
@@ -161,21 +173,31 @@ export default function AdminImportedMembers() {
     fetchGeo();
   }, [fetchGeo]);
 
-  // Poll geocode progress while running
+  // Poll geocode progress while running; also stream new pins to the map
+  // so the wait feels productive instead of a blank screen.
   useEffect(() => {
     if (!geoStatus?.running) return;
+    let lastGeocodedCount = geoStatus.geocoded;
     const id = window.setInterval(async () => {
       try {
         const next = await getGeocodeStatus();
         setGeoStatus(next);
+        // Refresh points whenever new ones have been resolved
+        if (next.geocoded > lastGeocodedCount) {
+          lastGeocodedCount = next.geocoded;
+          const points = await getMembersGeo({ includeResigned, includeDeleted });
+          setGeoPoints(points);
+        }
         if (!next.running) {
-          // Refresh points once the worker finishes
+          // Final refresh once the worker finishes (catches the last commit)
           const points = await getMembersGeo({ includeResigned, includeDeleted });
           setGeoPoints(points);
           if (next.last_error) {
             toast.error(`Geocoding fehlgeschlagen: ${next.last_error}`);
           } else {
-            toast.success(`Geocoding abgeschlossen. ${next.found} gefunden, ${next.failed} ohne Treffer.`);
+            toast.success(
+              `Geocoding abgeschlossen. ${next.found} gefunden, ${next.failed} ohne Treffer.`,
+            );
           }
         }
       } catch (e) {
@@ -450,8 +472,8 @@ export default function AdminImportedMembers() {
                       </span>
                     )}
                   </span>
-                  <span>
-                    {geoStatus.found} ✓ · {geoStatus.failed} ✗
+                  <span className="font-medium">
+                    {formatEta(geoStatus.processed, geoStatus.total)}
                   </span>
                 </div>
                 <div className="h-1.5 w-full rounded-full bg-svu-100 dark:bg-svu-900 overflow-hidden">
@@ -461,6 +483,15 @@ export default function AdminImportedMembers() {
                       width: `${geoStatus.total > 0 ? (geoStatus.processed / geoStatus.total) * 100 : 0}%`,
                     }}
                   />
+                </div>
+                <div className="mt-2 flex items-center justify-between text-[11px] text-svu-700 dark:text-svu-300">
+                  <span className="flex items-center gap-1">
+                    <Info className="w-3 h-3" />
+                    Läuft im Hintergrund. Sie können diese Seite verlassen.
+                  </span>
+                  <span>
+                    {geoStatus.found} gefunden · {geoStatus.failed} ohne Treffer
+                  </span>
                 </div>
               </div>
             )}
@@ -662,6 +693,50 @@ export default function AdminImportedMembers() {
           onClose={() => setSelectedAdrNr(null)}
         />
       )}
+
+      {geoStatus?.running && (
+        <GeocodeMiniStatus status={geoStatus} onStop={handleStopGeocode} />
+      )}
+    </div>
+  );
+}
+
+function GeocodeMiniStatus({
+  status,
+  onStop,
+}: {
+  status: LwGeocodeStatus;
+  onStop: () => void;
+}) {
+  const pct = status.total > 0 ? (status.processed / status.total) * 100 : 0;
+  return (
+    <div className="fixed bottom-4 right-4 z-30 w-72 bg-white dark:bg-gray-800 border border-svu-200 dark:border-svu-800 rounded-xl shadow-lg p-3">
+      <div className="flex items-center justify-between mb-1.5">
+        <div className="flex items-center gap-1.5 text-xs font-semibold text-svu-700 dark:text-svu-300">
+          <MapIcon className="w-3.5 h-3.5" />
+          Geocoding läuft
+        </div>
+        <button
+          type="button"
+          onClick={onStop}
+          className="text-[11px] text-red-600 hover:text-red-700 dark:text-red-400"
+          title="Anhalten"
+        >
+          Anhalten
+        </button>
+      </div>
+      <div className="flex items-center justify-between text-[11px] text-gray-600 dark:text-gray-300 mb-1">
+        <span>
+          {status.processed} / {status.total}
+        </span>
+        <span className="font-medium">{formatEta(status.processed, status.total)}</span>
+      </div>
+      <div className="h-1 w-full rounded-full bg-svu-100 dark:bg-svu-900 overflow-hidden">
+        <div
+          className="h-full bg-svu-600 transition-all duration-500"
+          style={{ width: `${pct}%` }}
+        />
+      </div>
     </div>
   );
 }

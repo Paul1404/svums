@@ -186,8 +186,9 @@ async def _run_geocoder():
                     await asyncio.sleep(REQUEST_DELAY_SECONDS)
 
                 _state.processed += 1
-                # Commit every 25 rows so partial progress is durable
-                if _state.processed % 25 == 0:
+                # Commit every 5 rows so the map can show new pins live while
+                # the worker is still going.
+                if _state.processed % 5 == 0:
                     db.commit()
 
             db.commit()
