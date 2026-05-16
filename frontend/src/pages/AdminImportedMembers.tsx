@@ -7,12 +7,19 @@ import {
   getImportedMember,
   uploadImportSql,
   purgeImportedData,
+  getMembersGeo,
+  getGeocodeStatus,
+  startGeocode,
+  stopGeocode,
   type LwImportStats,
   type LwMemberListResponse,
   type LwMemberDetail,
   type LwMemberSummary,
+  type LwMemberGeo,
+  type LwGeocodeStatus,
 } from "../services/api";
 import { errorMessage } from "../lib/utils";
+import MemberMap from "../components/MemberMap";
 import {
   ArrowLeft,
   Upload,
@@ -29,6 +36,9 @@ import {
   MapPin,
   CreditCard,
   FileSpreadsheet,
+  Map as MapIcon,
+  Play,
+  StopCircle,
 } from "lucide-react";
 
 function formatDate(value: string | null | undefined): string {
@@ -91,6 +101,10 @@ export default function AdminImportedMembers() {
   const [detailLoading, setDetailLoading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [dragging, setDragging] = useState(false);
+  const [geoPoints, setGeoPoints] = useState<LwMemberGeo[]>([]);
+  const [geoStatus, setGeoStatus] = useState<LwGeocodeStatus | null>(null);
+  const [geoLoading, setGeoLoading] = useState(false);
+  const [showMap, setShowMap] = useState(true);
 
   const fetchStats = useCallback(async () => {
     try {
@@ -118,6 +132,23 @@ export default function AdminImportedMembers() {
     }
   }, [page, search, includeDeleted, includeResigned]);
 
+  const fetchGeo = useCallback(async () => {
+    setGeoLoading(true);
+    try {
+      const [points, status] = await Promise.all([
+        getMembersGeo({ includeResigned, includeDeleted }),
+        getGeocodeStatus(),
+      ]);
+      setGeoPoints(points);
+      setGeoStatus(status);
+    } catch (e) {
+      // map is a non-critical extra; only surface real errors
+      console.warn(e);
+    } finally {
+      setGeoLoading(false);
+    }
+  }, [includeResigned, includeDeleted]);
+
   useEffect(() => {
     fetchStats();
   }, [fetchStats]);
@@ -125,6 +156,34 @@ export default function AdminImportedMembers() {
   useEffect(() => {
     fetchList();
   }, [fetchList]);
+
+  useEffect(() => {
+    fetchGeo();
+  }, [fetchGeo]);
+
+  // Poll geocode progress while running
+  useEffect(() => {
+    if (!geoStatus?.running) return;
+    const id = window.setInterval(async () => {
+      try {
+        const next = await getGeocodeStatus();
+        setGeoStatus(next);
+        if (!next.running) {
+          // Refresh points once the worker finishes
+          const points = await getMembersGeo({ includeResigned, includeDeleted });
+          setGeoPoints(points);
+          if (next.last_error) {
+            toast.error(`Geocoding fehlgeschlagen: ${next.last_error}`);
+          } else {
+            toast.success(`Geocoding abgeschlossen. ${next.found} gefunden, ${next.failed} ohne Treffer.`);
+          }
+        }
+      } catch (e) {
+        console.warn(e);
+      }
+    }, 4000);
+    return () => window.clearInterval(id);
+  }, [geoStatus?.running, includeResigned, includeDeleted]);
 
   useEffect(() => {
     if (selectedAdrNr === null) {
@@ -181,6 +240,31 @@ export default function AdminImportedMembers() {
     },
     [handleUpload],
   );
+
+  const handleStartGeocode = useCallback(async () => {
+    try {
+      const next = await startGeocode();
+      setGeoStatus(next);
+      if (next.running) {
+        toast.success("Geocoding läuft. Das kann einige Minuten dauern.");
+      } else if (next.pending === 0) {
+        toast.info("Alle Adressen sind bereits geocodiert.");
+      }
+    } catch (e) {
+      toast.error(errorMessage(e));
+    }
+  }, []);
+
+  const handleStopGeocode = useCallback(async () => {
+    try {
+      const next = await stopGeocode();
+      setGeoStatus(next);
+      toast.info("Geocoding angehalten.");
+      await fetchGeo();
+    } catch (e) {
+      toast.error(errorMessage(e));
+    }
+  }, [fetchGeo]);
 
   const handlePurge = useCallback(async () => {
     const confirmed = window.confirm(
@@ -306,6 +390,122 @@ export default function AdminImportedMembers() {
             )}
           </div>
         </div>
+
+        {/* Map */}
+        {stats && stats.total_members > 0 && (
+          <section className="bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden">
+            <header className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 border-b dark:border-gray-700">
+              <div className="flex items-center gap-2">
+                <MapIcon className="w-5 h-5 text-svu-600" />
+                <h2 className="text-sm font-semibold text-gray-900 dark:text-white">
+                  Mitglieder-Karte
+                </h2>
+                {geoStatus && (
+                  <span className="text-xs text-gray-500 dark:text-gray-400">
+                    {geoStatus.geocoded.toLocaleString("de-DE")} von{" "}
+                    {geoStatus.total_with_address.toLocaleString("de-DE")} Adressen geocodiert
+                  </span>
+                )}
+              </div>
+              <div className="flex items-center gap-2">
+                {geoStatus?.running ? (
+                  <button
+                    type="button"
+                    onClick={handleStopGeocode}
+                    className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-red-700 bg-red-50 border border-red-200 rounded-lg hover:bg-red-100 dark:bg-red-900/20 dark:text-red-300 dark:border-red-800"
+                  >
+                    <StopCircle className="w-3.5 h-3.5" /> Anhalten
+                  </button>
+                ) : (
+                  geoStatus && geoStatus.pending > 0 && (
+                    <button
+                      type="button"
+                      onClick={handleStartGeocode}
+                      className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-svu-700 bg-svu-50 border border-svu-200 rounded-lg hover:bg-svu-100 dark:bg-svu-900/20 dark:text-svu-300 dark:border-svu-800"
+                      title={`${geoStatus.pending} Adressen ohne Koordinaten`}
+                    >
+                      <Play className="w-3.5 h-3.5" />
+                      {geoStatus.pending.toLocaleString("de-DE")} geocodieren
+                    </button>
+                  )
+                )}
+                <button
+                  type="button"
+                  onClick={() => setShowMap((v) => !v)}
+                  className="px-3 py-1.5 text-xs text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700 rounded-lg"
+                >
+                  {showMap ? "Karte ausblenden" : "Karte anzeigen"}
+                </button>
+              </div>
+            </header>
+
+            {geoStatus?.running && (
+              <div className="px-4 py-3 border-b dark:border-gray-700 bg-svu-50 dark:bg-svu-900/20">
+                <div className="flex items-center justify-between text-xs text-svu-800 dark:text-svu-200 mb-1.5">
+                  <span>
+                    Geocodierung läuft · {geoStatus.processed} / {geoStatus.total}
+                    {geoStatus.last_address && (
+                      <span className="ml-2 text-svu-600 dark:text-svu-300">
+                        ({geoStatus.last_address})
+                      </span>
+                    )}
+                  </span>
+                  <span>
+                    {geoStatus.found} ✓ · {geoStatus.failed} ✗
+                  </span>
+                </div>
+                <div className="h-1.5 w-full rounded-full bg-svu-100 dark:bg-svu-900 overflow-hidden">
+                  <div
+                    className="h-full bg-svu-600 transition-all duration-500"
+                    style={{
+                      width: `${geoStatus.total > 0 ? (geoStatus.processed / geoStatus.total) * 100 : 0}%`,
+                    }}
+                  />
+                </div>
+              </div>
+            )}
+
+            {showMap && (
+              <div className="relative">
+                {geoPoints.length === 0 ? (
+                  <div className="h-[450px] flex flex-col items-center justify-center gap-3 text-center px-6">
+                    <MapIcon className="w-10 h-10 text-gray-300 dark:text-gray-600" />
+                    <div>
+                      <p className="text-sm text-gray-600 dark:text-gray-300">
+                        Noch keine Adressen geocodiert.
+                      </p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                        Wir nutzen OpenStreetMap (Nominatim) mit einer Anfrage pro Sekunde.
+                        Bei {geoStatus?.total_with_address ?? 0} Adressen dauert das ca.{" "}
+                        {Math.ceil((geoStatus?.total_with_address ?? 0) / 60)} Minuten.
+                      </p>
+                    </div>
+                    {geoStatus && geoStatus.pending > 0 && !geoStatus.running && (
+                      <button
+                        type="button"
+                        onClick={handleStartGeocode}
+                        className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-white bg-svu-600 hover:bg-svu-700 rounded-lg"
+                      >
+                        <Play className="w-4 h-4" /> Geocoding starten
+                      </button>
+                    )}
+                  </div>
+                ) : (
+                  <MemberMap
+                    points={geoPoints}
+                    onSelectMember={setSelectedAdrNr}
+                    className="h-[500px] relative z-0"
+                  />
+                )}
+                {geoLoading && (
+                  <div className="absolute top-3 right-3 bg-white/90 dark:bg-gray-800/90 rounded-lg px-3 py-1.5 text-xs flex items-center gap-2 shadow z-10">
+                    <RefreshCw className="w-3 h-3 animate-spin" /> Karte wird geladen
+                  </div>
+                )}
+              </div>
+            )}
+          </section>
+        )}
 
         {/* Filter / Search */}
         <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-4">

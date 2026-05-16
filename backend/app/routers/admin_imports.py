@@ -25,14 +25,17 @@ from app.models.imported import (
 from app.routers.admin import require_admin
 from app.schemas.imported import (
     LwFeeTypeResponse,
+    LwGeocodeStatus,
     LwImportBatchResponse,
     LwImportResult,
     LwImportStatsResponse,
     LwMemberDetailResponse,
+    LwMemberGeo,
     LwMemberListResponse,
     LwMemberSummary,
 )
 from app.services.crypto import decrypt_iban_safe
+from app.services.geocode import get_state as get_geocode_state, start_geocoder, stop_geocoder
 from app.services.imported_writer import write_dump
 from app.services.sql_import import SUPPORTED_TABLES, parse_dump
 
@@ -189,6 +192,37 @@ async def list_members(
     )
 
 
+@router.get("/members/geo", response_model=list[LwMemberGeo])
+async def list_members_geo(
+    include_resigned: bool = Query(True),
+    include_deleted: bool = Query(False),
+    db: Session = Depends(get_db),
+    _: bool = Depends(require_admin),
+):
+    """Compact list of members with coordinates, for plotting on a map."""
+    query = db.query(LwMember).filter(LwMember.lat.isnot(None), LwMember.lng.isnot(None))
+    if not include_deleted:
+        query = query.filter(or_(LwMember.geloscht.is_(False), LwMember.geloscht.is_(None)))
+    if not include_resigned:
+        query = query.filter(
+            or_(LwMember.austritt.is_(None), LwMember.austritt > func.current_date())
+        )
+    items = query.all()
+    return [
+        LwMemberGeo(
+            adr_nr=m.adr_nr,
+            mitgliedsnummer=m.mitgliedsnummer,
+            vorname=m.vorname,
+            nachname=m.nachname,
+            plz=m.plz,
+            ort=m.ort,
+            lat=float(m.lat),
+            lng=float(m.lng),
+        )
+        for m in items
+    ]
+
+
 @router.get("/members/{adr_nr}", response_model=LwMemberDetailResponse)
 async def get_member(
     adr_nr: int,
@@ -286,3 +320,79 @@ async def purge_imported_data(
     db.commit()
     logger.info("All imported Linear Webverein data purged by admin")
     return {"ok": True}
+
+
+# ---- Geocoding & map data --------------------------------------------------
+
+def _geocode_status_snapshot(db: Session) -> LwGeocodeStatus:
+    state = get_geocode_state()
+    pending = (
+        db.query(func.count(LwMember.adr_nr))
+        .filter(LwMember.lat.is_(None))
+        .filter(
+            (LwMember.geocode_status.is_(None))
+            | (LwMember.geocode_status != "failed")
+        )
+        .scalar()
+        or 0
+    )
+    geocoded = (
+        db.query(func.count(LwMember.adr_nr)).filter(LwMember.lat.isnot(None)).scalar() or 0
+    )
+    total_with_address = (
+        db.query(func.count(LwMember.adr_nr))
+        .filter(
+            (LwMember.strasse.isnot(None) & (LwMember.strasse != ""))
+            | (LwMember.ort.isnot(None) & (LwMember.ort != ""))
+            | (LwMember.plz.isnot(None) & (LwMember.plz != ""))
+        )
+        .scalar()
+        or 0
+    )
+    return LwGeocodeStatus(
+        running=state.running,
+        total=state.total,
+        processed=state.processed,
+        found=state.found,
+        failed=state.failed,
+        skipped=state.skipped,
+        started_at=state.started_at,
+        completed_at=state.completed_at,
+        last_address=state.last_address,
+        last_error=state.last_error,
+        pending=pending,
+        geocoded=geocoded,
+        total_with_address=total_with_address,
+    )
+
+
+@router.get("/geocode/status", response_model=LwGeocodeStatus)
+async def geocode_status(
+    db: Session = Depends(get_db),
+    _: bool = Depends(require_admin),
+):
+    return _geocode_status_snapshot(db)
+
+
+@router.post("/geocode/start", response_model=LwGeocodeStatus)
+async def geocode_start(
+    db: Session = Depends(get_db),
+    _: bool = Depends(require_admin),
+):
+    started = await start_geocoder()
+    if not started:
+        logger.info("Geocode start requested but already running")
+    else:
+        logger.info("Geocoder started by admin")
+    return _geocode_status_snapshot(db)
+
+
+@router.post("/geocode/stop", response_model=LwGeocodeStatus)
+async def geocode_stop(
+    db: Session = Depends(get_db),
+    _: bool = Depends(require_admin),
+):
+    stopped = await stop_geocoder()
+    if stopped:
+        logger.info("Geocoder cancelled by admin")
+    return _geocode_status_snapshot(db)

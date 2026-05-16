@@ -939,3 +939,52 @@ export async function getImportedMember(adrNr: number): Promise<LwMemberDetail> 
 export async function purgeImportedData(): Promise<void> {
   await apiRequest("/api/admin/imports/data", { method: "DELETE" });
 }
+
+export interface LwMemberGeo {
+  adr_nr: number;
+  mitgliedsnummer: string | null;
+  vorname: string | null;
+  nachname: string | null;
+  plz: string | null;
+  ort: string | null;
+  lat: number;
+  lng: number;
+}
+
+export interface LwGeocodeStatus {
+  running: boolean;
+  total: number;
+  processed: number;
+  found: number;
+  failed: number;
+  skipped: number;
+  started_at: string | null;
+  completed_at: string | null;
+  last_address: string | null;
+  last_error: string | null;
+  pending: number;
+  geocoded: number;
+  total_with_address: number;
+}
+
+export async function getMembersGeo(opts: {
+  includeResigned?: boolean;
+  includeDeleted?: boolean;
+} = {}): Promise<LwMemberGeo[]> {
+  const qs = new URLSearchParams();
+  if (opts.includeResigned !== undefined) qs.set("include_resigned", String(opts.includeResigned));
+  if (opts.includeDeleted !== undefined) qs.set("include_deleted", String(opts.includeDeleted));
+  return apiRequest(`/api/admin/imports/members/geo?${qs}`);
+}
+
+export async function getGeocodeStatus(): Promise<LwGeocodeStatus> {
+  return apiRequest("/api/admin/imports/geocode/status");
+}
+
+export async function startGeocode(): Promise<LwGeocodeStatus> {
+  return apiRequest("/api/admin/imports/geocode/start", { method: "POST" });
+}
+
+export async function stopGeocode(): Promise<LwGeocodeStatus> {
+  return apiRequest("/api/admin/imports/geocode/stop", { method: "POST" });
+}
