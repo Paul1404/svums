@@ -20,6 +20,7 @@ import { useAdmin } from "../context/AdminContext";
 import { useTheme } from "../context/ThemeContext";
 import { getTestData } from "../services/api";
 import { toast } from "sonner";
+import { useBodyOverlay } from "../lib/useBodyOverlay";
 
 type Command = {
   id: string;
@@ -42,6 +43,7 @@ export default function CommandPalette() {
   const [query, setQuery] = useState("");
   const [activeIndex, setActiveIndex] = useState(0);
   const navigate = useNavigate();
+  useBodyOverlay(open);
   const { isAuthenticated, logout } = useAdmin();
   const { setMode } = useTheme();
   const inputRef = useRef<HTMLInputElement>(null);
