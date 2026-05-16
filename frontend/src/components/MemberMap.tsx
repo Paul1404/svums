@@ -15,10 +15,17 @@ import { useTheme } from "../context/ThemeContext";
 
 const GERMANY_CENTER: [number, number] = [51.1657, 10.4515];
 
-// Once the map is zoomed in this far, every member is shown as an
-// individual dot instead of being rolled up into a count bubble — at
-// building level the clusters hide more than they reveal.
-const DISABLE_CLUSTER_ZOOM = 16;
+// Stop clustering once the map is zoomed in to roughly town level.
+// Cluster bubbles sit at the *centroid* of their members, which often
+// lands in the field between two streets — so as long as the user is
+// past "I can see streets" we'd rather show every pin on its actual
+// house, even if a few overlap.
+const DISABLE_CLUSTER_ZOOM = 13;
+
+// Distance (in CSS pixels) within which two markers get rolled into a
+// single cluster bubble. Smaller = tighter clusters whose centre stays
+// close to a real address; larger = fewer bubbles but vaguer positions.
+const MAX_CLUSTER_RADIUS_PX = 25;
 
 // Approx. metres of jitter applied to markers that share the exact same
 // geocoded coordinates (very common for households at the same street and
@@ -127,18 +134,18 @@ function HeatLayer({ points, active }: { points: LwMemberGeo[]; active: boolean 
   return null;
 }
 
-// Tile attribution kept short -- we still credit OSM + CartoDB in the
-// footer of the export poster.
+// Tiles come from HERE Raster Tile API v3, proxied through the backend so
+// the API key never leaves the server. Same-origin URLs also keep the
+// session cookie attached (the proxy requires admin auth) and don't taint
+// the canvas during PNG poster export.
 const TILES = {
   light: {
-    url: "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png",
-    attribution:
-      '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>',
+    url: "/api/admin/imports/tile/lite.day/{z}/{x}/{y}",
+    attribution: '&copy; <a href="https://legal.here.com/terms">HERE</a>',
   },
   dark: {
-    url: "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",
-    attribution:
-      '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>',
+    url: "/api/admin/imports/tile/lite.night/{z}/{x}/{y}",
+    attribution: '&copy; <a href="https://legal.here.com/terms">HERE</a>',
   },
 } as const;
 
@@ -234,7 +241,6 @@ const MemberMap = forwardRef<MemberMapHandle, Props>(function MemberMap(
           attribution={tile.attribution}
           url={tile.url}
           maxZoom={19}
-          crossOrigin="anonymous"
         />
         <FitBounds points={displayPoints} />
         {mode === "heat" ? (
@@ -242,7 +248,7 @@ const MemberMap = forwardRef<MemberMapHandle, Props>(function MemberMap(
         ) : (
           <MarkerClusterGroup
             chunkedLoading
-            maxClusterRadius={40}
+            maxClusterRadius={MAX_CLUSTER_RADIUS_PX}
             disableClusteringAtZoom={DISABLE_CLUSTER_ZOOM}
             spiderfyOnMaxZoom={false}
             showCoverageOnHover={false}

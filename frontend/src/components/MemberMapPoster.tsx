@@ -65,7 +65,7 @@ const MemberMapPoster = forwardRef<HTMLDivElement, Props>(function MemberMapPost
           <div className="map-poster__footer-meta">
             Stand {formatDate(meta.generatedAt)}
             <br />
-            Karte: OpenStreetMap · CARTO
+            Karte: HERE
           </div>
         </div>
       </div>
