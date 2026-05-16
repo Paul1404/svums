@@ -20,6 +20,7 @@ import {
 } from "../services/api";
 import { errorMessage } from "../lib/utils";
 import MemberMap from "../components/MemberMap";
+import { useBodyOverlay, useEscapeKey } from "../lib/useBodyOverlay";
 import {
   ArrowLeft,
   Upload,
@@ -774,14 +775,20 @@ function MemberDetailDrawer({
   member: LwMemberDetail | null;
   onClose: () => void;
 }) {
+  useBodyOverlay();
+  useEscapeKey(true, onClose);
+
   return (
-    <div className="fixed inset-0 z-40 flex">
+    <div
+      className="fixed inset-0 z-40 flex"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Mitglied-Details"
+    >
       <div
         className="flex-1 bg-black/40 backdrop-blur-sm"
         onClick={onClose}
-        role="button"
-        tabIndex={-1}
-        aria-label="Schließen"
+        aria-hidden="true"
       />
       <aside className="w-full max-w-2xl bg-white dark:bg-gray-800 shadow-2xl overflow-y-auto">
         <div className="sticky top-0 z-10 bg-white dark:bg-gray-800 border-b dark:border-gray-700 px-6 py-4 flex items-center justify-between">

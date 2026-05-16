@@ -192,6 +192,17 @@ function RouteAnalytics() {
   return null;
 }
 
+function FloatingThemeToggle() {
+  const location = useLocation();
+  // Admin pages (except login) have their own dense header and the command
+  // palette (⌘K) covers theme switching, so the floating pill would only
+  // collide with header buttons and drawer close icons.
+  const isAdminWithHeader =
+    location.pathname.startsWith("/admin") && location.pathname !== "/admin/login";
+  if (isAdminWithHeader) return null;
+  return <ThemeToggle floating />;
+}
+
 export default function App() {
   return (
     <ThemeProvider>
@@ -199,7 +210,7 @@ export default function App() {
         <BrowserRouter>
           <RouteAnalytics />
           <Toaster position="top-right" richColors theme="system" />
-          <ThemeToggle floating />
+          <FloatingThemeToggle />
           <Routes>
             <Route path="/" element={<ApplicationForm />} />
             <Route path="/erfolg" element={<Success />} />

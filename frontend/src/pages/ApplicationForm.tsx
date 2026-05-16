@@ -20,6 +20,7 @@ import {
 } from "../lib/analytics";
 import { useClubConfig } from "../context/ClubConfigContext";
 import { validatePhone } from "../lib/utils";
+import { useBodyOverlay } from "../lib/useBodyOverlay";
 import {
   AlertCircle,
   CheckCircle2,
@@ -279,6 +280,7 @@ export default function ApplicationForm() {
   // ---- Fullscreen mobile signing
   const isMobile = typeof window !== "undefined" && window.matchMedia("(pointer: coarse)").matches;
   const [fullscreenSig, setFullscreenSig] = useState(false);
+  useBodyOverlay(fullscreenSig);
   const [isPortrait, setIsPortrait] = useState(
     typeof window !== "undefined" ? window.matchMedia("(orientation: portrait)").matches : true,
   );

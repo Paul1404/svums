@@ -16,6 +16,7 @@ import {
   type ApplicationResponse,
 } from "../services/api";
 import { captureEvent } from "../lib/analytics";
+import { useBodyOverlay, useEscapeKey } from "../lib/useBodyOverlay";
 import {
   ArrowLeft,
   Copy,
@@ -95,6 +96,14 @@ export default function AdminApplicationDetail() {
   const [saveSignatureForFuture, setSaveSignatureForFuture] = useState(false);
   const [mitgliedsnummer, setMitgliedsnummer] = useState("");
   const [familyMitgliedsnummern, setFamilyMitgliedsnummern] = useState<Record<string, string>>({});
+
+  useBodyOverlay(showApproveModal || showDenyModal || showDeleteModal);
+  useEscapeKey(showApproveModal, () => {
+    setShowApproveModal(false);
+    setSaveSignatureForFuture(false);
+  });
+  useEscapeKey(showDenyModal, () => setShowDenyModal(false));
+  useEscapeKey(showDeleteModal, () => setShowDeleteModal(false));
 
   const handleAdminUpload = async (file: File) => {
     if (!app) return;
@@ -755,7 +764,12 @@ export default function AdminApplicationDetail() {
 
       {/* Approve modal */}
       {showApproveModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+        <div
+          className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Genehmigung bestätigen"
+        >
           <div className="bg-white rounded-xl shadow-xl max-w-md w-full max-h-[90vh] overflow-y-auto">
             <div className="p-5 border-b flex items-center justify-between">
               <h3 className="font-semibold text-gray-900">Genehmigung bestätigen</h3>
@@ -765,6 +779,7 @@ export default function AdminApplicationDetail() {
                   setSaveSignatureForFuture(false);
                 }}
                 className="p-1 text-gray-400 hover:text-gray-600 rounded"
+                aria-label="Schließen"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -951,13 +966,19 @@ export default function AdminApplicationDetail() {
 
       {/* Deny modal */}
       {showDenyModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+        <div
+          className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Ablehnung bestätigen"
+        >
           <div className="bg-white rounded-xl shadow-xl max-w-md w-full">
             <div className="p-5 border-b flex items-center justify-between">
               <h3 className="font-semibold text-gray-900">Ablehnung bestätigen</h3>
               <button
                 onClick={() => setShowDenyModal(false)}
                 className="p-1 text-gray-400 hover:text-gray-600 rounded"
+                aria-label="Schließen"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -995,13 +1016,19 @@ export default function AdminApplicationDetail() {
       )}
 
       {showDeleteModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+        <div
+          className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Antrag löschen"
+        >
           <div className="bg-white rounded-xl shadow-xl max-w-md w-full">
             <div className="p-5 border-b flex items-center justify-between">
               <h3 className="font-semibold text-gray-900">Antrag löschen</h3>
               <button
                 onClick={() => setShowDeleteModal(false)}
                 className="p-1 text-gray-400 hover:text-gray-600 rounded"
+                aria-label="Schließen"
               >
                 <X className="w-5 h-5" />
               </button>

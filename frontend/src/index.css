@@ -164,8 +164,12 @@
     scroll-behavior: smooth;
   }
 
+  /* Visible focus ring for keyboard users. The previous global `outline: none`
+   * stripped focus indicators everywhere, which broke keyboard navigation. */
   :focus-visible {
-    outline: none;
+    outline: 2px solid var(--color-svu-500, #b91c1c);
+    outline-offset: 2px;
+    border-radius: 4px;
   }
 
   /* Custom scrollbar */
@@ -769,6 +773,12 @@
     top: 1rem;
     bottom: auto;
   }
+}
+
+/* Stay out of the way when a modal or full-page drawer is open --
+ * its own close button lives in the same top-right area. */
+body[data-overlay-open] .theme-toggle-floating {
+  display: none;
 }
 
 /* ── Command palette (⌘K) ── */
