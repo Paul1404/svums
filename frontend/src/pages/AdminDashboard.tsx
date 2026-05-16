@@ -409,10 +409,10 @@ export default function AdminDashboard() {
             }`}
             title={
               showTestFilter === null
-                ? "Alle anzeigen — klicken für nur Testanträge"
+                ? "Alle anzeigen. Klicken für nur Testanträge"
                 : showTestFilter
-                ? "Nur Testanträge — klicken für ohne Testanträge"
-                : "Ohne Testanträge — klicken für alle"
+                ? "Nur Testanträge. Klicken für ohne Testanträge"
+                : "Ohne Testanträge. Klicken für alle"
             }
           >
             <FlaskConical className="w-3.5 h-3.5" />

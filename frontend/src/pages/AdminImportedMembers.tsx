@@ -52,7 +52,7 @@ import {
 } from "lucide-react";
 
 function formatDate(value: string | null | undefined): string {
-  if (!value) return "–";
+  if (!value) return "";
   const d = new Date(value);
   if (Number.isNaN(d.getTime())) return value;
   return d.toLocaleDateString("de-DE", {
@@ -63,7 +63,7 @@ function formatDate(value: string | null | undefined): string {
 }
 
 function formatDateTime(value: string | null | undefined): string {
-  if (!value) return "–";
+  if (!value) return "";
   const d = new Date(value);
   if (Number.isNaN(d.getTime())) return value;
   return d.toLocaleString("de-DE", {
@@ -76,7 +76,7 @@ function formatDateTime(value: string | null | undefined): string {
 }
 
 function formatBytes(bytes: number | null | undefined): string {
-  if (!bytes) return "–";
+  if (!bytes) return "";
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
@@ -758,10 +758,10 @@ export default function AdminImportedMembers() {
                             {m.mitgliedsnummer || `#${m.adr_nr}`}
                           </td>
                           <td className="px-4 py-3 text-gray-900 dark:text-gray-100">
-                            {[m.vorname, m.nachname].filter(Boolean).join(" ") || "–"}
+                            {[m.vorname, m.nachname].filter(Boolean).join(" ") || ""}
                           </td>
                           <td className="px-4 py-3 text-gray-700 dark:text-gray-300">
-                            {[m.plz, m.ort].filter(Boolean).join(" ") || "–"}
+                            {[m.plz, m.ort].filter(Boolean).join(" ") || ""}
                           </td>
                           <td className="px-4 py-3 text-gray-700 dark:text-gray-300">
                             {formatDate(m.eintritt)}
@@ -1040,14 +1040,14 @@ function MemberDetailDrawer({
                       <tbody className="divide-y divide-gray-100 dark:divide-gray-700 text-gray-700 dark:text-gray-300">
                         {member.contracts.map((c) => (
                           <tr key={c.id}>
-                            <td className="py-2 pr-3 font-mono">{c.vertrag_nr || "–"}</td>
-                            <td className="py-2 pr-3">{c.art_name || c.art || "–"}</td>
+                            <td className="py-2 pr-3 font-mono">{c.vertrag_nr || ""}</td>
+                            <td className="py-2 pr-3">{c.art_name || c.art || ""}</td>
                             <td className="py-2 pr-3">
                               {c.betrag != null
                                 ? c.betrag.toLocaleString("de-DE", { style: "currency", currency: "EUR" })
-                                : "–"}
+                                : ""}
                             </td>
-                            <td className="py-2 pr-3">{c.sollstellung || "–"}</td>
+                            <td className="py-2 pr-3">{c.sollstellung || ""}</td>
                             <td className="py-2 pr-3">{formatDate(c.vertrag_begin)}</td>
                             <td className="py-2 pr-3">{formatDate(c.vertrag_ende)}</td>
                             <td className="py-2 pr-3">{formatDate(c.gekuend_zum)}</td>
@@ -1076,9 +1076,9 @@ function MemberDetailDrawer({
                       <tbody className="divide-y divide-gray-100 dark:divide-gray-700 text-gray-700 dark:text-gray-300">
                         {member.sepa_mandates.map((s) => (
                           <tr key={s.id}>
-                            <td className="py-2 pr-3 font-mono">{s.mandats_nr || "–"}</td>
-                            <td className="py-2 pr-3">{s.lastschriftart || "–"}</td>
-                            <td className="py-2 pr-3">{s.status || "–"}</td>
+                            <td className="py-2 pr-3 font-mono">{s.mandats_nr || ""}</td>
+                            <td className="py-2 pr-3">{s.lastschriftart || ""}</td>
+                            <td className="py-2 pr-3">{s.status || ""}</td>
                             <td className="py-2 pr-3">{formatDate(s.angelegt_am)}</td>
                             <td className="py-2 pr-3">{formatDate(s.unterschrift_datum)}</td>
                             <td className="py-2 pr-3">{formatDate(s.letzte_verwendung)}</td>
@@ -1130,7 +1130,7 @@ function Field({
       <div
         className={`text-sm text-gray-900 dark:text-gray-100 break-words ${mono ? "font-mono" : ""}`}
       >
-        {value || <span className="text-gray-400">–</span>}
+        {value || <span className="text-gray-400" aria-label="keine Angabe">·</span>}
       </div>
     </div>
   );

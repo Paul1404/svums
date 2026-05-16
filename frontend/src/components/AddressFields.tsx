@@ -289,7 +289,7 @@ export default function AddressFields({
         {showStreetDropdown && streetSuggestions.length > 0 && (
           <div className="suggest-pop absolute z-20 mt-1 w-full rounded-lg shadow-lg max-h-56 overflow-auto">
             <div className="suggest-pop-header flex items-center justify-between px-3 py-1.5 text-xs">
-              <span>Vorschläge — Esc zum Schließen</span>
+              <span>Vorschläge · Esc zum Schließen</span>
               <button
                 type="button"
                 onClick={() => {
@@ -363,7 +363,7 @@ export default function AddressFields({
           <p className="text-red-600 text-xs mt-1">{errors.plz}</p>
         )}
         {plzValid === false && !errors.plz && (
-          <p className="text-amber-600 text-xs mt-1">PLZ nicht gefunden – bitte prüfen</p>
+          <p className="text-amber-600 text-xs mt-1">PLZ nicht gefunden. Bitte prüfen.</p>
         )}
       </div>
 
