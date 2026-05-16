@@ -15,7 +15,7 @@ from sqlalchemy import text
 from app.config import get_settings
 from app.database import Base, SessionLocal, engine, wait_for_db
 from app.logging_config import setup_logging
-from app.routers import admin, address, public
+from app.routers import admin, address, public, admin_imports
 from app.services.rate_limit import consume_rate_limit, normalize_client_ip
 
 # Configure logging before anything else uses it
@@ -352,6 +352,7 @@ async def get_csrf_token(response: Response):
 app.include_router(public.router)
 app.include_router(address.router)
 app.include_router(admin.router)
+app.include_router(admin_imports.router)
 
 # Serve static files (built frontend)
 static_dir = Path(__file__).parent.parent / "static"
