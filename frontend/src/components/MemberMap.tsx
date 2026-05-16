@@ -142,12 +142,45 @@ const TILES = {
   },
 } as const;
 
-const dotIcon = L.divIcon({
-  className: "svums-member-dot",
-  html: '<span class="svums-member-dot__pulse"></span><span class="svums-member-dot__core"></span>',
-  iconSize: [18, 18],
-  iconAnchor: [9, 9],
-});
+function makeDotIcon(precision: LwMemberGeo["precision"]): L.DivIcon {
+  // Precision-aware variant. "house" hits are confidence-coloured (red,
+  // pulsing). Anything else is muted amber/grey and skips the pulse so
+  // imprecise dots don't masquerade as exact-on-house pins.
+  const variant =
+    precision === "house" || precision === null
+      ? "svums-member-dot--house"
+      : precision === "street"
+        ? "svums-member-dot--street"
+        : "svums-member-dot--city";
+  const pulse =
+    precision === "house" || precision === null
+      ? '<span class="svums-member-dot__pulse"></span>'
+      : "";
+  return L.divIcon({
+    className: `svums-member-dot ${variant}`,
+    html: `${pulse}<span class="svums-member-dot__core"></span>`,
+    iconSize: [18, 18],
+    iconAnchor: [9, 9],
+  });
+}
+
+// Cache divIcons by precision so the underlying DOM is reused across renders.
+const DOT_ICONS: Record<string, L.DivIcon> = {};
+function dotIconFor(precision: LwMemberGeo["precision"]): L.DivIcon {
+  const key = precision ?? "unknown";
+  const existing = DOT_ICONS[key];
+  if (existing) return existing;
+  const icon = makeDotIcon(precision);
+  DOT_ICONS[key] = icon;
+  return icon;
+}
+
+const PRECISION_LABEL: Record<string, string> = {
+  house: "Hausgenau",
+  street: "Straße (ungefähr)",
+  city: "Ort (ungefähr)",
+  none: "Keine Koordinaten",
+};
 
 function clusterIcon(cluster: { getChildCount: () => number }) {
   const count = cluster.getChildCount();
@@ -221,11 +254,13 @@ const MemberMap = forwardRef<MemberMapHandle, Props>(function MemberMap(
               const name =
                 [p.vorname, p.nachname].filter(Boolean).join(" ") || `AdrNr ${p.adr_nr}`;
               const place = [p.plz, p.ort].filter(Boolean).join(" ");
+              const precision = p.precision ?? null;
+              const precisionLabel = precision ? PRECISION_LABEL[precision] : null;
               return (
                 <Marker
                   key={p.adr_nr}
                   position={[p.lat, p.lng]}
-                  icon={dotIcon}
+                  icon={dotIconFor(precision)}
                   eventHandlers={{
                     click: () => onSelectMember(p.adr_nr),
                   }}
@@ -245,6 +280,13 @@ const MemberMap = forwardRef<MemberMapHandle, Props>(function MemberMap(
                       )}
                       {place && (
                         <div className="svums-member-tooltip__meta">{place}</div>
+                      )}
+                      {precisionLabel && precision !== "house" && (
+                        <div
+                          className={`svums-member-tooltip__precision svums-member-tooltip__precision--${precision}`}
+                        >
+                          {precisionLabel}
+                        </div>
                       )}
                       <div className="svums-member-tooltip__hint">Klicken für Details</div>
                     </div>
