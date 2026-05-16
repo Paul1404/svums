@@ -110,6 +110,14 @@ export default function StatusPage() {
     <div className="min-h-screen bg-gray-50">
       <header className="bg-svu-600 text-white shadow-lg">
         <div className="max-w-3xl mx-auto px-4 py-5 flex items-center gap-4">
+          <Link
+            to="/"
+            className="p-2 -ml-2 text-white/80 hover:text-white hover:bg-white/10 rounded-lg transition-colors flex-shrink-0"
+            title="Zurück zur Beitrittserklärung"
+            aria-label="Zurück zur Beitrittserklärung"
+          >
+            <ArrowLeft className="w-5 h-5" />
+          </Link>
           <img
             src="/logo_svu-241x300.png"
             alt={club.club_name}
