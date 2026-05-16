@@ -49,6 +49,7 @@ import {
   Flame,
   Circle,
   Loader2,
+  Crosshair,
 } from "lucide-react";
 
 function formatDate(value: string | null | undefined): string {
@@ -351,6 +352,25 @@ export default function AdminImportedMembers() {
     }
   }, []);
 
+  const handleRefineGeocode = useCallback(async () => {
+    const confirmed = window.confirm(
+      "Ungenaue Adressen mit strukturierter Suche neu geocodieren? Hausgenau "
+        + "platzierte Mitglieder bleiben unverändert. Das kann mehrere Minuten dauern.",
+    );
+    if (!confirmed) return;
+    try {
+      const next = await startGeocode("approximate");
+      setGeoStatus(next);
+      if (next.running) {
+        toast.success("Verfeinern läuft. Adressen werden neu geocodiert.");
+      } else {
+        toast.info("Keine Adressen zum Verfeinern gefunden.");
+      }
+    } catch (e) {
+      toast.error(errorMessage(e));
+    }
+  }, []);
+
   const handleStopGeocode = useCallback(async () => {
     try {
       const next = await stopGeocode();
@@ -513,17 +533,30 @@ export default function AdminImportedMembers() {
                     <StopCircle className="w-3.5 h-3.5" /> Anhalten
                   </button>
                 ) : (
-                  geoStatus && geoStatus.pending > 0 && (
-                    <button
-                      type="button"
-                      onClick={handleStartGeocode}
-                      className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-svu-700 bg-svu-50 border border-svu-200 rounded-lg hover:bg-svu-100 dark:bg-svu-900/20 dark:text-svu-300 dark:border-svu-800"
-                      title={`${geoStatus.pending} Adressen ohne Koordinaten`}
-                    >
-                      <Play className="w-3.5 h-3.5" />
-                      {geoStatus.pending.toLocaleString("de-DE")} geocodieren
-                    </button>
-                  )
+                  <>
+                    {geoStatus && geoStatus.pending > 0 && (
+                      <button
+                        type="button"
+                        onClick={handleStartGeocode}
+                        className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-svu-700 bg-svu-50 border border-svu-200 rounded-lg hover:bg-svu-100 dark:bg-svu-900/20 dark:text-svu-300 dark:border-svu-800"
+                        title={`${geoStatus.pending} Adressen ohne Koordinaten`}
+                      >
+                        <Play className="w-3.5 h-3.5" />
+                        {geoStatus.pending.toLocaleString("de-DE")} geocodieren
+                      </button>
+                    )}
+                    {geoStatus && geoStatus.approximate > 0 && (
+                      <button
+                        type="button"
+                        onClick={handleRefineGeocode}
+                        className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-amber-700 bg-amber-50 border border-amber-200 rounded-lg hover:bg-amber-100 dark:bg-amber-900/20 dark:text-amber-300 dark:border-amber-800"
+                        title={`${geoStatus.approximate} ungenaue Adressen mit strukturierter Suche neu geocodieren`}
+                      >
+                        <Crosshair className="w-3.5 h-3.5" />
+                        {geoStatus.approximate.toLocaleString("de-DE")} verfeinern
+                      </button>
+                    )}
+                  </>
                 )}
                 {showMap && geoPoints.length > 0 && (
                   <>

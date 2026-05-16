@@ -85,6 +85,7 @@ async def lifespan(app: FastAPI):
                     ("lng", "NUMERIC"),
                     ("geocoded_at", "DATETIME"),
                     ("geocode_status", "VARCHAR(20)"),
+                    ("geocode_precision", "VARCHAR(10)"),
                 ]:
                     if lw_columns and col_name not in lw_columns:
                         cursor.execute(f"ALTER TABLE lw_members ADD COLUMN {col_name} {col_type}")
@@ -181,6 +182,10 @@ async def lifespan(app: FastAPI):
                 conn.execute(text(
                     "ALTER TABLE lw_members "
                     "ADD COLUMN IF NOT EXISTS geocode_status VARCHAR(20)"
+                ))
+                conn.execute(text(
+                    "ALTER TABLE lw_members "
+                    "ADD COLUMN IF NOT EXISTS geocode_precision VARCHAR(10)"
                 ))
             logger.info("Widened iban column to VARCHAR(500)")
         except Exception as e:

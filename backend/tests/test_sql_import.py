@@ -315,6 +315,109 @@ INSERT INTO `adresse` VALUES (1,'A','Mainstr. 1','Hamburg'),(2,'B',NULL,NULL);
     assert body["total_with_address"] == 1
 
 
+def test_geocode_classify_house_when_housenumber_matches():
+    from app.services.geocode import _classify
+
+    result = {
+        "class": "place",
+        "type": "house",
+        "address": {"house_number": "12", "road": "Hauptstraße"},
+    }
+    assert _classify(result, "12") == "house"
+
+
+def test_geocode_classify_street_when_no_housenumber():
+    from app.services.geocode import _classify
+
+    result = {
+        "class": "highway",
+        "type": "residential",
+        "address": {"road": "Hauptstraße"},
+    }
+    assert _classify(result, "12") == "street"
+
+
+def test_geocode_classify_city_when_place_village():
+    from app.services.geocode import _classify
+
+    result = {"class": "place", "type": "village", "address": {}}
+    assert _classify(result, None) == "city"
+
+
+def test_geocode_classify_handles_alphanumeric_housenumber():
+    from app.services.geocode import _classify
+
+    # Members commonly have "12a" — Nominatim may return "12" or "12 a";
+    # we match leading digits to be lenient.
+    result = {
+        "class": "place",
+        "type": "house",
+        "address": {"house_number": "12 a", "road": "Hauptstraße"},
+    }
+    assert _classify(result, "12a") == "house"
+
+
+def test_geocode_reset_for_scope_approximate_clears_only_non_house(db_session):
+    from app.services.imported_writer import write_dump
+    from app.services.geocode import _reset_for_scope
+
+    sql = """
+CREATE TABLE `adresse` (`AdrNr` int NOT NULL, `Vorname` varchar(30), `Ort` varchar(80), PRIMARY KEY (`AdrNr`));
+INSERT INTO `adresse` VALUES (1,'House','Berlin'),(2,'Street','Berlin'),(3,'Legacy','Berlin');
+"""
+    write_dump(db_session, parse_dump(sql), filename="t.sql", file_size_bytes=len(sql))
+    rows = {m.adr_nr: m for m in db_session.query(LwMember).all()}
+    # House-level: must survive an approximate reset
+    rows[1].lat = 52.52
+    rows[1].lng = 13.4
+    rows[1].geocode_status = "found"
+    rows[1].geocode_precision = "house"
+    # Street-level: should get cleared
+    rows[2].lat = 52.53
+    rows[2].lng = 13.41
+    rows[2].geocode_status = "found"
+    rows[2].geocode_precision = "street"
+    # Legacy row (no precision recorded): should get cleared too
+    rows[3].lat = 52.54
+    rows[3].lng = 13.42
+    rows[3].geocode_status = "found"
+    rows[3].geocode_precision = None
+    db_session.commit()
+
+    cleared = _reset_for_scope(db_session, "approximate")
+    assert cleared == 2
+
+    db_session.expire_all()
+    fresh = {m.adr_nr: m for m in db_session.query(LwMember).all()}
+    assert fresh[1].lat is not None and fresh[1].geocode_precision == "house"
+    assert fresh[2].lat is None and fresh[2].geocode_precision is None
+    assert fresh[3].lat is None and fresh[3].geocode_precision is None
+
+
+def test_geocode_reset_for_scope_all_clears_everything(db_session):
+    from app.services.imported_writer import write_dump
+    from app.services.geocode import _reset_for_scope
+
+    sql = """
+CREATE TABLE `adresse` (`AdrNr` int NOT NULL, `Vorname` varchar(30), `Ort` varchar(80), PRIMARY KEY (`AdrNr`));
+INSERT INTO `adresse` VALUES (1,'House','Berlin');
+"""
+    write_dump(db_session, parse_dump(sql), filename="t.sql", file_size_bytes=len(sql))
+    m = db_session.query(LwMember).first()
+    m.lat = 52.52
+    m.lng = 13.4
+    m.geocode_status = "found"
+    m.geocode_precision = "house"
+    db_session.commit()
+
+    cleared = _reset_for_scope(db_session, "all")
+    assert cleared == 1
+    db_session.expire_all()
+    fresh = db_session.query(LwMember).first()
+    assert fresh.lat is None
+    assert fresh.geocode_precision is None
+
+
 def test_purge_endpoint(client, admin_cookie, db_session):
     sql = """
 CREATE TABLE `adresse` (`AdrNr` int NOT NULL, `Vorname` varchar(30), PRIMARY KEY (`AdrNr`));

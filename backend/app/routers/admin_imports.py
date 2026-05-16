@@ -218,6 +218,7 @@ async def list_members_geo(
             ort=m.ort,
             lat=float(m.lat),
             lng=float(m.lng),
+            precision=m.geocode_precision,
         )
         for m in items
     ]
@@ -349,6 +350,16 @@ def _geocode_status_snapshot(db: Session) -> LwGeocodeStatus:
         .scalar()
         or 0
     )
+    approximate = (
+        db.query(func.count(LwMember.adr_nr))
+        .filter(LwMember.lat.isnot(None))
+        .filter(
+            (LwMember.geocode_precision.is_(None))
+            | (LwMember.geocode_precision != "house")
+        )
+        .scalar()
+        or 0
+    )
     return LwGeocodeStatus(
         running=state.running,
         total=state.total,
@@ -363,6 +374,11 @@ def _geocode_status_snapshot(db: Session) -> LwGeocodeStatus:
         pending=pending,
         geocoded=geocoded,
         total_with_address=total_with_address,
+        house_hits=state.house_hits,
+        street_hits=state.street_hits,
+        city_hits=state.city_hits,
+        approximate=approximate,
+        scope=state.scope,
     )
 
 
@@ -376,14 +392,15 @@ async def geocode_status(
 
 @router.post("/geocode/start", response_model=LwGeocodeStatus)
 async def geocode_start(
+    scope: str = Query("pending", pattern="^(pending|approximate|all)$"),
     db: Session = Depends(get_db),
     _: bool = Depends(require_admin),
 ):
-    started = await start_geocoder()
+    started = await start_geocoder(scope=scope)  # type: ignore[arg-type]
     if not started:
         logger.info("Geocode start requested but already running")
     else:
-        logger.info("Geocoder started by admin")
+        logger.info("Geocoder started by admin (scope=%s)", scope)
     return _geocode_status_snapshot(db)
 
 
