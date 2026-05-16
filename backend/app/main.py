@@ -15,7 +15,7 @@ from sqlalchemy import text
 from app.config import get_settings
 from app.database import Base, SessionLocal, engine, wait_for_db
 from app.logging_config import setup_logging
-from app.routers import admin, address, public
+from app.routers import admin, address, public, admin_imports
 from app.services.rate_limit import consume_rate_limit, normalize_client_ip
 
 # Configure logging before anything else uses it
@@ -76,6 +76,22 @@ async def lifespan(app: FastAPI):
                 if col_name not in columns:
                     cursor.execute(f"ALTER TABLE membership_applications ADD COLUMN {col_name} {col_type}")
                     logger.info(f"Added {col_name} column")
+            # lw_members may pre-date the geocoding columns
+            try:
+                cursor.execute("PRAGMA table_info(lw_members)")
+                lw_columns = {row[1] for row in cursor.fetchall()}
+                for col_name, col_type in [
+                    ("lat", "NUMERIC"),
+                    ("lng", "NUMERIC"),
+                    ("geocoded_at", "DATETIME"),
+                    ("geocode_status", "VARCHAR(20)"),
+                ]:
+                    if lw_columns and col_name not in lw_columns:
+                        cursor.execute(f"ALTER TABLE lw_members ADD COLUMN {col_name} {col_type}")
+                        logger.info(f"Added lw_members.{col_name} column")
+            except sqlite3.OperationalError:
+                pass
+
             cursor.execute("PRAGMA table_info(app_settings)")
             settings_columns = {row[1] for row in cursor.fetchall()}
             if "admin_signature_base64" not in settings_columns:
@@ -148,6 +164,23 @@ async def lifespan(app: FastAPI):
                 conn.execute(text(
                     "ALTER TABLE membership_applications "
                     "ADD COLUMN IF NOT EXISTS uploaded_file_ocr TEXT"
+                ))
+                # lw_members geocoding columns (no-op if table absent or columns already exist)
+                conn.execute(text(
+                    "ALTER TABLE lw_members "
+                    "ADD COLUMN IF NOT EXISTS lat NUMERIC(10, 7)"
+                ))
+                conn.execute(text(
+                    "ALTER TABLE lw_members "
+                    "ADD COLUMN IF NOT EXISTS lng NUMERIC(10, 7)"
+                ))
+                conn.execute(text(
+                    "ALTER TABLE lw_members "
+                    "ADD COLUMN IF NOT EXISTS geocoded_at TIMESTAMP"
+                ))
+                conn.execute(text(
+                    "ALTER TABLE lw_members "
+                    "ADD COLUMN IF NOT EXISTS geocode_status VARCHAR(20)"
                 ))
             logger.info("Widened iban column to VARCHAR(500)")
         except Exception as e:
@@ -311,7 +344,7 @@ async def security_headers_middleware(request: Request, call_next):
         "default-src 'self'; "
         "script-src 'self'; "
         "style-src 'self' 'unsafe-inline'; "
-        "img-src 'self' data: blob:; "
+        "img-src 'self' data: blob: https://*.tile.openstreetmap.org https://tile.openstreetmap.org; "
         "font-src 'self'; "
         "connect-src 'self'; "
         "frame-src 'self' blob:; "
@@ -352,6 +385,7 @@ async def get_csrf_token(response: Response):
 app.include_router(public.router)
 app.include_router(address.router)
 app.include_router(admin.router)
+app.include_router(admin_imports.router)
 
 # Serve static files (built frontend)
 static_dir = Path(__file__).parent.parent / "static"
