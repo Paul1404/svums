@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { toast } from "sonner";
+import L from "leaflet";
 import {
   getImportStats,
   listImportedMembers,
@@ -19,8 +20,11 @@ import {
   type LwGeocodeStatus,
 } from "../services/api";
 import { errorMessage } from "../lib/utils";
-import MemberMap from "../components/MemberMap";
+import MemberMap, { type MapMode, type MemberMapHandle } from "../components/MemberMap";
+import MemberMapPoster from "../components/MemberMapPoster";
 import { useBodyOverlay, useEscapeKey } from "../lib/useBodyOverlay";
+import { useClubConfig } from "../context/ClubConfigContext";
+import { toPng } from "html-to-image";
 import {
   ArrowLeft,
   Upload,
@@ -41,6 +45,10 @@ import {
   Play,
   StopCircle,
   Info,
+  Image as ImageIcon,
+  Flame,
+  Circle,
+  Loader2,
 } from "lucide-react";
 
 function formatDate(value: string | null | undefined): string {
@@ -118,6 +126,71 @@ export default function AdminImportedMembers() {
   const [geoStatus, setGeoStatus] = useState<LwGeocodeStatus | null>(null);
   const [geoLoading, setGeoLoading] = useState(false);
   const [showMap, setShowMap] = useState(true);
+  const [mapMode, setMapMode] = useState<MapMode>("dots");
+  const [exporting, setExporting] = useState(false);
+  const club = useClubConfig();
+  const posterRef = useRef<HTMLDivElement | null>(null);
+  const exportMapRef = useRef<MemberMapHandle | null>(null);
+
+  const handleExportPoster = useCallback(async () => {
+    if (exporting) return;
+    setExporting(true);
+    try {
+      // Wait one frame for the off-screen poster to mount, then wait until
+      // the map's visible tiles have finished loading (with a hard timeout
+      // so a stuck tile request doesn't hang the export).
+      await new Promise((r) => requestAnimationFrame(() => r(null)));
+      await new Promise<void>((resolve) => {
+        const map = exportMapRef.current?.getMap();
+        const timeout = window.setTimeout(resolve, 4000);
+        if (!map) {
+          resolve();
+          return;
+        }
+        const tileLayers: L.TileLayer[] = [];
+        map.eachLayer((layer) => {
+          if (layer instanceof L.TileLayer) tileLayers.push(layer);
+        });
+        const tileLayer = tileLayers[0];
+        if (!tileLayer) {
+          resolve();
+          return;
+        }
+        const done = () => {
+          window.clearTimeout(timeout);
+          // Small extra beat for the heat canvas / marker paints to commit.
+          window.setTimeout(resolve, 300);
+        };
+        tileLayer.once("load", done);
+      });
+
+      const node = posterRef.current;
+      if (!node) return;
+      const dataUrl = await toPng(node, {
+        pixelRatio: 2,
+        cacheBust: true,
+        backgroundColor: "#ffffff",
+      });
+      const link = document.createElement("a");
+      const slug = (club.club_short_name || club.club_name || "verein")
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-|-$/g, "");
+      link.download = `${slug}-mitgliederkarte-${new Date().toISOString().slice(0, 10)}.png`;
+      link.href = dataUrl;
+      link.click();
+    } catch (e) {
+      toast.error(errorMessage(e, "Bildexport fehlgeschlagen"));
+    } finally {
+      setExporting(false);
+    }
+  }, [exporting, club.club_name, club.club_short_name]);
+
+  const locationCount = useMemo(() => {
+    const keys = new Set<string>();
+    for (const p of geoPoints) keys.add(`${p.lat.toFixed(3)},${p.lng.toFixed(3)}`);
+    return keys.size;
+  }, [geoPoints]);
 
   const fetchStats = useCallback(async () => {
     try {
@@ -452,6 +525,54 @@ export default function AdminImportedMembers() {
                     </button>
                   )
                 )}
+                {showMap && geoPoints.length > 0 && (
+                  <>
+                    <div
+                      className="inline-flex items-center rounded-lg border border-gray-200 dark:border-gray-700 p-0.5 bg-gray-50 dark:bg-gray-900"
+                      role="group"
+                      aria-label="Darstellung"
+                    >
+                      <button
+                        type="button"
+                        onClick={() => setMapMode("dots")}
+                        aria-pressed={mapMode === "dots"}
+                        className={`flex items-center gap-1 px-2.5 py-1 text-xs rounded-md transition-colors ${
+                          mapMode === "dots"
+                            ? "bg-white dark:bg-gray-800 text-gray-900 dark:text-white shadow-sm"
+                            : "text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
+                        }`}
+                      >
+                        <Circle className="w-3 h-3" /> Punkte
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setMapMode("heat")}
+                        aria-pressed={mapMode === "heat"}
+                        className={`flex items-center gap-1 px-2.5 py-1 text-xs rounded-md transition-colors ${
+                          mapMode === "heat"
+                            ? "bg-white dark:bg-gray-800 text-gray-900 dark:text-white shadow-sm"
+                            : "text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
+                        }`}
+                      >
+                        <Flame className="w-3 h-3" /> Heatmap
+                      </button>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleExportPoster}
+                      disabled={exporting}
+                      className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-svu-700 bg-svu-50 border border-svu-200 rounded-lg hover:bg-svu-100 dark:bg-svu-900/20 dark:text-svu-300 dark:border-svu-800 disabled:opacity-60 disabled:cursor-wait"
+                      title="Karte als PNG-Poster speichern"
+                    >
+                      {exporting ? (
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      ) : (
+                        <ImageIcon className="w-3.5 h-3.5" />
+                      )}
+                      {exporting ? "Wird erstellt..." : "Als Bild speichern"}
+                    </button>
+                  </>
+                )}
                 <button
                   type="button"
                   onClick={() => setShowMap((v) => !v)}
@@ -526,6 +647,7 @@ export default function AdminImportedMembers() {
                   <MemberMap
                     points={geoPoints}
                     onSelectMember={setSelectedAdrNr}
+                    mode={mapMode}
                     className="h-[500px] relative z-0"
                   />
                 )}
@@ -697,6 +819,38 @@ export default function AdminImportedMembers() {
 
       {geoStatus?.running && (
         <GeocodeMiniStatus status={geoStatus} onStop={handleStopGeocode} />
+      )}
+
+      {exporting && geoPoints.length > 0 && (
+        <div
+          aria-hidden="true"
+          style={{
+            position: "fixed",
+            left: "-20000px",
+            top: 0,
+            pointerEvents: "none",
+          }}
+        >
+          <MemberMapPoster
+            ref={posterRef}
+            width={1600}
+            height={1000}
+            meta={{
+              clubName: club.club_name || "Sportverein",
+              memberCount: geoPoints.length,
+              locationCount,
+              generatedAt: new Date(),
+            }}
+          >
+            <MemberMap
+              ref={exportMapRef}
+              points={geoPoints}
+              onSelectMember={() => undefined}
+              mode={mapMode}
+              className="h-full w-full"
+            />
+          </MemberMapPoster>
+        </div>
       )}
     </div>
   );
