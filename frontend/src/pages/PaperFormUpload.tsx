@@ -299,6 +299,14 @@ function Header() {
     <header className="brand-gradient-bg text-white shadow-lg relative overflow-hidden">
       <div className="absolute inset-0 pointer-events-none bg-[radial-gradient(ellipse_at_top_left,rgba(255,255,255,0.25),transparent_60%)]" />
       <div className="max-w-3xl mx-auto px-4 py-5 flex items-center gap-4 relative">
+        <Link
+          to="/"
+          className="p-2 -ml-2 text-white/80 hover:text-white hover:bg-white/10 rounded-lg transition-colors flex-shrink-0"
+          title="Zurück zum Online-Formular"
+          aria-label="Zurück zum Online-Formular"
+        >
+          <ArrowLeft className="w-5 h-5" />
+        </Link>
         <img
           src="/logo_svu-241x300.png"
           alt={club.club_name}

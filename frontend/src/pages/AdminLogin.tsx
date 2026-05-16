@@ -1,10 +1,10 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { useAdmin } from "../context/AdminContext";
 import { useClubConfig } from "../context/ClubConfigContext";
 import { errorMessage } from "../lib/utils";
-import { Lock, LogIn } from "lucide-react";
+import { ArrowLeft, Lock, LogIn } from "lucide-react";
 
 export default function AdminLogin() {
   const { login, isAuthenticated } = useAdmin();
@@ -75,6 +75,16 @@ export default function AdminLogin() {
             {loading ? "Wird angemeldet..." : "Anmelden"}
           </button>
         </form>
+
+        <div className="text-center mt-6">
+          <Link
+            to="/"
+            className="inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-svu-600 font-medium transition-colors"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            Zurück zur Beitrittserklärung
+          </Link>
+        </div>
       </div>
     </div>
   );
