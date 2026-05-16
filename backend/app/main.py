@@ -346,7 +346,7 @@ async def security_headers_middleware(request: Request, call_next):
         "style-src 'self' 'unsafe-inline'; "
         "img-src 'self' data: blob: https://*.tile.openstreetmap.org https://tile.openstreetmap.org https://*.basemaps.cartocdn.com; "
         "font-src 'self'; "
-        "connect-src 'self'; "
+        "connect-src 'self' https://*.basemaps.cartocdn.com; "
         "frame-src 'self' blob:; "
         "frame-ancestors 'self'; "
         "base-uri 'self'; "
