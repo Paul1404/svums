@@ -164,8 +164,12 @@
     scroll-behavior: smooth;
   }
 
+  /* Visible focus ring for keyboard users. The previous global `outline: none`
+   * stripped focus indicators everywhere, which broke keyboard navigation. */
   :focus-visible {
-    outline: none;
+    outline: 2px solid var(--color-svu-500, #b91c1c);
+    outline-offset: 2px;
+    border-radius: 4px;
   }
 
   /* Custom scrollbar */
@@ -381,8 +385,119 @@
   .dark .bg-orange-100 {
     background-color: rgba(249, 115, 22, 0.18) !important;
   }
+  .dark .bg-orange-50,
   .dark .bg-orange-50\/60 {
     background-color: rgba(249, 115, 22, 0.12) !important;
+  }
+  .dark .text-orange-700 {
+    color: #fdba74 !important;
+  }
+  .dark .text-orange-800 {
+    color: #fed7aa !important;
+  }
+  .dark .border-orange-200 {
+    border-color: rgba(249, 115, 22, 0.35) !important;
+  }
+  .dark .border-orange-300 {
+    border-color: rgba(249, 115, 22, 0.45) !important;
+  }
+  .dark .hover\:bg-orange-100:hover {
+    background-color: rgba(249, 115, 22, 0.24) !important;
+  }
+
+  /* Blue: subtle infos */
+  .dark .bg-blue-50 {
+    background-color: rgba(59, 130, 246, 0.12) !important;
+  }
+  .dark .text-blue-600 {
+    color: #93c5fd !important;
+  }
+  .dark .text-blue-800 {
+    color: #bfdbfe !important;
+  }
+  .dark .border-blue-200 {
+    border-color: rgba(59, 130, 246, 0.35) !important;
+  }
+
+  /* Purple: optional tints */
+  .dark .bg-purple-50 {
+    background-color: rgba(168, 85, 247, 0.12) !important;
+  }
+  .dark .text-purple-700 {
+    color: #d8b4fe !important;
+  }
+  .dark .border-purple-200 {
+    border-color: rgba(168, 85, 247, 0.35) !important;
+  }
+  .dark .border-purple-300 {
+    border-color: rgba(168, 85, 247, 0.45) !important;
+  }
+
+  /* Green: success accents */
+  .dark .bg-green-50\/30 {
+    background-color: rgba(34, 197, 94, 0.08) !important;
+  }
+  .dark .border-green-200 {
+    border-color: rgba(34, 197, 94, 0.35) !important;
+  }
+  .dark .border-green-400 {
+    border-color: rgba(34, 197, 94, 0.55) !important;
+  }
+  .dark .border-green-500 {
+    border-color: rgba(34, 197, 94, 0.65) !important;
+  }
+  .dark .hover\:bg-green-100:hover {
+    background-color: rgba(34, 197, 94, 0.24) !important;
+  }
+
+  /* Amber: warnings */
+  .dark .bg-amber-50\/30 {
+    background-color: rgba(245, 158, 11, 0.08) !important;
+  }
+
+  /* Red: errors / destructive */
+  .dark .border-red-200 {
+    border-color: rgba(239, 68, 68, 0.35) !important;
+  }
+  .dark .border-red-300 {
+    border-color: rgba(239, 68, 68, 0.45) !important;
+  }
+  .dark .border-red-400 {
+    border-color: rgba(239, 68, 68, 0.55) !important;
+  }
+  .dark .hover\:bg-red-100:hover {
+    background-color: rgba(239, 68, 68, 0.24) !important;
+  }
+  .dark .text-red-800,
+  .dark .text-red-900 {
+    color: #fecaca !important;
+  }
+
+  /* Brand (svu): a few more variants used in form CTAs */
+  .dark .border-svu-400 {
+    border-color: rgba(220, 38, 38, 0.55) !important;
+  }
+  .dark .border-svu-500 {
+    border-color: rgba(220, 38, 38, 0.7) !important;
+  }
+  .dark .border-svu-800 {
+    border-color: rgba(220, 38, 38, 0.5) !important;
+  }
+  .dark .text-svu-200,
+  .dark .text-svu-300 {
+    color: #fecaca !important;
+  }
+  .dark .text-svu-400,
+  .dark .text-svu-500 {
+    color: #fca5a5 !important;
+  }
+  .dark .hover\:bg-svu-100:hover {
+    background-color: rgba(220, 38, 38, 0.24) !important;
+  }
+
+  /* Soft translucent grays used as table-row backgrounds */
+  .dark .bg-gray-50\/60 {
+    background-color: rgba(30, 41, 59, 0.6) !important;
   }
 
   /* Inputs look better with a translucent, elevated surface */
@@ -769,6 +884,199 @@
     top: 1rem;
     bottom: auto;
   }
+}
+
+/* Stay out of the way when a modal or full-page drawer is open --
+ * its own close button lives in the same top-right area. */
+body[data-overlay-open] .theme-toggle-floating {
+  display: none;
+}
+
+/* ── Member map: branded markers, clusters, poster export ── */
+.svums-map .leaflet-control-attribution {
+  font-size: 10px;
+  background: color-mix(in srgb, var(--bg-surface) 80%, transparent);
+  color: var(--fg-muted);
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.svums-map .leaflet-popup-content-wrapper,
+.svums-map .leaflet-popup-tip {
+  background: var(--bg-surface);
+  color: var(--fg-primary);
+  box-shadow: 0 12px 30px -12px hsl(var(--shadow-color) / 0.55);
+}
+
+.svums-map .leaflet-popup-content {
+  margin: 12px 14px;
+}
+
+.svums-member-dot {
+  position: relative;
+}
+
+.svums-member-dot__core {
+  position: absolute;
+  inset: 5px;
+  border-radius: 9999px;
+  background: radial-gradient(
+    circle at 35% 30%,
+    #fca5a5 0%,
+    var(--color-svu-500) 55%,
+    var(--color-svu-700) 100%
+  );
+  box-shadow:
+    0 0 0 2px color-mix(in srgb, var(--bg-app) 80%, transparent),
+    0 4px 10px -2px rgba(185, 28, 28, 0.55);
+}
+
+.svums-member-dot__pulse {
+  position: absolute;
+  inset: 0;
+  border-radius: 9999px;
+  background: var(--color-svu-500);
+  opacity: 0;
+  animation: svumsDotPulse 2.6s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+@keyframes svumsDotPulse {
+  0% {
+    transform: scale(0.85);
+    opacity: 0.55;
+  }
+  70% {
+    transform: scale(1.7);
+    opacity: 0;
+  }
+  100% {
+    transform: scale(1.7);
+    opacity: 0;
+  }
+}
+
+.svums-member-cluster {
+  background: transparent;
+  border: none;
+}
+
+.svums-member-cluster__inner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9999px;
+  background: linear-gradient(
+    135deg,
+    var(--color-svu-500) 0%,
+    var(--color-svu-700) 100%
+  );
+  color: #fff;
+  font-weight: 700;
+  font-size: 13px;
+  letter-spacing: 0.01em;
+  box-shadow:
+    0 0 0 3px color-mix(in srgb, var(--bg-app) 75%, transparent),
+    0 10px 24px -6px rgba(185, 28, 28, 0.55);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.18);
+  transition: transform 0.18s ease;
+}
+
+.svums-member-cluster__inner:hover {
+  transform: scale(1.05);
+}
+
+/* Hide Leaflet's stock controls inside the poster -- the frame already
+ * carries the brand bar and stats, and controls would distract. */
+.map-poster .leaflet-control-zoom,
+.map-poster .leaflet-control-attribution {
+  display: none !important;
+}
+
+/* Poster export frame: shown only while a screenshot is being captured. */
+.map-poster {
+  position: relative;
+  background: var(--bg-app);
+  color: var(--fg-primary);
+  border-radius: 18px;
+  overflow: hidden;
+  box-shadow: 0 30px 80px -30px hsl(var(--shadow-color) / 0.4);
+}
+
+.map-poster__bar {
+  position: absolute;
+  left: 0;
+  right: 0;
+  z-index: 10;
+  padding: 18px 28px;
+  background: color-mix(in srgb, var(--bg-surface) 92%, transparent);
+  backdrop-filter: blur(8px) saturate(1.1);
+  -webkit-backdrop-filter: blur(8px) saturate(1.1);
+}
+
+.map-poster__bar--top {
+  top: 0;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.map-poster__bar--bottom {
+  bottom: 0;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.map-poster__accent {
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 4px;
+  z-index: 11;
+  background: linear-gradient(
+    90deg,
+    var(--color-svu-500),
+    var(--color-svu-700) 55%,
+    var(--color-svu-500)
+  );
+}
+
+.map-poster__title {
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  margin: 0;
+}
+
+.map-poster__subtitle {
+  margin: 2px 0 0;
+  font-size: 12px;
+  color: var(--fg-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+}
+
+.map-poster__stats {
+  display: flex;
+  align-items: baseline;
+  gap: 28px;
+  flex-wrap: wrap;
+}
+
+.map-poster__stat-value {
+  font-size: 24px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.map-poster__stat-label {
+  display: block;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--fg-muted);
+  margin-top: 2px;
+}
+
+.map-poster__footer-meta {
+  font-size: 11px;
+  color: var(--fg-muted);
+  text-align: right;
 }
 
 /* ── Command palette (⌘K) ── */

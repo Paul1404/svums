@@ -13,6 +13,7 @@ import {
 } from "../services/api";
 import { captureEvent } from "../lib/analytics";
 import { errorMessage } from "../lib/utils";
+import { useBodyOverlay, useEscapeKey } from "../lib/useBodyOverlay";
 import {
   Search,
   Download,
@@ -66,6 +67,9 @@ export default function AdminDashboard() {
   const [launchingTest, setLaunchingTest] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [showExportDialog, setShowExportDialog] = useState(false);
+
+  useBodyOverlay(showExportDialog);
+  useEscapeKey(showExportDialog, () => setShowExportDialog(false));
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -242,12 +246,15 @@ export default function AdminDashboard() {
               onClick={fetchData}
               className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
               title="Aktualisieren"
+              aria-label="Aktualisieren"
             >
               <RefreshCw className={`w-5 h-5 ${loading ? "animate-spin" : ""}`} />
             </button>
             <button
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
               className="p-2 text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-colors"
+              aria-label={mobileMenuOpen ? "Menü schließen" : "Menü öffnen"}
+              aria-expanded={mobileMenuOpen}
             >
               {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
             </button>
@@ -402,10 +409,10 @@ export default function AdminDashboard() {
             }`}
             title={
               showTestFilter === null
-                ? "Alle anzeigen — klicken für nur Testanträge"
+                ? "Alle anzeigen. Klicken für nur Testanträge"
                 : showTestFilter
-                ? "Nur Testanträge — klicken für ohne Testanträge"
-                : "Ohne Testanträge — klicken für alle"
+                ? "Nur Testanträge. Klicken für ohne Testanträge"
+                : "Ohne Testanträge. Klicken für alle"
             }
           >
             <FlaskConical className="w-3.5 h-3.5" />
@@ -771,13 +778,19 @@ export default function AdminDashboard() {
       </div>
 
       {showExportDialog && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+        <div
+          className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-label="CSV-Export"
+        >
           <div className="bg-white rounded-xl shadow-xl max-w-md w-full">
             <div className="p-5 border-b flex items-center justify-between">
               <h3 className="font-semibold text-gray-900">CSV-Export</h3>
               <button
                 onClick={() => setShowExportDialog(false)}
                 className="p-1 text-gray-400 hover:text-gray-600 rounded"
+                aria-label="Schließen"
               >
                 <X className="w-5 h-5" />
               </button>

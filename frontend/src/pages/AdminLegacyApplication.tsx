@@ -138,7 +138,7 @@ export default function AdminLegacyApplication() {
         if (cancelled) return;
         if (app.status !== "scan_eingegangen" || app.source !== "legacy") {
           setPlaceholderError(
-            "Dieser Antrag ist kein Papier-Platzhalter — bitte regulär bearbeiten."
+            "Dieser Antrag ist kein Papier-Platzhalter. Bitte regulär bearbeiten."
           );
           setPlaceholder(null);
           return;
@@ -358,7 +358,7 @@ export default function AdminLegacyApplication() {
                       Sie erfassen einen vom Antragsteller hochgeladenen Papier-Scan
                       ({placeholder.antragsnummer}).
                     </strong>{" "}
-                    Der Scan unten ist bereits hinterlegt — Sie können ihn
+                    Der Scan unten ist bereits hinterlegt. Sie können ihn
                     weiterverwenden oder optional durch eine bessere Version
                     ersetzen.
                   </p>
@@ -372,7 +372,7 @@ export default function AdminLegacyApplication() {
                 <>
                   <p>
                     <strong>Für papierhafte Beitrittserklärungen.</strong> Es werden
-                    keine automatischen Bestätigungs-E-Mails versandt — die
+                    keine automatischen Bestätigungs-E-Mails versandt. Die
                     unterschriebene Papier-Erklärung gilt als rechtsgültiger Beleg
                     und wird hochgeladen.
                   </p>
@@ -441,7 +441,7 @@ export default function AdminLegacyApplication() {
                     Scan ersetzen (optional)
                   </p>
                   <p className="text-xs text-gray-500">
-                    Nur falls der bereits hochgeladene Scan nicht ausreicht — PDF,
+                    Nur falls der bereits hochgeladene Scan nicht ausreicht. PDF,
                     JPG, PNG, HEIC · max. 20 MB
                   </p>
                 </>
@@ -553,7 +553,7 @@ export default function AdminLegacyApplication() {
                   <div className="rounded-lg border border-gray-200 bg-white">
                     <div className="px-3 py-2 border-b text-[11px] text-gray-500 flex items-center gap-2">
                       <RefreshCw className="w-3 h-3" />
-                      Maschinell ausgelesen — bitte mit dem Scan abgleichen, bevor
+                      Maschinell ausgelesen. Bitte mit dem Scan abgleichen, bevor
                       Sie etwas übernehmen.
                     </div>
                     {ocrText.trim() ? (
@@ -703,7 +703,7 @@ export default function AdminLegacyApplication() {
                   value={email}
                   onChange={setEmail}
                   error={errors.email}
-                  placeholder="Optional — leer lassen wenn nicht angegeben"
+                  placeholder="Optional. Leer lassen wenn nicht angegeben"
                 />
               </div>
             </div>
@@ -1067,7 +1067,7 @@ function ExistingScanPreview({
           rel="noopener noreferrer"
           className="block p-4 text-sm text-svu-700 underline"
         >
-          Vorschau für dieses Format nicht möglich — im neuen Tab öffnen
+          Vorschau für dieses Format nicht möglich. Im neuen Tab öffnen.
         </a>
       )}
     </div>

@@ -243,18 +243,15 @@ export interface CancellationLetterResponse {
 
 /**
  * Formats a fee amount in German locale.
- * Whole euro amounts → "54,– €"
- * Amounts with cents  → "54,50 €"
+ * Whole euro amounts → "54,00 €"
+ * Amounts with cents → "54,50 €"
  *
  * Accepts both `number` and `string` because Pydantic v2 serialises
  * Python `Decimal` fields as JSON strings (e.g. "54.00").
  */
 export function formatFee(amount: number | string): string {
   const n = typeof amount === "string" ? parseFloat(amount) : amount;
-  if (isNaN(n)) return "–";
-  if (n % 1 === 0) {
-    return `${Math.round(n).toString()},– €`;
-  }
+  if (isNaN(n)) return "";
   return `${n.toFixed(2).replace(".", ",")} €`;
 }
 
