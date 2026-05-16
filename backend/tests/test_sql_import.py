@@ -367,6 +367,19 @@ def test_geocode_classify_handles_alphanumeric_housenumber():
     assert _classify(feature, "12a") == "house"
 
 
+def test_geocode_address_key_groups_household():
+    from app.services.geocode import _address_key
+    from app.models.imported import LwMember
+
+    # Family at the same address: same key.
+    a = LwMember(adr_nr=1, strasse="Hauptstraße", hausnummer="12", plz="12345", ort="Musterstadt")
+    b = LwMember(adr_nr=2, strasse="hauptstraße ", hausnummer="12", plz="12345", ort="MUSTERSTADT")
+    # Different Hausnummer: different key.
+    c = LwMember(adr_nr=3, strasse="Hauptstraße", hausnummer="14", plz="12345", ort="Musterstadt")
+    assert _address_key(a) == _address_key(b)
+    assert _address_key(a) != _address_key(c)
+
+
 def test_geocode_classify_demotes_house_with_wrong_number():
     from app.services.geocode import _classify
 
