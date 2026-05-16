@@ -14,6 +14,7 @@ import {
   Moon,
   Monitor,
   CornerDownLeft,
+  Database,
 } from "lucide-react";
 import { useAdmin } from "../context/AdminContext";
 import { useTheme } from "../context/ThemeContext";
@@ -73,6 +74,14 @@ export default function CommandPalette() {
         icon: <FileText className="w-4 h-4" />,
         keywords: "files pdf",
         run: go("/admin/documents"),
+      },
+      {
+        id: "nav-imported",
+        label: "Bestand",
+        hint: "Linear Webverein Import",
+        icon: <Database className="w-4 h-4" />,
+        keywords: "linear webverein import sql bestand mitglieder",
+        run: go("/admin/imported"),
       },
       {
         id: "nav-email-log",

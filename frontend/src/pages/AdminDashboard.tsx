@@ -38,6 +38,7 @@ import {
   X,
   Building2,
   ScrollText,
+  Database,
 } from "lucide-react";
 
 const STATUS_LABELS: Record<string, { label: string; color: string }> = {
@@ -186,6 +187,13 @@ export default function AdminDashboard() {
               <FileText className="w-4 h-4" /> Dokumente
             </Link>
             <Link
+              to="/admin/imported"
+              className="flex shrink-0 items-center gap-1.5 px-3 py-2 text-sm whitespace-nowrap text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-colors"
+              title="Bestandsdaten aus Linear Webverein"
+            >
+              <Database className="w-4 h-4" /> Bestand
+            </Link>
+            <Link
               to="/admin/email-log"
               className="flex shrink-0 items-center gap-1.5 px-3 py-2 text-sm whitespace-nowrap text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-colors"
               title="E-Mail-Log anzeigen"
@@ -262,6 +270,13 @@ export default function AdminDashboard() {
               onClick={() => setMobileMenuOpen(false)}
             >
               <FileText className="w-4 h-4" /> Dokumente
+            </Link>
+            <Link
+              to="/admin/imported"
+              className="flex items-center gap-2 px-3 py-2.5 text-sm text-gray-700 hover:bg-gray-100 rounded-lg"
+              onClick={() => setMobileMenuOpen(false)}
+            >
+              <Database className="w-4 h-4" /> Bestand
             </Link>
             <Link
               to="/admin/email-log"

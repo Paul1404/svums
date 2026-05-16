@@ -777,3 +777,214 @@ export async function updateClubConfig(
     body: JSON.stringify(data),
   });
 }
+
+// ---- Linear Webverein import API ----
+
+export interface LwImportBatch {
+  id: number;
+  filename: string | null;
+  imported_at: string;
+  file_size_bytes: number | null;
+  members_count: number;
+  contracts_count: number;
+  fee_types_count: number;
+  sepa_count: number;
+  skipped_tables: string | null;
+  notes: string | null;
+}
+
+export interface LwImportResult {
+  batch: LwImportBatch;
+  inserted_members: number;
+  inserted_contracts: number;
+  inserted_fee_types: number;
+  inserted_sepa: number;
+  parsed_tables: string[];
+  skipped_tables: string[];
+}
+
+export interface LwImportStats {
+  total_members: number;
+  active_members: number;
+  deleted_members: number;
+  total_contracts: number;
+  total_sepa: number;
+  total_fee_types: number;
+  last_import: LwImportBatch | null;
+}
+
+export interface LwMemberSummary {
+  adr_nr: number;
+  mitgliedsnummer: string | null;
+  anrede: string | null;
+  vorname: string | null;
+  nachname: string | null;
+  geburtsdatum: string | null;
+  plz: string | null;
+  ort: string | null;
+  eintritt: string | null;
+  austritt: string | null;
+  verstorben_am: string | null;
+  aktiv: string | null;
+  geloscht: boolean | null;
+  email: string | null;
+}
+
+export interface LwMemberListResponse {
+  total: number;
+  page: number;
+  page_size: number;
+  items: LwMemberSummary[];
+}
+
+export interface LwContract {
+  id: number;
+  adr_nr: number;
+  vertrag_nr: string | null;
+  art: number | null;
+  art_name: string | null;
+  mitglied_nr: string | null;
+  sollstellung: string | null;
+  vertrag_begin: string | null;
+  vertrag_ende: string | null;
+  betrag: number | null;
+  gekuend_am: string | null;
+  gekuend_zum: string | null;
+}
+
+export interface LwSepaMandate {
+  id: number;
+  adr_nr: number;
+  mandats_nr: string | null;
+  lastschriftart: string | null;
+  status: string | null;
+  angelegt_am: string | null;
+  gueltig_ab: string | null;
+  gueltig_bis: string | null;
+  unterschrift_datum: string | null;
+  erste_verwendung: string | null;
+  letzte_verwendung: string | null;
+  widerrufen_am: string | null;
+  is_deleted: boolean | null;
+}
+
+export interface LwMemberDetail {
+  adr_nr: number;
+  mitgliedsnummer: string | null;
+  anrede: string | null;
+  titel: string | null;
+  vorname: string | null;
+  nachname: string | null;
+  geborene: string | null;
+  geburtsdatum: string | null;
+  geburtsort: string | null;
+  strasse: string | null;
+  hausnummer: string | null;
+  plz: string | null;
+  ort: string | null;
+  land: string | null;
+  co: string | null;
+  telefon: string | null;
+  telefon_mobil: string | null;
+  email: string | null;
+  eintritt: string | null;
+  austritt: string | null;
+  verstorben_am: string | null;
+  aktiv: string | null;
+  aktiv_pasiv: string | null;
+  bereich: string | null;
+  abteilung: string | null;
+  bank: string | null;
+  iban: string | null;
+  bic: string | null;
+  abw_kontoinhaber: string | null;
+  mandatsreferenz: string | null;
+  geloscht: boolean | null;
+  bemerkung: string | null;
+  imported_at: string;
+  contracts: LwContract[];
+  sepa_mandates: LwSepaMandate[];
+}
+
+export async function uploadImportSql(file: File): Promise<LwImportResult> {
+  const form = new FormData();
+  form.append("file", file);
+  return apiRequest("/api/admin/imports/sql", { method: "POST", body: form });
+}
+
+export async function getImportStats(): Promise<LwImportStats> {
+  return apiRequest("/api/admin/imports/stats");
+}
+
+export async function listImportedMembers(params: {
+  page?: number;
+  pageSize?: number;
+  search?: string;
+  includeDeleted?: boolean;
+  includeResigned?: boolean;
+}): Promise<LwMemberListResponse> {
+  const qs = new URLSearchParams();
+  qs.set("page", String(params.page ?? 1));
+  qs.set("page_size", String(params.pageSize ?? 50));
+  if (params.search) qs.set("search", params.search);
+  if (params.includeDeleted !== undefined) qs.set("include_deleted", String(params.includeDeleted));
+  if (params.includeResigned !== undefined) qs.set("include_resigned", String(params.includeResigned));
+  return apiRequest(`/api/admin/imports/members?${qs}`);
+}
+
+export async function getImportedMember(adrNr: number): Promise<LwMemberDetail> {
+  return apiRequest(`/api/admin/imports/members/${adrNr}`);
+}
+
+export async function purgeImportedData(): Promise<void> {
+  await apiRequest("/api/admin/imports/data", { method: "DELETE" });
+}
+
+export interface LwMemberGeo {
+  adr_nr: number;
+  mitgliedsnummer: string | null;
+  vorname: string | null;
+  nachname: string | null;
+  plz: string | null;
+  ort: string | null;
+  lat: number;
+  lng: number;
+}
+
+export interface LwGeocodeStatus {
+  running: boolean;
+  total: number;
+  processed: number;
+  found: number;
+  failed: number;
+  skipped: number;
+  started_at: string | null;
+  completed_at: string | null;
+  last_address: string | null;
+  last_error: string | null;
+  pending: number;
+  geocoded: number;
+  total_with_address: number;
+}
+
+export async function getMembersGeo(opts: {
+  includeResigned?: boolean;
+  includeDeleted?: boolean;
+} = {}): Promise<LwMemberGeo[]> {
+  const qs = new URLSearchParams();
+  if (opts.includeResigned !== undefined) qs.set("include_resigned", String(opts.includeResigned));
+  if (opts.includeDeleted !== undefined) qs.set("include_deleted", String(opts.includeDeleted));
+  return apiRequest(`/api/admin/imports/members/geo?${qs}`);
+}
+
+export async function getGeocodeStatus(): Promise<LwGeocodeStatus> {
+  return apiRequest("/api/admin/imports/geocode/status");
+}
+
+export async function startGeocode(): Promise<LwGeocodeStatus> {
+  return apiRequest("/api/admin/imports/geocode/start", { method: "POST" });
+}
+
+export async function stopGeocode(): Promise<LwGeocodeStatus> {
+  return apiRequest("/api/admin/imports/geocode/stop", { method: "POST" });
+}
