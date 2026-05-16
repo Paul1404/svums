@@ -6,7 +6,7 @@ import {
   MapContainer,
   TileLayer,
   Marker,
-  Popup,
+  Tooltip,
   useMap,
 } from "react-leaflet";
 import MarkerClusterGroup from "react-leaflet-cluster";
@@ -14,6 +14,52 @@ import type { LwMemberGeo } from "../services/api";
 import { useTheme } from "../context/ThemeContext";
 
 const GERMANY_CENTER: [number, number] = [51.1657, 10.4515];
+
+// Once the map is zoomed in this far, every member is shown as an
+// individual dot instead of being rolled up into a count bubble — at
+// building level the clusters hide more than they reveal.
+const DISABLE_CLUSTER_ZOOM = 16;
+
+// Approx. metres of jitter applied to markers that share the exact same
+// geocoded coordinates (very common for households at the same street and
+// house number). 1 degree latitude ≈ 111_111 m, so 4.5 m ≈ 4e-5°.
+const COINCIDENT_RADIUS_DEG = 0.00004;
+
+// Spread members that geocoded to the same point around a small ring so
+// each one is hoverable / clickable. The first one stays on the actual
+// coordinate so single-occupant addresses sit exactly on the house.
+function spreadCoincidentPoints(points: LwMemberGeo[]): LwMemberGeo[] {
+  const groups = new Map<string, LwMemberGeo[]>();
+  for (const p of points) {
+    const key = `${p.lat.toFixed(6)}|${p.lng.toFixed(6)}`;
+    const arr = groups.get(key);
+    if (arr) arr.push(p);
+    else groups.set(key, [p]);
+  }
+  const out: LwMemberGeo[] = [];
+  for (const group of groups.values()) {
+    if (group.length === 1) {
+      out.push(group[0]);
+      continue;
+    }
+    const sorted = [...group].sort((a, b) => a.adr_nr - b.adr_nr);
+    const lonScale = 1 / Math.max(0.2, Math.cos((sorted[0].lat * Math.PI) / 180));
+    sorted.forEach((p, i) => {
+      // Concentric rings: first 8 on radius r, next 8 on 2r, etc.
+      const ringIndex = Math.floor(i / 8);
+      const ringSize = Math.min(8, sorted.length - ringIndex * 8);
+      const ringPos = i - ringIndex * 8;
+      const angle = (ringPos / ringSize) * Math.PI * 2 + ringIndex * 0.4;
+      const r = COINCIDENT_RADIUS_DEG * (ringIndex + 1);
+      out.push({
+        ...p,
+        lat: p.lat + Math.cos(angle) * r,
+        lng: p.lng + Math.sin(angle) * r * lonScale,
+      });
+    });
+  }
+  return out;
+}
 
 export type MapMode = "dots" | "heat";
 
@@ -130,18 +176,20 @@ const MemberMap = forwardRef<MemberMapHandle, Props>(function MemberMap(
 
   useImperativeHandle(ref, () => ({ getMap: () => mapRef.current }), []);
 
+  const displayPoints = useMemo(() => spreadCoincidentPoints(points), [points]);
+
   const center = useMemo<[number, number]>(() => {
-    if (points.length === 0) return GERMANY_CENTER;
-    const lat = points.reduce((acc, p) => acc + p.lat, 0) / points.length;
-    const lng = points.reduce((acc, p) => acc + p.lng, 0) / points.length;
+    if (displayPoints.length === 0) return GERMANY_CENTER;
+    const lat = displayPoints.reduce((acc, p) => acc + p.lat, 0) / displayPoints.length;
+    const lng = displayPoints.reduce((acc, p) => acc + p.lng, 0) / displayPoints.length;
     return [lat, lng];
-  }, [points]);
+  }, [displayPoints]);
 
   return (
     <div className={className}>
       <MapContainer
         center={center}
-        zoom={points.length === 0 ? 6 : 12}
+        zoom={displayPoints.length === 0 ? 6 : 12}
         scrollWheelZoom
         ref={(instance) => {
           if (instance) mapRef.current = instance;
@@ -155,54 +203,55 @@ const MemberMap = forwardRef<MemberMapHandle, Props>(function MemberMap(
           maxZoom={19}
           crossOrigin="anonymous"
         />
-        <FitBounds points={points} />
+        <FitBounds points={displayPoints} />
         {mode === "heat" ? (
-          <HeatLayer points={points} active />
+          <HeatLayer points={displayPoints} active />
         ) : (
           <MarkerClusterGroup
             chunkedLoading
-            maxClusterRadius={55}
+            maxClusterRadius={40}
+            disableClusteringAtZoom={DISABLE_CLUSTER_ZOOM}
+            spiderfyOnMaxZoom={false}
             showCoverageOnHover={false}
+            spiderLegPolylineOptions={{ weight: 0, opacity: 0 }}
+            spiderfyDistanceMultiplier={1.4}
             iconCreateFunction={clusterIcon}
           >
-            {points.map((p) => (
-              <Marker
-                key={p.adr_nr}
-                position={[p.lat, p.lng]}
-                icon={dotIcon}
-                eventHandlers={{
-                  click: () => onSelectMember(p.adr_nr),
-                }}
-              >
-                <Popup>
-                  <div className="text-sm space-y-1">
-                    <div className="font-semibold">
-                      {[p.vorname, p.nachname].filter(Boolean).join(" ") || `AdrNr ${p.adr_nr}`}
+            {displayPoints.map((p) => {
+              const name =
+                [p.vorname, p.nachname].filter(Boolean).join(" ") || `AdrNr ${p.adr_nr}`;
+              const place = [p.plz, p.ort].filter(Boolean).join(" ");
+              return (
+                <Marker
+                  key={p.adr_nr}
+                  position={[p.lat, p.lng]}
+                  icon={dotIcon}
+                  eventHandlers={{
+                    click: () => onSelectMember(p.adr_nr),
+                  }}
+                >
+                  <Tooltip
+                    direction="top"
+                    offset={[0, -10]}
+                    opacity={1}
+                    className="svums-member-tooltip"
+                  >
+                    <div className="svums-member-tooltip__card">
+                      <div className="svums-member-tooltip__name">{name}</div>
+                      {p.mitgliedsnummer && (
+                        <div className="svums-member-tooltip__meta">
+                          Nr. {p.mitgliedsnummer}
+                        </div>
+                      )}
+                      {place && (
+                        <div className="svums-member-tooltip__meta">{place}</div>
+                      )}
+                      <div className="svums-member-tooltip__hint">Klicken für Details</div>
                     </div>
-                    {p.mitgliedsnummer && (
-                      <div className="text-xs text-gray-500 font-mono">
-                        Nr. {p.mitgliedsnummer}
-                      </div>
-                    )}
-                    {(p.plz || p.ort) && (
-                      <div className="text-xs text-gray-600">
-                        {[p.plz, p.ort].filter(Boolean).join(" ")}
-                      </div>
-                    )}
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.preventDefault();
-                        onSelectMember(p.adr_nr);
-                      }}
-                      className="mt-1 text-xs text-svu-700 hover:underline"
-                    >
-                      Details öffnen
-                    </button>
-                  </div>
-                </Popup>
-              </Marker>
-            ))}
+                  </Tooltip>
+                </Marker>
+              );
+            })}
           </MarkerClusterGroup>
         )}
       </MapContainer>
