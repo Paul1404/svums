@@ -48,9 +48,12 @@ logger = logging.getLogger(__name__)
 
 PHOTON_URL = "https://photon.komoot.io/api/"
 USER_AGENT = "SVUMS/1.0 (https://github.com/Paul1404/svums)"
-# Photon doesn't publish a hard rate limit; 10 req/s is well within
-# what the Komoot team considers polite for a small workload.
-REQUEST_DELAY_SECONDS = 0.1
+# How many Photon requests we keep in flight at once. Photon's public
+# instance has no hard rate limit but the Komoot team asks callers to
+# be polite; 3 in-flight requests is well within "casual use".
+CONCURRENCY = 3
+# Retry budget when Photon answers 429 (rate limited) or 503 (busy).
+PHOTON_MAX_RETRIES = 3
 # Rough Germany bounding box (minLon, minLat, maxLon, maxLat). Photon
 # accepts this to bias / restrict results, replacing Nominatim's
 # countrycodes=de filter (which Photon doesn't support).
@@ -149,37 +152,67 @@ async def _photon_get(
     client: httpx.AsyncClient,
     params: dict[str, str],
 ) -> dict | None:
-    """One Photon search request; returns the first feature or None."""
+    """One Photon search request; returns the first feature or None.
+
+    Retries with exponential backoff on transient rate-limit / busy
+    responses so we don't drop members on a momentary blip.
+    """
     full_params = {
         "lang": "de",
         "limit": "1",
         "bbox": GERMANY_BBOX,
         **params,
     }
-    try:
-        resp = await client.get(
-            PHOTON_URL,
-            params=full_params,
-            headers={"User-Agent": USER_AGENT},
-            timeout=15.0,
-        )
-    except httpx.HTTPError as exc:
-        logger.warning("Photon request failed for %s: %s", full_params, exc)
-        return None
-    if resp.status_code != 200:
-        logger.warning("Photon returned %s for %s", resp.status_code, full_params)
-        return None
-    try:
-        body = resp.json()
-    except ValueError:
-        return None
-    features = body.get("features") if isinstance(body, dict) else None
-    if not features:
-        return None
-    first = features[0]
-    if not isinstance(first, dict):
-        return None
-    return first
+    for attempt in range(PHOTON_MAX_RETRIES):
+        try:
+            resp = await client.get(
+                PHOTON_URL,
+                params=full_params,
+                headers={"User-Agent": USER_AGENT},
+                timeout=15.0,
+            )
+        except httpx.HTTPError as exc:
+            logger.warning("Photon request failed for %s: %s", full_params, exc)
+            return None
+        if resp.status_code in (429, 503):
+            wait = 1.0 * (2**attempt)
+            logger.info(
+                "Photon returned %s, backing off %.1fs (attempt %d/%d)",
+                resp.status_code, wait, attempt + 1, PHOTON_MAX_RETRIES,
+            )
+            await asyncio.sleep(wait)
+            continue
+        if resp.status_code != 200:
+            logger.warning("Photon returned %s for %s", resp.status_code, full_params)
+            return None
+        try:
+            body = resp.json()
+        except ValueError:
+            return None
+        features = body.get("features") if isinstance(body, dict) else None
+        if not features:
+            return None
+        first = features[0]
+        if not isinstance(first, dict):
+            return None
+        return first
+    logger.warning("Photon kept returning rate-limit errors, giving up on %s", full_params)
+    return None
+
+
+def _address_key(member: LwMember) -> tuple[str, str, str, str]:
+    """Normalised tuple used to group members at the same address.
+
+    Whole families typically share Straße/Hausnummer/PLZ/Ort, so we
+    geocode the address once and apply the result to all of them
+    instead of firing N identical Photon requests.
+    """
+    return (
+        (member.strasse or "").strip().lower(),
+        (member.hausnummer or "").strip().lower(),
+        (member.plz or "").strip(),
+        (member.ort or "").strip().lower(),
+    )
 
 
 async def _get_plz_centroid(
@@ -196,7 +229,6 @@ async def _get_plz_centroid(
     feature = await _photon_get(client, {"q": f"{plz} Deutschland"})
     coords = _coords_from_feature(feature)
     cache[plz] = coords
-    await asyncio.sleep(REQUEST_DELAY_SECONDS)
     return coords
 
 
@@ -219,7 +251,6 @@ async def _geocode_member(
         parts.append("Deutschland")
         q = ", ".join(p for p in parts if p)
         feature = await _photon_get(client, {"q": q})
-        await asyncio.sleep(REQUEST_DELAY_SECONDS)
 
     if feature is not None:
         coords = _coords_from_feature(feature)
@@ -273,6 +304,37 @@ def _reset_for_scope(db: Session, scope: GeocodeScope) -> int:
     return count
 
 
+def _apply_hit(
+    members: list[LwMember],
+    hit: tuple[float, float, Precision] | None,
+    ts: datetime,
+) -> None:
+    """Write a geocode result onto every member sharing the same address."""
+    if hit is None:
+        for member in members:
+            member.geocode_status = "failed"
+            member.geocode_precision = "none"
+            member.geocoded_at = ts
+            _state.failed += 1
+            _state.processed += 1
+        return
+    lat, lng, precision = hit
+    for member in members:
+        member.lat = lat
+        member.lng = lng
+        member.geocode_status = "found"
+        member.geocode_precision = precision
+        member.geocoded_at = ts
+        _state.found += 1
+        _state.processed += 1
+        if precision == "house":
+            _state.house_hits += 1
+        elif precision == "street":
+            _state.street_hits += 1
+        elif precision == "city":
+            _state.city_hits += 1
+
+
 async def _run_geocoder():
     """Worker: iterate over unresolved members and fill in coordinates."""
     global _state
@@ -301,46 +363,85 @@ async def _run_geocoder():
             _state.city_hits = 0
             _state.last_error = None
 
+            # Bucket members by normalised address. Whole families
+            # collapse into a single Photon request.
+            groups: dict[tuple[str, str, str, str], list[LwMember]] = {}
+            empty: list[LwMember] = []
             for member in unresolved:
                 street = (member.strasse or "").strip()
                 plz = (member.plz or "").strip()
                 ort = (member.ort or "").strip()
                 if not (street or plz or ort):
-                    member.geocode_status = "no_address"
-                    member.geocode_precision = "none"
-                    member.geocoded_at = datetime.utcnow()
-                    _state.processed += 1
-                    _state.skipped += 1
+                    empty.append(member)
                     continue
+                groups.setdefault(_address_key(member), []).append(member)
 
-                _state.last_address = _describe_member(member)
-                hit = await _geocode_member(client, member, plz_cache)
-
-                if hit is None:
-                    member.geocode_status = "failed"
-                    member.geocode_precision = "none"
-                    member.geocoded_at = datetime.utcnow()
-                    _state.failed += 1
-                else:
-                    lat, lng, precision = hit
-                    member.lat = lat
-                    member.lng = lng
-                    member.geocode_status = "found"
-                    member.geocode_precision = precision
-                    member.geocoded_at = datetime.utcnow()
-                    _state.found += 1
-                    if precision == "house":
-                        _state.house_hits += 1
-                    elif precision == "street":
-                        _state.street_hits += 1
-                    elif precision == "city":
-                        _state.city_hits += 1
-
+            now = datetime.utcnow()
+            for member in empty:
+                member.geocode_status = "no_address"
+                member.geocode_precision = "none"
+                member.geocoded_at = now
                 _state.processed += 1
-                # Commit every 5 rows so the map can show new pins live while
-                # the worker is still going.
-                if _state.processed % 5 == 0:
-                    db.commit()
+                _state.skipped += 1
+
+            logger.info(
+                "Geocoder: %d members, %d unique addresses, %d skipped",
+                len(unresolved), len(groups), len(empty),
+            )
+
+            sem = asyncio.Semaphore(CONCURRENCY)
+
+            async def with_sem(coro):
+                async with sem:
+                    return await coro
+
+            # Pre-warm PLZ centroids so the main loop never races two
+            # workers on the same PLZ. Most clubs have far fewer
+            # distinct PLZs than addresses, so this is cheap.
+            distinct_plzs = {
+                m.plz.strip()
+                for ms in groups.values()
+                for m in ms
+                if m.plz and m.plz.strip()
+            }
+            if distinct_plzs:
+                await asyncio.gather(
+                    *(
+                        with_sem(_get_plz_centroid(client, p, plz_cache))
+                        for p in distinct_plzs
+                    )
+                )
+
+            async def process_group(
+                members: list[LwMember],
+            ) -> tuple[list[LwMember], tuple[float, float, Precision] | None]:
+                async with sem:
+                    _state.last_address = _describe_member(members[0])
+                    hit = await _geocode_member(client, members[0], plz_cache)
+                return members, hit
+
+            tasks = [
+                asyncio.create_task(process_group(members))
+                for members in groups.values()
+            ]
+            try:
+                groups_done = 0
+                for fut in asyncio.as_completed(tasks):
+                    members, hit = await fut
+                    _apply_hit(members, hit, datetime.utcnow())
+                    groups_done += 1
+                    # Commit roughly every 10 groups so the map can
+                    # show new pins live while the worker keeps going.
+                    if groups_done % 10 == 0:
+                        db.commit()
+            finally:
+                # On cancel / error make sure no Photon request keeps
+                # running after the worker has bailed.
+                for t in tasks:
+                    if not t.done():
+                        t.cancel()
+                if tasks:
+                    await asyncio.gather(*tasks, return_exceptions=True)
 
             db.commit()
     except asyncio.CancelledError:
