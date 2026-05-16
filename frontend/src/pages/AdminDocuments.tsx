@@ -32,7 +32,7 @@ const DOC_FILTER_OPTIONS = [
 ];
 
 function formatDate(ts: string | null) {
-  if (!ts) return "–";
+  if (!ts) return "";
   return new Date(ts).toLocaleString("de-DE", {
     day: "2-digit",
     month: "2-digit",
@@ -328,7 +328,7 @@ export default function AdminDocuments() {
                           </button>
                         </div>
                       ) : (
-                        <span className="text-gray-400 text-xs">–</span>
+                        <span className="text-gray-400 text-xs" aria-label="kein Dokument" />
                       )}
                     </td>
                     <td className="px-4 py-3 text-gray-500 hidden md:table-cell whitespace-nowrap">

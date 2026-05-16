@@ -130,7 +130,7 @@ export default function PaperFormUpload() {
               </h2>
               <p className="text-gray-600 mb-2">
                 Vielen Dank! Der Verein hat Ihren Papier-Antrag erhalten und meldet
-                sich bei Ihnen — bitte sorgen Sie dafür, dass auf dem Scan Ihre
+                sich bei Ihnen. Bitte sorgen Sie dafür, dass auf dem Scan Ihre
                 Kontaktdaten gut leserlich sind.
               </p>
               {success.emailSent && (
@@ -157,7 +157,7 @@ export default function PaperFormUpload() {
                 Scan der Papier-Beitrittserklärung hochladen
               </h2>
               <p className="text-sm text-gray-500 mb-6">
-                PDF, JPG, PNG oder HEIC — max. 20 MB. Achten Sie auf gute Lesbarkeit
+                PDF, JPG, PNG oder HEIC, max. 20 MB. Achten Sie auf gute Lesbarkeit
                 (insbesondere Name, Adresse, IBAN und Unterschrift).
               </p>
 
