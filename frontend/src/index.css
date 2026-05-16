@@ -985,6 +985,53 @@ body[data-overlay-open] .theme-toggle-floating {
   transform: scale(1.05);
 }
 
+/* Hover preview card. Leaflet renders Tooltip as a positioned <div> with
+ * its own arrow; we strip the default chrome and provide a branded card. */
+.svums-member-tooltip.leaflet-tooltip {
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  padding: 0;
+  white-space: normal;
+  pointer-events: none;
+}
+
+.svums-member-tooltip.leaflet-tooltip::before {
+  display: none;
+}
+
+.svums-member-tooltip__card {
+  min-width: 160px;
+  max-width: 220px;
+  background: var(--bg-surface);
+  color: var(--fg-primary);
+  border: 1px solid var(--border-subtle);
+  border-radius: 10px;
+  padding: 10px 12px;
+  box-shadow: 0 12px 28px -14px hsl(var(--shadow-color) / 0.5);
+}
+
+.svums-member-tooltip__name {
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+.svums-member-tooltip__meta {
+  margin-top: 3px;
+  font-size: 11px;
+  color: var(--fg-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.svums-member-tooltip__hint {
+  margin-top: 6px;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--color-svu-500);
+}
+
 /* Hide Leaflet's stock controls inside the poster -- the frame already
  * carries the brand bar and stats, and controls would distract. */
 .map-poster .leaflet-control-zoom,
