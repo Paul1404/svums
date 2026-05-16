@@ -1,0 +1,701 @@
+import { useCallback, useEffect, useRef, useState } from "react";
+import { Link } from "react-router-dom";
+import { toast } from "sonner";
+import {
+  getImportStats,
+  listImportedMembers,
+  getImportedMember,
+  uploadImportSql,
+  purgeImportedData,
+  type LwImportStats,
+  type LwMemberListResponse,
+  type LwMemberDetail,
+  type LwMemberSummary,
+} from "../services/api";
+import { errorMessage } from "../lib/utils";
+import {
+  ArrowLeft,
+  Upload,
+  RefreshCw,
+  Search,
+  Database,
+  Trash2,
+  X,
+  ChevronLeft,
+  ChevronRight,
+  CalendarDays,
+  Mail,
+  Phone,
+  MapPin,
+  CreditCard,
+  FileSpreadsheet,
+} from "lucide-react";
+
+function formatDate(value: string | null | undefined): string {
+  if (!value) return "–";
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return value;
+  return d.toLocaleDateString("de-DE", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  });
+}
+
+function formatDateTime(value: string | null | undefined): string {
+  if (!value) return "–";
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return value;
+  return d.toLocaleString("de-DE", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+function formatBytes(bytes: number | null | undefined): string {
+  if (!bytes) return "–";
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function statusLabel(member: LwMemberSummary): { label: string; color: string } {
+  if (member.geloscht) return { label: "Gelöscht", color: "bg-gray-200 text-gray-700" };
+  if (member.verstorben_am) return { label: "Verstorben", color: "bg-gray-200 text-gray-700" };
+  if (member.austritt) {
+    const austritt = new Date(member.austritt);
+    if (!Number.isNaN(austritt.getTime()) && austritt <= new Date()) {
+      return { label: "Ausgetreten", color: "bg-amber-100 text-amber-800" };
+    }
+  }
+  return { label: "Aktiv", color: "bg-green-100 text-green-700" };
+}
+
+const PAGE_SIZE = 50;
+
+export default function AdminImportedMembers() {
+  const [stats, setStats] = useState<LwImportStats | null>(null);
+  const [list, setList] = useState<LwMemberListResponse | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [page, setPage] = useState(1);
+  const [searchInput, setSearchInput] = useState("");
+  const [search, setSearch] = useState("");
+  const [includeDeleted, setIncludeDeleted] = useState(false);
+  const [includeResigned, setIncludeResigned] = useState(true);
+  const [selectedAdrNr, setSelectedAdrNr] = useState<number | null>(null);
+  const [selectedMember, setSelectedMember] = useState<LwMemberDetail | null>(null);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [dragging, setDragging] = useState(false);
+
+  const fetchStats = useCallback(async () => {
+    try {
+      setStats(await getImportStats());
+    } catch (e) {
+      toast.error(errorMessage(e));
+    }
+  }, []);
+
+  const fetchList = useCallback(async () => {
+    setLoading(true);
+    try {
+      const data = await listImportedMembers({
+        page,
+        pageSize: PAGE_SIZE,
+        search: search || undefined,
+        includeDeleted,
+        includeResigned,
+      });
+      setList(data);
+    } catch (e) {
+      toast.error(errorMessage(e));
+    } finally {
+      setLoading(false);
+    }
+  }, [page, search, includeDeleted, includeResigned]);
+
+  useEffect(() => {
+    fetchStats();
+  }, [fetchStats]);
+
+  useEffect(() => {
+    fetchList();
+  }, [fetchList]);
+
+  useEffect(() => {
+    if (selectedAdrNr === null) {
+      setSelectedMember(null);
+      return;
+    }
+    let cancelled = false;
+    setDetailLoading(true);
+    getImportedMember(selectedAdrNr)
+      .then((m) => {
+        if (!cancelled) setSelectedMember(m);
+      })
+      .catch((e) => {
+        if (!cancelled) toast.error(errorMessage(e));
+      })
+      .finally(() => {
+        if (!cancelled) setDetailLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedAdrNr]);
+
+  const handleUpload = useCallback(
+    async (file: File) => {
+      if (!file.name.toLowerCase().endsWith(".sql")) {
+        toast.error("Bitte eine .sql-Datei auswählen.");
+        return;
+      }
+      setUploading(true);
+      try {
+        const result = await uploadImportSql(file);
+        toast.success(
+          `Import erfolgreich. ${result.inserted_members} Mitglieder, ` +
+            `${result.inserted_contracts} Verträge, ${result.inserted_sepa} SEPA, ` +
+            `${result.inserted_fee_types} Beitragstypen.`,
+        );
+        await Promise.all([fetchStats(), fetchList()]);
+      } catch (e) {
+        toast.error(errorMessage(e));
+      } finally {
+        setUploading(false);
+      }
+    },
+    [fetchStats, fetchList],
+  );
+
+  const handleDrop = useCallback(
+    (e: React.DragEvent) => {
+      e.preventDefault();
+      setDragging(false);
+      const file = e.dataTransfer.files[0];
+      if (file) handleUpload(file);
+    },
+    [handleUpload],
+  );
+
+  const handlePurge = useCallback(async () => {
+    const confirmed = window.confirm(
+      "Alle importierten Daten endgültig löschen? Diese Aktion kann nicht rückgängig gemacht werden.",
+    );
+    if (!confirmed) return;
+    try {
+      await purgeImportedData();
+      toast.success("Importierte Daten wurden gelöscht.");
+      setSelectedAdrNr(null);
+      await Promise.all([fetchStats(), fetchList()]);
+    } catch (e) {
+      toast.error(errorMessage(e));
+    }
+  }, [fetchStats, fetchList]);
+
+  const handleSearchSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setPage(1);
+    setSearch(searchInput.trim());
+  };
+
+  const totalPages = list ? Math.max(1, Math.ceil(list.total / PAGE_SIZE)) : 1;
+
+  return (
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+      <header className="bg-white dark:bg-gray-800 border-b dark:border-gray-700 shadow-sm">
+        <div className="max-w-7xl mx-auto px-4 py-4 flex items-center gap-4">
+          <Link
+            to="/admin"
+            className="flex items-center gap-1 text-sm text-gray-600 hover:text-gray-900 dark:text-gray-300 dark:hover:text-white"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            Zurück
+          </Link>
+          <div className="flex-1">
+            <h1 className="text-lg font-bold text-gray-900 dark:text-white">
+              Linear Webverein Import
+            </h1>
+            <p className="text-xs text-gray-500 dark:text-gray-400">
+              Importierte Bestandsdaten aus der Vereinssoftware
+            </p>
+          </div>
+          <button
+            onClick={() => {
+              fetchStats();
+              fetchList();
+            }}
+            className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg"
+            title="Aktualisieren"
+          >
+            <RefreshCw className={`w-5 h-5 ${loading ? "animate-spin" : ""}`} />
+          </button>
+        </div>
+      </header>
+
+      <main className="max-w-7xl mx-auto px-4 py-6 space-y-6">
+        {/* Stats + Upload */}
+        <div className="grid lg:grid-cols-3 gap-4">
+          <div className="lg:col-span-2 grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <StatCard label="Mitglieder" value={stats?.total_members ?? 0} icon={<Database className="w-4 h-4" />} />
+            <StatCard label="Aktiv" value={stats?.active_members ?? 0} icon={<Database className="w-4 h-4 text-green-600" />} accent="text-green-700" />
+            <StatCard label="Verträge" value={stats?.total_contracts ?? 0} icon={<FileSpreadsheet className="w-4 h-4" />} />
+            <StatCard label="SEPA-Mandate" value={stats?.total_sepa ?? 0} icon={<CreditCard className="w-4 h-4" />} />
+            {stats?.last_import && (
+              <div className="col-span-2 sm:col-span-4 text-xs text-gray-500 dark:text-gray-400 mt-1">
+                Letzter Import:{" "}
+                <span className="font-medium text-gray-700 dark:text-gray-300">
+                  {formatDateTime(stats.last_import.imported_at)}
+                </span>
+                {stats.last_import.filename && (
+                  <> · {stats.last_import.filename} ({formatBytes(stats.last_import.file_size_bytes)})</>
+                )}
+              </div>
+            )}
+          </div>
+
+          <div
+            className={`relative flex flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed p-6 text-center transition-colors
+              ${dragging ? "border-svu-500 bg-svu-50 dark:bg-svu-900/20" : "border-gray-300 dark:border-gray-600 hover:border-svu-400 hover:bg-gray-50 dark:hover:bg-gray-800"}
+              ${uploading ? "opacity-60 pointer-events-none" : "cursor-pointer"}`}
+            onDragOver={(e) => {
+              e.preventDefault();
+              setDragging(true);
+            }}
+            onDragLeave={() => setDragging(false)}
+            onDrop={handleDrop}
+            onClick={() => fileInputRef.current?.click()}
+          >
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".sql"
+              className="hidden"
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                if (f) handleUpload(f);
+                e.target.value = "";
+              }}
+            />
+            {uploading ? (
+              <RefreshCw className="w-6 h-6 text-svu-600 animate-spin" />
+            ) : (
+              <Upload className="w-6 h-6 text-gray-400 dark:text-gray-500" />
+            )}
+            <div className="text-sm font-medium text-gray-700 dark:text-gray-200">
+              {uploading ? "Wird importiert..." : "SQL-Datei hier ablegen"}
+            </div>
+            <div className="text-xs text-gray-500 dark:text-gray-400">
+              Linear Webverein Datensicherung (.sql)
+            </div>
+            {stats && stats.total_members > 0 && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handlePurge();
+                }}
+                className="mt-2 inline-flex items-center gap-1 text-xs text-red-600 hover:text-red-700"
+              >
+                <Trash2 className="w-3 h-3" /> Daten löschen
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Filter / Search */}
+        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-4">
+          <form onSubmit={handleSearchSubmit} className="flex flex-wrap items-center gap-3">
+            <div className="relative flex-1 min-w-[240px]">
+              <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+              <input
+                type="text"
+                value={searchInput}
+                onChange={(e) => setSearchInput(e.target.value)}
+                placeholder="Name, Mitglieds-Nr., Ort oder E-Mail"
+                className="w-full pl-9 pr-3 py-2 text-sm border border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-svu-500"
+              />
+            </div>
+            <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+              <input
+                type="checkbox"
+                checked={includeResigned}
+                onChange={(e) => {
+                  setIncludeResigned(e.target.checked);
+                  setPage(1);
+                }}
+                className="rounded border-gray-300"
+              />
+              Ausgetretene anzeigen
+            </label>
+            <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+              <input
+                type="checkbox"
+                checked={includeDeleted}
+                onChange={(e) => {
+                  setIncludeDeleted(e.target.checked);
+                  setPage(1);
+                }}
+                className="rounded border-gray-300"
+              />
+              Gelöschte anzeigen
+            </label>
+            <button
+              type="submit"
+              className="px-3 py-2 text-sm bg-svu-600 text-white rounded-lg hover:bg-svu-700"
+            >
+              Suchen
+            </button>
+            {search && (
+              <button
+                type="button"
+                onClick={() => {
+                  setSearchInput("");
+                  setSearch("");
+                  setPage(1);
+                }}
+                className="px-3 py-2 text-sm text-gray-600 hover:text-gray-900 dark:text-gray-300"
+              >
+                Filter zurücksetzen
+              </button>
+            )}
+          </form>
+        </div>
+
+        {/* Members table */}
+        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden">
+          {list && list.items.length === 0 ? (
+            <div className="p-12 text-center">
+              <Database className="w-10 h-10 text-gray-300 dark:text-gray-600 mx-auto mb-3" />
+              <p className="text-sm text-gray-500 dark:text-gray-400">
+                {stats?.total_members === 0
+                  ? "Noch keine Daten importiert. Bitte eine SQL-Datei hochladen."
+                  : "Keine Mitglieder gefunden."}
+              </p>
+            </div>
+          ) : (
+            <>
+              <div className="overflow-x-auto">
+                <table className="min-w-full text-sm">
+                  <thead className="bg-gray-50 dark:bg-gray-900 text-left text-xs uppercase text-gray-500 dark:text-gray-400">
+                    <tr>
+                      <th className="px-4 py-3 font-medium">Mitglieds-Nr.</th>
+                      <th className="px-4 py-3 font-medium">Name</th>
+                      <th className="px-4 py-3 font-medium">Ort</th>
+                      <th className="px-4 py-3 font-medium">Eintritt</th>
+                      <th className="px-4 py-3 font-medium">Geburtsdatum</th>
+                      <th className="px-4 py-3 font-medium">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
+                    {list?.items.map((m) => {
+                      const status = statusLabel(m);
+                      return (
+                        <tr
+                          key={m.adr_nr}
+                          onClick={() => setSelectedAdrNr(m.adr_nr)}
+                          className="cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/50"
+                        >
+                          <td className="px-4 py-3 font-mono text-xs text-gray-700 dark:text-gray-300">
+                            {m.mitgliedsnummer || `#${m.adr_nr}`}
+                          </td>
+                          <td className="px-4 py-3 text-gray-900 dark:text-gray-100">
+                            {[m.vorname, m.nachname].filter(Boolean).join(" ") || "–"}
+                          </td>
+                          <td className="px-4 py-3 text-gray-700 dark:text-gray-300">
+                            {[m.plz, m.ort].filter(Boolean).join(" ") || "–"}
+                          </td>
+                          <td className="px-4 py-3 text-gray-700 dark:text-gray-300">
+                            {formatDate(m.eintritt)}
+                          </td>
+                          <td className="px-4 py-3 text-gray-700 dark:text-gray-300">
+                            {formatDate(m.geburtsdatum)}
+                          </td>
+                          <td className="px-4 py-3">
+                            <span className={`inline-block px-2 py-0.5 rounded text-xs ${status.color}`}>
+                              {status.label}
+                            </span>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+
+              {list && list.total > PAGE_SIZE && (
+                <div className="flex items-center justify-between px-4 py-3 border-t dark:border-gray-700 bg-gray-50 dark:bg-gray-900 text-sm">
+                  <div className="text-gray-600 dark:text-gray-400">
+                    Seite {list.page} von {totalPages} · {list.total} Einträge
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={() => setPage((p) => Math.max(1, p - 1))}
+                      disabled={page <= 1}
+                      className="p-1.5 rounded hover:bg-gray-200 dark:hover:bg-gray-700 disabled:opacity-40 disabled:cursor-not-allowed"
+                    >
+                      <ChevronLeft className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                      disabled={page >= totalPages}
+                      className="p-1.5 rounded hover:bg-gray-200 dark:hover:bg-gray-700 disabled:opacity-40 disabled:cursor-not-allowed"
+                    >
+                      <ChevronRight className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      </main>
+
+      {selectedAdrNr !== null && (
+        <MemberDetailDrawer
+          loading={detailLoading}
+          member={selectedMember}
+          onClose={() => setSelectedAdrNr(null)}
+        />
+      )}
+    </div>
+  );
+}
+
+function StatCard({
+  label,
+  value,
+  icon,
+  accent,
+}: {
+  label: string;
+  value: number;
+  icon: React.ReactNode;
+  accent?: string;
+}) {
+  return (
+    <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-4">
+      <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400 mb-1">
+        {icon}
+        {label}
+      </div>
+      <div className={`text-2xl font-bold ${accent ?? "text-gray-900 dark:text-white"}`}>
+        {value.toLocaleString("de-DE")}
+      </div>
+    </div>
+  );
+}
+
+function MemberDetailDrawer({
+  loading,
+  member,
+  onClose,
+}: {
+  loading: boolean;
+  member: LwMemberDetail | null;
+  onClose: () => void;
+}) {
+  return (
+    <div className="fixed inset-0 z-40 flex">
+      <div
+        className="flex-1 bg-black/40 backdrop-blur-sm"
+        onClick={onClose}
+        role="button"
+        tabIndex={-1}
+        aria-label="Schließen"
+      />
+      <aside className="w-full max-w-2xl bg-white dark:bg-gray-800 shadow-2xl overflow-y-auto">
+        <div className="sticky top-0 z-10 bg-white dark:bg-gray-800 border-b dark:border-gray-700 px-6 py-4 flex items-center justify-between">
+          <div>
+            <h2 className="text-lg font-bold text-gray-900 dark:text-white">
+              {member
+                ? [member.vorname, member.nachname].filter(Boolean).join(" ") || `AdrNr ${member.adr_nr}`
+                : "Lädt..."}
+            </h2>
+            {member?.mitgliedsnummer && (
+              <p className="text-xs text-gray-500 dark:text-gray-400 font-mono">
+                Mitglieds-Nr. {member.mitgliedsnummer}
+              </p>
+            )}
+          </div>
+          <button
+            onClick={onClose}
+            className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg"
+            aria-label="Schließen"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        <div className="p-6 space-y-6">
+          {loading || !member ? (
+            <div className="flex justify-center py-12">
+              <RefreshCw className="w-6 h-6 text-svu-600 animate-spin" />
+            </div>
+          ) : (
+            <>
+              <Section title="Stammdaten">
+                <Field label="Anrede" value={member.anrede} />
+                <Field label="Titel" value={member.titel} />
+                <Field label="Vorname" value={member.vorname} />
+                <Field label="Nachname" value={member.nachname} />
+                <Field label="Geborene" value={member.geborene} />
+                <Field label="Geburtsdatum" value={formatDate(member.geburtsdatum)} icon={<CalendarDays className="w-3.5 h-3.5" />} />
+                <Field label="Geburtsort" value={member.geburtsort} />
+                <Field label="Abteilung" value={member.abteilung} />
+              </Section>
+
+              <Section title="Anschrift">
+                <Field
+                  label="Straße"
+                  value={[member.strasse, member.hausnummer].filter(Boolean).join(" ")}
+                  icon={<MapPin className="w-3.5 h-3.5" />}
+                />
+                <Field label="PLZ / Ort" value={[member.plz, member.ort].filter(Boolean).join(" ")} />
+                <Field label="Land" value={member.land} />
+                <Field label="c/o" value={member.co} />
+              </Section>
+
+              <Section title="Kontakt">
+                <Field label="Telefon" value={member.telefon} icon={<Phone className="w-3.5 h-3.5" />} />
+                <Field label="Mobil" value={member.telefon_mobil} />
+                <Field label="E-Mail" value={member.email} icon={<Mail className="w-3.5 h-3.5" />} />
+              </Section>
+
+              <Section title="Mitgliedschaft">
+                <Field label="Eintritt" value={formatDate(member.eintritt)} />
+                <Field label="Austritt" value={formatDate(member.austritt)} />
+                <Field label="Verstorben am" value={formatDate(member.verstorben_am)} />
+                <Field label="Status (Aktiv/Pasiv)" value={member.aktiv_pasiv} />
+                <Field label="Bereich" value={member.bereich} />
+                <Field
+                  label="Gelöscht-Flag"
+                  value={member.geloscht ? "Ja" : "Nein"}
+                />
+              </Section>
+
+              <Section title="Bankverbindung">
+                <Field label="Bank" value={member.bank} />
+                <Field label="IBAN" value={member.iban} mono />
+                <Field label="BIC" value={member.bic} mono />
+                <Field label="Abw. Kontoinhaber" value={member.abw_kontoinhaber} />
+                <Field label="Mandatsreferenz" value={member.mandatsreferenz} mono />
+              </Section>
+
+              {member.contracts.length > 0 && (
+                <Section title={`Verträge (${member.contracts.length})`}>
+                  <div className="col-span-full overflow-x-auto">
+                    <table className="min-w-full text-xs">
+                      <thead className="text-gray-500 dark:text-gray-400">
+                        <tr className="text-left">
+                          <th className="py-2 pr-3">Nr.</th>
+                          <th className="py-2 pr-3">Art</th>
+                          <th className="py-2 pr-3">Betrag</th>
+                          <th className="py-2 pr-3">Zahlweise</th>
+                          <th className="py-2 pr-3">Beginn</th>
+                          <th className="py-2 pr-3">Ende</th>
+                          <th className="py-2 pr-3">Gekündigt</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-100 dark:divide-gray-700 text-gray-700 dark:text-gray-300">
+                        {member.contracts.map((c) => (
+                          <tr key={c.id}>
+                            <td className="py-2 pr-3 font-mono">{c.vertrag_nr || "–"}</td>
+                            <td className="py-2 pr-3">{c.art_name || c.art || "–"}</td>
+                            <td className="py-2 pr-3">
+                              {c.betrag != null
+                                ? c.betrag.toLocaleString("de-DE", { style: "currency", currency: "EUR" })
+                                : "–"}
+                            </td>
+                            <td className="py-2 pr-3">{c.sollstellung || "–"}</td>
+                            <td className="py-2 pr-3">{formatDate(c.vertrag_begin)}</td>
+                            <td className="py-2 pr-3">{formatDate(c.vertrag_ende)}</td>
+                            <td className="py-2 pr-3">{formatDate(c.gekuend_zum)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </Section>
+              )}
+
+              {member.sepa_mandates.length > 0 && (
+                <Section title={`SEPA-Mandate (${member.sepa_mandates.length})`}>
+                  <div className="col-span-full overflow-x-auto">
+                    <table className="min-w-full text-xs">
+                      <thead className="text-gray-500 dark:text-gray-400">
+                        <tr className="text-left">
+                          <th className="py-2 pr-3">Mandats-Nr.</th>
+                          <th className="py-2 pr-3">Art</th>
+                          <th className="py-2 pr-3">Status</th>
+                          <th className="py-2 pr-3">Angelegt</th>
+                          <th className="py-2 pr-3">Unterschrift</th>
+                          <th className="py-2 pr-3">Letzte Nutzung</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-100 dark:divide-gray-700 text-gray-700 dark:text-gray-300">
+                        {member.sepa_mandates.map((s) => (
+                          <tr key={s.id}>
+                            <td className="py-2 pr-3 font-mono">{s.mandats_nr || "–"}</td>
+                            <td className="py-2 pr-3">{s.lastschriftart || "–"}</td>
+                            <td className="py-2 pr-3">{s.status || "–"}</td>
+                            <td className="py-2 pr-3">{formatDate(s.angelegt_am)}</td>
+                            <td className="py-2 pr-3">{formatDate(s.unterschrift_datum)}</td>
+                            <td className="py-2 pr-3">{formatDate(s.letzte_verwendung)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </Section>
+              )}
+
+              <div className="text-xs text-gray-400 dark:text-gray-500 pt-2 border-t dark:border-gray-700">
+                Importiert am {formatDateTime(member.imported_at)} · AdrNr {member.adr_nr}
+              </div>
+            </>
+          )}
+        </div>
+      </aside>
+    </div>
+  );
+}
+
+function Section({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <section>
+      <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-2">{title}</h3>
+      <div className="grid grid-cols-2 gap-x-4 gap-y-2">{children}</div>
+    </section>
+  );
+}
+
+function Field({
+  label,
+  value,
+  icon,
+  mono,
+}: {
+  label: string;
+  value: string | null | undefined;
+  icon?: React.ReactNode;
+  mono?: boolean;
+}) {
+  return (
+    <div className="min-w-0">
+      <div className="flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400">
+        {icon}
+        {label}
+      </div>
+      <div
+        className={`text-sm text-gray-900 dark:text-gray-100 break-words ${mono ? "font-mono" : ""}`}
+      >
+        {value || <span className="text-gray-400">–</span>}
+      </div>
+    </div>
+  );
+}
