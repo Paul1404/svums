@@ -10,7 +10,8 @@ from __future__ import annotations
 
 import logging
 
-from fastapi import APIRouter, Depends, File, HTTPException, Path, Query, UploadFile
+import httpx
+from fastapi import APIRouter, Depends, File, HTTPException, Path, Query, Response, UploadFile
 from sqlalchemy import or_, func
 from sqlalchemy.orm import Session
 
@@ -466,3 +467,66 @@ async def geocode_clear_member(
         raise HTTPException(status_code=404, detail="Mitglied nicht gefunden")
     logger.info("Geocode pin cleared for member adr_nr=%d", adr_nr)
     return {"ok": True, "adr_nr": adr_nr}
+
+
+# HERE Raster Tile API v3 styles we expose. Both are minimal cartography
+# suited to data overlays; anything richer (`explore.*`) fights with the
+# pin layer for attention.
+_HERE_TILE_STYLES = {"lite.day", "lite.night"}
+_HERE_TILE_BASE = "https://maps.hereapi.com/v3/base/mc"
+
+
+@router.get("/tile/{style}/{z}/{x}/{y}")
+async def proxy_here_tile(
+    style: str,
+    z: int = Path(..., ge=0, le=22),
+    x: int = Path(..., ge=0),
+    y: int = Path(..., ge=0),
+    _: bool = Depends(require_admin),
+):
+    """Proxy a single HERE Raster Tile so the API key stays server-side.
+
+    Same-origin requests keep cookies flowing for the admin auth check and
+    leave the canvas un-tainted for the PNG poster export. Tiles are
+    immutable for a given (style, z, x, y) so we let the browser cache
+    them for a day.
+    """
+    if style not in _HERE_TILE_STYLES:
+        raise HTTPException(status_code=400, detail="Unbekannter Kartenstil")
+    max_xy = (1 << z) - 1
+    if x > max_xy or y > max_xy:
+        raise HTTPException(status_code=400, detail="Tile-Koordinaten außerhalb der Zoomstufe")
+
+    api_key = get_settings().here_api_key
+    if not api_key:
+        raise HTTPException(
+            status_code=503,
+            detail="HERE_API_KEY ist nicht konfiguriert.",
+        )
+
+    url = f"{_HERE_TILE_BASE}/{z}/{x}/{y}/png8"
+    try:
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            resp = await client.get(
+                url,
+                params={"style": style, "apiKey": api_key},
+                headers={"User-Agent": "SVUMS/1.0 (https://github.com/Paul1404/svums)"},
+            )
+    except httpx.HTTPError as exc:
+        logger.warning("HERE tile fetch failed (%s): %s", url, exc)
+        raise HTTPException(status_code=502, detail="HERE nicht erreichbar") from exc
+
+    if resp.status_code == 401:
+        logger.error("HERE rejected the API key on tile request. Check HERE_API_KEY.")
+        raise HTTPException(status_code=503, detail="HERE-Schlüssel ungültig")
+    if resp.status_code == 404:
+        raise HTTPException(status_code=404, detail="Tile nicht vorhanden")
+    if resp.status_code != 200:
+        logger.warning("HERE tile returned %s for z=%d x=%d y=%d", resp.status_code, z, x, y)
+        raise HTTPException(status_code=502, detail="HERE-Fehler")
+
+    return Response(
+        content=resp.content,
+        media_type=resp.headers.get("content-type", "image/png"),
+        headers={"Cache-Control": "public, max-age=86400, immutable"},
+    )
