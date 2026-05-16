@@ -18,6 +18,11 @@ class Settings(BaseSettings):
     posthog_key: str = ""
     posthog_host: str = ""
 
+    # HERE Geocoding & Search API key (https://developer.here.com).
+    # Used to geocode imported member addresses into map coordinates.
+    # Without it the geocoder refuses to start.
+    here_api_key: str = ""
+
     # Cookie settings
     cookie_secure: bool = True
     cookie_name: str = "svums_admin_session"

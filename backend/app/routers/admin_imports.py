@@ -10,10 +10,11 @@ from __future__ import annotations
 
 import logging
 
-from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, Path, Query, UploadFile
 from sqlalchemy import or_, func
 from sqlalchemy.orm import Session
 
+from app.config import get_settings
 from app.database import get_db
 from app.models.imported import (
     LwContract,
@@ -35,7 +36,13 @@ from app.schemas.imported import (
     LwMemberSummary,
 )
 from app.services.crypto import decrypt_iban_safe
-from app.services.geocode import get_state as get_geocode_state, start_geocoder, stop_geocoder
+from app.services.geocode import (
+    clear_member_geocode,
+    get_state as get_geocode_state,
+    start_geocoder,
+    stop_geocoder,
+    _reset_for_scope,
+)
 from app.services.imported_writer import write_dump
 from app.services.sql_import import SUPPORTED_TABLES, parse_dump
 
@@ -396,6 +403,15 @@ async def geocode_start(
     db: Session = Depends(get_db),
     _: bool = Depends(require_admin),
 ):
+    if not get_settings().here_api_key:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "HERE_API_KEY ist nicht konfiguriert. "
+                "Bitte einen Schlüssel unter developer.here.com erstellen "
+                "und als Umgebungsvariable setzen."
+            ),
+        )
     started = await start_geocoder(scope=scope)  # type: ignore[arg-type]
     if not started:
         logger.info("Geocode start requested but already running")
@@ -413,3 +429,40 @@ async def geocode_stop(
     if stopped:
         logger.info("Geocoder cancelled by admin")
     return _geocode_status_snapshot(db)
+
+
+@router.post("/geocode/clear", response_model=LwGeocodeStatus)
+async def geocode_clear(
+    scope: str = Query("all", pattern="^(approximate|all)$"),
+    db: Session = Depends(get_db),
+    _: bool = Depends(require_admin),
+):
+    """Wipe coordinates without re-running the geocoder.
+
+    Use ``scope=all`` to clear every pin, ``scope=approximate`` to keep
+    confirmed house-level hits and only clear the uncertain ones.
+    Admins can then either re-run the geocoder from scratch, or verify
+    the map state visually before doing so.
+    """
+    if get_geocode_state().running:
+        raise HTTPException(
+            status_code=409,
+            detail="Geocoder läuft gerade. Bitte zuerst anhalten.",
+        )
+    cleared = _reset_for_scope(db, scope)  # type: ignore[arg-type]
+    logger.info("Geocode coordinates cleared by admin (scope=%s, rows=%d)", scope, cleared)
+    return _geocode_status_snapshot(db)
+
+
+@router.delete("/members/{adr_nr}/geocode")
+async def geocode_clear_member(
+    adr_nr: int = Path(..., ge=1),
+    db: Session = Depends(get_db),
+    _: bool = Depends(require_admin),
+):
+    """Clear a single member's coordinates so its pin disappears from the map."""
+    cleared = clear_member_geocode(db, adr_nr)
+    if not cleared:
+        raise HTTPException(status_code=404, detail="Mitglied nicht gefunden")
+    logger.info("Geocode pin cleared for member adr_nr=%d", adr_nr)
+    return {"ok": True, "adr_nr": adr_nr}

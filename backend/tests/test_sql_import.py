@@ -318,53 +318,73 @@ INSERT INTO `adresse` VALUES (1,'A','Mainstr. 1','Hamburg'),(2,'B',NULL,NULL);
 def test_geocode_classify_house_when_housenumber_matches():
     from app.services.geocode import _classify
 
-    feature = {
-        "properties": {
-            "type": "house",
-            "housenumber": "12",
-            "street": "Hauptstraße",
-        }
+    item = {
+        "resultType": "houseNumber",
+        "houseNumberType": "PA",
+        "address": {"houseNumber": "12", "street": "Hauptstraße"},
     }
-    assert _classify(feature, "12") == "house"
+    assert _classify(item, "12") == "house"
 
 
 def test_geocode_classify_street_when_no_housenumber():
     from app.services.geocode import _classify
 
-    feature = {
-        "properties": {
-            "type": "street",
-            "street": "Hauptstraße",
-        }
+    item = {
+        "resultType": "street",
+        "address": {"street": "Hauptstraße"},
     }
-    assert _classify(feature, "12") == "street"
+    assert _classify(item, "12") == "street"
 
 
 def test_geocode_classify_city_when_place_village():
     from app.services.geocode import _classify
 
-    feature = {
-        "properties": {
-            "type": "locality",
-            "name": "Kleindorf",
-        }
+    item = {
+        "resultType": "locality",
+        "address": {"city": "Kleindorf"},
     }
-    assert _classify(feature, None) == "city"
+    assert _classify(item, None) == "city"
 
 
 def test_geocode_classify_handles_alphanumeric_housenumber():
     from app.services.geocode import _classify
 
-    # Members commonly have "12a" -- Photon may return "12" or "12 a";
-    # we match leading digits to be lenient.
-    feature = {
-        "properties": {
-            "type": "house",
-            "housenumber": "12 a",
-            "street": "Hauptstraße",
-        }
+    # Members commonly have "12a" -- HERE may return "12a" or "12 a"
+    # depending on how the address was recorded. We match digits plus
+    # an optional suffix, so both round-trip as "house".
+    item = {
+        "resultType": "houseNumber",
+        "houseNumberType": "PA",
+        "address": {"houseNumber": "12 a", "street": "Hauptstraße"},
     }
-    assert _classify(feature, "12a") == "house"
+    assert _classify(item, "12a") == "house"
+
+
+def test_geocode_classify_demotes_interpolated_housenumber():
+    from app.services.geocode import _classify
+
+    # HERE returns ``houseNumberType: interpolated`` when it had to
+    # estimate the position along a street segment. That's a mid-block
+    # guess, not a real building hit, so it must drop to "street".
+    item = {
+        "resultType": "houseNumber",
+        "houseNumberType": "interpolated",
+        "address": {"houseNumber": "12", "street": "Hauptstraße"},
+    }
+    assert _classify(item, "12") == "street"
+
+
+def test_geocode_classify_demotes_when_suffix_differs():
+    from app.services.geocode import _classify
+
+    # "12a" and "12b" are different buildings on the same plot --
+    # accepting one for the other would put the pin on a neighbour.
+    item = {
+        "resultType": "houseNumber",
+        "houseNumberType": "PA",
+        "address": {"houseNumber": "12b", "street": "Hauptstraße"},
+    }
+    assert _classify(item, "12a") == "street"
 
 
 def test_geocode_address_key_groups_household():
@@ -383,17 +403,15 @@ def test_geocode_address_key_groups_household():
 def test_geocode_classify_demotes_house_with_wrong_number():
     from app.services.geocode import _classify
 
-    # Photon sometimes returns a nearby house when ours doesn't exist
-    # in OSM. That's misleading on the map, so we demote it to street
-    # precision and let the caller swap to the PLZ centroid.
-    feature = {
-        "properties": {
-            "type": "house",
-            "housenumber": "9",
-            "street": "Hauptstraße",
-        }
+    # HERE sometimes returns a nearby house when ours doesn't exist
+    # in its index. That's misleading on the map, so we demote it to
+    # street precision and let the caller swap to the PLZ centroid.
+    item = {
+        "resultType": "houseNumber",
+        "houseNumberType": "PA",
+        "address": {"houseNumber": "9", "street": "Hauptstraße"},
     }
-    assert _classify(feature, "12") == "street"
+    assert _classify(item, "12") == "street"
 
 
 def test_geocode_reset_for_scope_approximate_clears_only_non_house(db_session):
@@ -455,6 +473,118 @@ INSERT INTO `adresse` VALUES (1,'House','Berlin');
     fresh = db_session.query(LwMember).first()
     assert fresh.lat is None
     assert fresh.geocode_precision is None
+
+
+def test_geocode_clear_member_helper(db_session):
+    from app.services.imported_writer import write_dump
+    from app.services.geocode import clear_member_geocode
+
+    sql = """
+CREATE TABLE `adresse` (`AdrNr` int NOT NULL, `Vorname` varchar(30), PRIMARY KEY (`AdrNr`));
+INSERT INTO `adresse` VALUES (1,'X');
+"""
+    write_dump(db_session, parse_dump(sql), filename="t.sql", file_size_bytes=len(sql))
+    m = db_session.query(LwMember).first()
+    m.lat = 52.5
+    m.lng = 13.4
+    m.geocode_status = "found"
+    m.geocode_precision = "house"
+    db_session.commit()
+
+    assert clear_member_geocode(db_session, m.adr_nr) is True
+    db_session.expire_all()
+    fresh = db_session.query(LwMember).first()
+    assert fresh.lat is None
+    assert fresh.geocode_status is None
+    assert fresh.geocode_precision is None
+
+    # Unknown adr_nr returns False rather than raising
+    assert clear_member_geocode(db_session, 9999) is False
+
+
+def test_geocode_clear_endpoint_all_scope(client, admin_cookie, db_session):
+    from app.services.imported_writer import write_dump
+
+    sql = """
+CREATE TABLE `adresse` (`AdrNr` int NOT NULL, `Vorname` varchar(30), PRIMARY KEY (`AdrNr`));
+INSERT INTO `adresse` VALUES (1,'A'),(2,'B');
+"""
+    write_dump(db_session, parse_dump(sql), filename="t.sql", file_size_bytes=len(sql))
+    rows = db_session.query(LwMember).order_by(LwMember.adr_nr).all()
+    for r in rows:
+        r.lat = 52.0
+        r.lng = 13.0
+        r.geocode_status = "found"
+        r.geocode_precision = "house"
+    db_session.commit()
+
+    res = client.post(
+        "/api/admin/imports/geocode/clear?scope=all",
+        cookies=admin_cookie,
+        headers={"X-CSRF-Token": "test-csrf-token"},
+    )
+    assert res.status_code == 200
+    db_session.expire_all()
+    for r in db_session.query(LwMember).all():
+        assert r.lat is None
+        assert r.geocode_precision is None
+
+
+def test_geocode_clear_member_endpoint(client, admin_cookie, db_session):
+    from app.services.imported_writer import write_dump
+
+    sql = """
+CREATE TABLE `adresse` (`AdrNr` int NOT NULL, `Vorname` varchar(30), PRIMARY KEY (`AdrNr`));
+INSERT INTO `adresse` VALUES (1,'A');
+"""
+    write_dump(db_session, parse_dump(sql), filename="t.sql", file_size_bytes=len(sql))
+    m = db_session.query(LwMember).first()
+    m.lat = 52.0
+    m.lng = 13.0
+    m.geocode_status = "found"
+    m.geocode_precision = "house"
+    db_session.commit()
+
+    res = client.delete(
+        f"/api/admin/imports/members/{m.adr_nr}/geocode",
+        cookies=admin_cookie,
+        headers={"X-CSRF-Token": "test-csrf-token"},
+    )
+    assert res.status_code == 200
+    db_session.expire_all()
+    fresh = db_session.query(LwMember).first()
+    assert fresh.lat is None
+    assert fresh.geocode_precision is None
+
+    # Second call: row already cleared, but member exists -> 200
+    res = client.delete(
+        f"/api/admin/imports/members/{m.adr_nr}/geocode",
+        cookies=admin_cookie,
+        headers={"X-CSRF-Token": "test-csrf-token"},
+    )
+    assert res.status_code == 200
+
+    # Unknown adr_nr -> 404
+    res = client.delete(
+        "/api/admin/imports/members/9999/geocode",
+        cookies=admin_cookie,
+        headers={"X-CSRF-Token": "test-csrf-token"},
+    )
+    assert res.status_code == 404
+
+
+def test_geocode_start_refuses_without_api_key(client, admin_cookie, monkeypatch):
+    from app.config import get_settings
+
+    settings = get_settings()
+    monkeypatch.setattr(settings, "here_api_key", "")
+    res = client.post(
+        "/api/admin/imports/geocode/start",
+        cookies=admin_cookie,
+        headers={"X-CSRF-Token": "test-csrf-token"},
+    )
+    assert res.status_code == 400
+    assert "HERE_API_KEY" in res.json()["detail"]
 
 
 def test_purge_endpoint(client, admin_cookie, db_session):

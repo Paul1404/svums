@@ -1,32 +1,36 @@
 """
 Address geocoding for imported Linear Webverein members.
 
-Uses Photon (Komoot), https://photon.komoot.io, an OSM-backed,
-Elasticsearch-powered geocoder. Photon parses messy German addresses
-("Hauptstr. 12, 12345 Musterstadt") far more reliably than Nominatim's
-free instance and the public endpoint has no formal rate limit. We
-still throttle modestly so we stay a good neighbour.
+Uses HERE Geocoding & Search v7 (https://developer.here.com). HERE's
+data heritage goes back to Navteq, the source most German automotive
+navigation systems use, so its resolution on residential DE addresses
+is the best mainstream option short of an enterprise contract. The
+freemium tier (~250k requests/month) is effectively unlimited for a
+sports club.
+
+Authentication is via the ``HERE_API_KEY`` environment variable. The
+worker refuses to start without it.
 
 Precision tracking
 ------------------
 
-Each Photon feature carries a ``properties.type`` field with values
-like ``house``, ``street``, ``locality``, ``district``, ``city``,
-``county``, ``state`` or ``country``. We collapse that into our
-internal precision enum (``house`` / ``street`` / ``city``).
+HERE returns a ``resultType`` per item (``houseNumber``, ``street``,
+``locality``, ``administrativeArea``, ``postalCodePoint``, ...) and,
+for houseNumber hits, a ``houseNumberType`` of ``PA`` (point address,
+geocoded to the actual building) or ``interpolated`` (estimated along
+the street segment).
 
-For anything below house precision the geocoded coordinate is replaced
-with the PLZ centroid before being stored. A "street" hit from Photon
-otherwise drops the pin on whatever road segment matched, which on the
-map reads as "wrong house". PLZ-centred dots are honestly approximate
-and aggregate cleanly inside their postal area.
+We collapse that into our internal precision enum:
 
-Precision values written to the DB:
-
-  * ``"house"`` -- confirmed house-number hit, dot sits on the building
-  * ``"street"`` -- road centroid; lat/lng snapped to PLZ centroid
-  * ``"city"`` -- locality fallback; lat/lng snapped to PLZ centroid
-  * ``"none"`` -- no coordinates at all (treated as failed)
+  * ``"house"`` -- ``resultType=houseNumber``, ``houseNumberType=PA``,
+    and the returned house number matches what we asked for. The dot
+    sits on the building.
+  * ``"street"`` -- ``resultType=street``, an interpolated houseNumber,
+    or a houseNumber whose digits don't match. lat/lng is replaced
+    with the PLZ centroid so it doesn't masquerade as on-house.
+  * ``"city"`` -- ``locality`` / ``postalCodePoint`` /
+    ``administrativeArea`` fallback. lat/lng replaced with PLZ centroid.
+  * ``"none"`` -- no usable result at all (treated as failed).
 """
 
 from __future__ import annotations
@@ -40,31 +44,32 @@ from typing import Literal
 import httpx
 from sqlalchemy.orm import Session
 
+from app.config import get_settings
 from app.database import SessionLocal
 from app.models.imported import LwMember
 
 logger = logging.getLogger(__name__)
 
 
-PHOTON_URL = "https://photon.komoot.io/api/"
+HERE_GEOCODE_URL = "https://geocode.search.hereapi.com/v1/geocode"
 USER_AGENT = "SVUMS/1.0 (https://github.com/Paul1404/svums)"
-# How many Photon requests we keep in flight at once. Photon's public
-# instance has no hard rate limit but the Komoot team asks callers to
-# be polite; 3 in-flight requests is well within "casual use".
-CONCURRENCY = 3
-# Retry budget when Photon answers 429 (rate limited) or 503 (busy).
-PHOTON_MAX_RETRIES = 3
-# Rough Germany bounding box (minLon, minLat, maxLon, maxLat). Photon
-# accepts this to bias / restrict results, replacing Nominatim's
-# countrycodes=de filter (which Photon doesn't support).
-GERMANY_BBOX = "5.866,47.270,15.041,55.058"
+# HERE allows much higher concurrency than Photon. Eight in flight is
+# comfortable for the freemium tier and keeps full club imports brisk.
+CONCURRENCY = 8
+# Retry budget when HERE answers 429 (rate limited) or 503 (busy).
+HERE_MAX_RETRIES = 3
 
 Precision = Literal["house", "street", "city", "none"]
 GeocodeScope = Literal["pending", "approximate", "all"]
 
-# Photon "type" values that we treat as locality-level (good enough for
-# a PLZ-centred dot but never for a house pin).
-_LOCALITY_TYPES = {"locality", "district", "city", "county", "state", "country"}
+# HERE resultType values we treat as locality-level (good enough for a
+# PLZ-centred dot, never for a house pin).
+_LOCALITY_TYPES = {
+    "locality",
+    "administrativeArea",
+    "postalCodePoint",
+    "addressBlock",
+}
 
 
 @dataclass
@@ -105,98 +110,135 @@ def _describe_member(member: LwMember) -> str:
     return ", ".join(p for p in [line1, line2] if p) or f"AdrNr {member.adr_nr}"
 
 
-def _classify(feature: dict, expected_housenumber: str | None) -> Precision:
-    """Map a Photon feature's ``properties.type`` to our precision enum.
+def _classify(item: dict, expected_housenumber: str | None) -> Precision:
+    """Map a HERE result item to our precision enum.
 
-    A "house" hit is only accepted as house-level if the returned
-    house number matches what we asked for; otherwise it's demoted to
-    street precision so the caller can swap the pin to the PLZ
-    centroid instead.
+    A "house" verdict requires:
+      * ``resultType == "houseNumber"``,
+      * ``houseNumberType == "PA"`` (point address, not interpolated),
+      * the returned house number matches the expected one (digit-wise
+        plus suffix when both sides have a suffix; ``"12a"`` and
+        ``"12 a"`` are treated as the same building, ``"12a"`` and
+        ``"12b"`` are not).
+
+    Otherwise we demote to ``"street"`` so the caller can snap the pin
+    to the PLZ centroid instead of dropping a fake building hit.
     """
-    props = feature.get("properties") or {}
-    typ = (props.get("type") or "").lower()
-    housenumber = (props.get("housenumber") or "").strip()
+    result_type = (item.get("resultType") or "").strip()
+    house_number_type = (item.get("houseNumberType") or "").strip()
+    address = item.get("address") or {}
+    returned_house = str(address.get("houseNumber") or "").strip()
 
-    if typ == "house":
-        if expected_housenumber and housenumber:
-            # Match leading digits so "12a" matches "12" gracefully.
-            want = "".join(c for c in expected_housenumber if c.isdigit())
-            got = "".join(c for c in housenumber if c.isdigit())
-            if want and got and want != got:
+    if result_type == "houseNumber":
+        if house_number_type and house_number_type != "PA":
+            # Interpolated hit -- HERE estimated a position along the
+            # street segment. Honest mid-block guess at best.
+            return "street"
+        if expected_housenumber and returned_house:
+            if not _housenumbers_match(expected_housenumber, returned_house):
                 return "street"
         return "house"
-    if typ == "street":
+    if result_type == "street":
         return "street"
-    if typ in _LOCALITY_TYPES:
+    if result_type in _LOCALITY_TYPES:
         return "city"
     return "street"
 
 
-def _coords_from_feature(feature: dict | None) -> tuple[float, float] | None:
-    """Pull (lat, lng) out of a Photon GeoJSON feature."""
-    if not feature:
+def _housenumbers_match(expected: str, got: str) -> bool:
+    """Tolerant equality for German house numbers.
+
+    Compares the leading digit run; if both inputs also carry an alpha
+    suffix (``"12a"`` style) the suffixes must agree. ``"12"`` matches
+    ``"12 a"`` only if the expected value is also bare ``"12"``.
+    """
+    want_digits = "".join(c for c in expected if c.isdigit())
+    got_digits = "".join(c for c in got if c.isdigit())
+    if not want_digits or not got_digits:
+        return False
+    if want_digits != got_digits:
+        return False
+    want_suffix = "".join(c for c in expected if c.isalpha()).lower()
+    got_suffix = "".join(c for c in got if c.isalpha()).lower()
+    if want_suffix and got_suffix and want_suffix != got_suffix:
+        return False
+    return True
+
+
+def _coords_from_item(item: dict | None) -> tuple[float, float] | None:
+    """Pull (lat, lng) out of a HERE result item."""
+    if not item:
         return None
-    geom = feature.get("geometry") or {}
-    coords = geom.get("coordinates")
-    if not isinstance(coords, list) or len(coords) < 2:
-        return None
+    pos = item.get("position") or {}
     try:
-        lon = float(coords[0])
-        lat = float(coords[1])
-    except (TypeError, ValueError):
+        lat = float(pos["lat"])
+        lng = float(pos["lng"])
+    except (KeyError, TypeError, ValueError):
         return None
-    return lat, lon
+    return lat, lng
 
 
-async def _photon_get(
+async def _here_get(
     client: httpx.AsyncClient,
     params: dict[str, str],
 ) -> dict | None:
-    """One Photon search request; returns the first feature or None.
+    """One HERE geocode request; returns the top result item or None.
 
-    Retries with exponential backoff on transient rate-limit / busy
-    responses so we don't drop members on a momentary blip.
+    Retries with exponential backoff on 429 / 503 so a transient burst
+    doesn't drop members on the floor.
     """
+    settings = get_settings()
+    api_key = settings.here_api_key
+    if not api_key:
+        # Should be caught earlier; defensive guard so the worker fails
+        # fast instead of spamming HERE with empty keys.
+        logger.error("HERE_API_KEY is not set; cannot geocode")
+        return None
     full_params = {
         "lang": "de",
         "limit": "1",
-        "bbox": GERMANY_BBOX,
+        "in": "countryCode:DEU",
         **params,
+        "apiKey": api_key,
     }
-    for attempt in range(PHOTON_MAX_RETRIES):
+    log_params = {k: v for k, v in full_params.items() if k != "apiKey"}
+    for attempt in range(HERE_MAX_RETRIES):
         try:
             resp = await client.get(
-                PHOTON_URL,
+                HERE_GEOCODE_URL,
                 params=full_params,
                 headers={"User-Agent": USER_AGENT},
                 timeout=15.0,
             )
         except httpx.HTTPError as exc:
-            logger.warning("Photon request failed for %s: %s", full_params, exc)
+            logger.warning("HERE request failed for %s: %s", log_params, exc)
             return None
         if resp.status_code in (429, 503):
             wait = 1.0 * (2**attempt)
             logger.info(
-                "Photon returned %s, backing off %.1fs (attempt %d/%d)",
-                resp.status_code, wait, attempt + 1, PHOTON_MAX_RETRIES,
+                "HERE returned %s, backing off %.1fs (attempt %d/%d)",
+                resp.status_code, wait, attempt + 1, HERE_MAX_RETRIES,
             )
             await asyncio.sleep(wait)
             continue
+        if resp.status_code == 401:
+            logger.error("HERE rejected the API key (401). Check HERE_API_KEY.")
+            return None
         if resp.status_code != 200:
-            logger.warning("Photon returned %s for %s", resp.status_code, full_params)
+            logger.warning("HERE returned %s for %s", resp.status_code, log_params)
             return None
         try:
             body = resp.json()
         except ValueError:
             return None
-        features = body.get("features") if isinstance(body, dict) else None
-        if not features:
+        items = body.get("items") if isinstance(body, dict) else None
+        if not items:
             return None
-        first = features[0]
+        first = items[0]
         if not isinstance(first, dict):
             return None
         return first
-    logger.warning("Photon kept returning rate-limit errors, giving up on %s", full_params)
+    logger.warning("HERE kept returning rate-limit errors, giving up on %s", log_params)
     return None
 
 
@@ -205,7 +247,7 @@ def _address_key(member: LwMember) -> tuple[str, str, str, str]:
 
     Whole families typically share Straße/Hausnummer/PLZ/Ort, so we
     geocode the address once and apply the result to all of them
-    instead of firing N identical Photon requests.
+    instead of firing N identical requests.
     """
     return (
         (member.strasse or "").strip().lower(),
@@ -226,10 +268,35 @@ async def _get_plz_centroid(
         return None
     if plz in cache:
         return cache[plz]
-    feature = await _photon_get(client, {"q": f"{plz} Deutschland"})
-    coords = _coords_from_feature(feature)
+    item = await _here_get(client, {"qq": f"postalCode={plz};country=Germany"})
+    coords = _coords_from_item(item)
     cache[plz] = coords
     return coords
+
+
+def _build_structured_query(
+    street: str, house: str, plz: str, ort: str
+) -> str:
+    """Compose a HERE ``qq`` qualified-query value.
+
+    Structured queries (``qq=street=X;houseNumber=Y;...``) parse
+    German addresses far more reliably than free-text searches --
+    abbreviations like ``Hauptstr.`` get matched against
+    ``Hauptstraße`` cleanly, and house-number suffixes survive the
+    round trip.
+    """
+    parts: list[str] = []
+    if street:
+        # Semicolons would split the qualified query, so strip them.
+        parts.append(f"street={street.replace(';', ' ')}")
+    if house:
+        parts.append(f"houseNumber={house.replace(';', ' ')}")
+    if plz:
+        parts.append(f"postalCode={plz}")
+    if ort:
+        parts.append(f"city={ort.replace(';', ' ')}")
+    parts.append("country=Germany")
+    return ";".join(parts)
 
 
 async def _geocode_member(
@@ -243,19 +310,15 @@ async def _geocode_member(
     plz = (member.plz or "").strip()
     ort = (member.ort or "").strip()
 
-    feature: dict | None = None
+    item: dict | None = None
     if street and (plz or ort):
-        parts = [f"{street} {house}".strip()]
-        if plz or ort:
-            parts.append(f"{plz} {ort}".strip())
-        parts.append("Deutschland")
-        q = ", ".join(p for p in parts if p)
-        feature = await _photon_get(client, {"q": q})
+        qq = _build_structured_query(street, house, plz, ort)
+        item = await _here_get(client, {"qq": qq})
 
-    if feature is not None:
-        coords = _coords_from_feature(feature)
+    if item is not None:
+        coords = _coords_from_item(item)
         if coords is not None:
-            precision = _classify(feature, house or None)
+            precision = _classify(item, house or None)
             lat, lng = coords
             if precision == "house":
                 return lat, lng, precision
@@ -304,6 +367,23 @@ def _reset_for_scope(db: Session, scope: GeocodeScope) -> int:
     return count
 
 
+def clear_member_geocode(db: Session, adr_nr: int) -> bool:
+    """Wipe a single member's coordinates so it disappears from the map.
+
+    Returns True if the row was found and updated, False otherwise.
+    """
+    member = db.query(LwMember).filter(LwMember.adr_nr == adr_nr).first()
+    if member is None:
+        return False
+    member.lat = None
+    member.lng = None
+    member.geocode_status = None
+    member.geocoded_at = None
+    member.geocode_precision = None
+    db.commit()
+    return True
+
+
 def _apply_hit(
     members: list[LwMember],
     hit: tuple[float, float, Precision] | None,
@@ -340,7 +420,7 @@ async def _run_geocoder():
     global _state
     db: Session = SessionLocal()
     # Cache PLZ centroids for the lifetime of one run so we don't hit
-    # Photon hundreds of times for the same Ort.
+    # HERE hundreds of times for the same Ort.
     plz_cache: dict[str, tuple[float, float] | None] = {}
     try:
         async with httpx.AsyncClient() as client:
@@ -364,7 +444,7 @@ async def _run_geocoder():
             _state.last_error = None
 
             # Bucket members by normalised address. Whole families
-            # collapse into a single Photon request.
+            # collapse into a single HERE request.
             groups: dict[tuple[str, str, str, str], list[LwMember]] = {}
             empty: list[LwMember] = []
             for member in unresolved:
@@ -435,7 +515,7 @@ async def _run_geocoder():
                     if groups_done % 10 == 0:
                         db.commit()
             finally:
-                # On cancel / error make sure no Photon request keeps
+                # On cancel / error make sure no HERE request keeps
                 # running after the worker has bailed.
                 for t in tasks:
                     if not t.done():
@@ -474,9 +554,13 @@ async def start_geocoder(scope: GeocodeScope = "pending") -> bool:
         was below house-level (or unknown).
       * ``"all"`` -- re-geocode every member, even confirmed house hits.
 
-    Returns True if started, False if a task is already running.
+    Returns True if started, False if a task is already running or the
+    HERE API key is missing.
     """
     global _task, _state
+    if not get_settings().here_api_key:
+        logger.warning("Geocoder refused to start: HERE_API_KEY is not set")
+        return False
     async with _state_lock:
         if _state.running:
             return False

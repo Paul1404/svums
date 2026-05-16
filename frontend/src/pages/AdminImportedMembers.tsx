@@ -12,6 +12,8 @@ import {
   getGeocodeStatus,
   startGeocode,
   stopGeocode,
+  clearGeocodeCoordinates,
+  clearMemberGeocode,
   type LwImportStats,
   type LwMemberListResponse,
   type LwMemberDetail,
@@ -83,7 +85,10 @@ function formatBytes(bytes: number | null | undefined): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-const SECONDS_PER_REQUEST = 1.1;
+// HERE Geocoding runs eight requests in flight at a time, so per-address
+// throughput is roughly half a second on average. The number is just for
+// the progress UI -- imprecise here costs the user nothing.
+const SECONDS_PER_REQUEST = 0.5;
 
 function formatEta(processed: number, total: number): string {
   const remaining = Math.max(0, total - processed);
@@ -397,6 +402,46 @@ export default function AdminImportedMembers() {
     }
   }, [fetchStats, fetchList]);
 
+  const handleClearCoordinates = useCallback(async () => {
+    const confirmed = window.confirm(
+      "Alle Koordinaten löschen? Die Mitgliederdaten bleiben erhalten, "
+        + "aber die Karte ist anschließend leer. Sie können danach das "
+        + "Geocoding neu starten.",
+    );
+    if (!confirmed) return;
+    try {
+      const next = await clearGeocodeCoordinates("all");
+      setGeoStatus(next);
+      setGeoPoints([]);
+      toast.success("Alle Koordinaten gelöscht.");
+    } catch (e) {
+      toast.error(errorMessage(e));
+    }
+  }, []);
+
+  const handleClearPin = useCallback(
+    async (adrNr: number) => {
+      const confirmed = window.confirm(
+        "Pin dieses Mitglieds von der Karte entfernen?",
+      );
+      if (!confirmed) return;
+      try {
+        await clearMemberGeocode(adrNr);
+        setGeoPoints((prev) => prev.filter((p) => p.adr_nr !== adrNr));
+        toast.success("Pin entfernt.");
+        // Refresh status counters in the background.
+        try {
+          setGeoStatus(await getGeocodeStatus());
+        } catch {
+          /* non-critical */
+        }
+      } catch (e) {
+        toast.error(errorMessage(e));
+      }
+    },
+    [],
+  );
+
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setPage(1);
@@ -556,6 +601,17 @@ export default function AdminImportedMembers() {
                         {geoStatus.approximate.toLocaleString("de-DE")} verfeinern
                       </button>
                     )}
+                    {geoStatus && geoStatus.geocoded > 0 && (
+                      <button
+                        type="button"
+                        onClick={handleClearCoordinates}
+                        className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-red-700 bg-red-50 border border-red-200 rounded-lg hover:bg-red-100 dark:bg-red-900/20 dark:text-red-300 dark:border-red-800"
+                        title="Alle Koordinaten löschen (Mitgliederdaten bleiben erhalten)"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                        Koordinaten löschen
+                      </button>
+                    )}
                   </>
                 )}
                 {showMap && geoPoints.length > 0 && (
@@ -661,9 +717,14 @@ export default function AdminImportedMembers() {
                         Noch keine Adressen geocodiert.
                       </p>
                       <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                        Wir nutzen OpenStreetMap (Nominatim) mit einer Anfrage pro Sekunde.
-                        Bei {geoStatus?.total_with_address ?? 0} Adressen dauert das ca.{" "}
-                        {Math.ceil((geoStatus?.total_with_address ?? 0) / 60)} Minuten.
+                        Wir nutzen den HERE Geocoder mit acht parallelen
+                        Anfragen. Bei {geoStatus?.total_with_address ?? 0}{" "}
+                        Adressen dauert das ca.{" "}
+                        {Math.max(
+                          1,
+                          Math.ceil(((geoStatus?.total_with_address ?? 0) * SECONDS_PER_REQUEST) / 60),
+                        )}{" "}
+                        Minuten.
                       </p>
                     </div>
                     {geoStatus && geoStatus.pending > 0 && !geoStatus.running && (
@@ -846,6 +907,14 @@ export default function AdminImportedMembers() {
         <MemberDetailDrawer
           loading={detailLoading}
           member={selectedMember}
+          hasPin={
+            selectedMember
+              ? geoPoints.some((p) => p.adr_nr === selectedMember.adr_nr)
+              : false
+          }
+          onClearPin={
+            selectedMember ? () => handleClearPin(selectedMember.adr_nr) : undefined
+          }
           onClose={() => setSelectedAdrNr(null)}
         />
       )}
@@ -956,10 +1025,14 @@ function StatCard({
 function MemberDetailDrawer({
   loading,
   member,
+  hasPin,
+  onClearPin,
   onClose,
 }: {
   loading: boolean;
   member: LwMemberDetail | null;
+  hasPin: boolean;
+  onClearPin?: () => void;
   onClose: () => void;
 }) {
   useBodyOverlay();
@@ -1027,6 +1100,19 @@ function MemberDetailDrawer({
                 <Field label="PLZ / Ort" value={[member.plz, member.ort].filter(Boolean).join(" ")} />
                 <Field label="Land" value={member.land} />
                 <Field label="c/o" value={member.co} />
+                {hasPin && onClearPin && (
+                  <div className="col-span-full">
+                    <button
+                      type="button"
+                      onClick={onClearPin}
+                      className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium text-red-700 bg-red-50 border border-red-200 rounded-lg hover:bg-red-100 dark:bg-red-900/20 dark:text-red-300 dark:border-red-800"
+                      title="Den falsch platzierten Pin von der Karte entfernen"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      Pin von Karte entfernen
+                    </button>
+                  </div>
+                )}
               </Section>
 
               <Section title="Kontakt">
