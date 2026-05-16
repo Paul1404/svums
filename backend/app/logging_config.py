@@ -75,6 +75,14 @@ def setup_logging() -> None:
 
     root.addHandler(handler)
 
+    # Reroute uvicorn's own loggers through the root handler (stdout).
+    # Otherwise uvicorn writes "Started server process", "Application startup
+    # complete", etc. to stderr, which Railway classifies as severity=error.
+    for name in ("uvicorn", "uvicorn.error", "uvicorn.access"):
+        uv_logger = logging.getLogger(name)
+        uv_logger.handlers.clear()
+        uv_logger.propagate = True
+
     # Quieten noisy third-party loggers
     logging.getLogger("uvicorn.access").setLevel(logging.WARNING)
     logging.getLogger("weasyprint").setLevel(logging.WARNING)
