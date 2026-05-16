@@ -81,6 +81,9 @@ class LwMember(Base):
     lng = Column(Numeric(10, 7), nullable=True)
     geocoded_at = Column(DateTime, nullable=True)
     geocode_status = Column(String(20), nullable=True)  # found, failed, no_address
+    # house = house-number resolved, street = road centroid,
+    # city = PLZ+Ort fallback, none = no usable coordinates
+    geocode_precision = Column(String(10), nullable=True)
 
     @property
     def full_name(self) -> str:
