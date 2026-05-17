@@ -149,45 +149,24 @@ const TILES = {
   },
 } as const;
 
-function makeDotIcon(precision: LwMemberGeo["precision"]): L.DivIcon {
-  // Precision-aware variant. "house" hits are confidence-coloured (red,
-  // pulsing). Anything else is muted amber/grey and skips the pulse so
-  // imprecise dots don't masquerade as exact-on-house pins.
-  const variant =
-    precision === "house" || precision === null
-      ? "svums-member-dot--house"
-      : precision === "street"
-        ? "svums-member-dot--street"
-        : "svums-member-dot--city";
-  const pulse =
-    precision === "house" || precision === null
-      ? '<span class="svums-member-dot__pulse"></span>'
-      : "";
+function makeDotIcon(): L.DivIcon {
+  // Single clean dot variant. Approximate / unresolved pins are filtered out
+  // upstream so the map only carries house-level hits — anything imprecise
+  // would sit on a PLZ centroid and clutter the view.
   return L.divIcon({
-    className: `svums-member-dot ${variant}`,
-    html: `${pulse}<span class="svums-member-dot__core"></span>`,
-    iconSize: [18, 18],
-    iconAnchor: [9, 9],
+    className: "svums-member-dot",
+    html: '<span class="svums-member-dot__core"></span>',
+    iconSize: [16, 16],
+    iconAnchor: [8, 8],
   });
 }
 
-// Cache divIcons by precision so the underlying DOM is reused across renders.
-const DOT_ICONS: Record<string, L.DivIcon> = {};
-function dotIconFor(precision: LwMemberGeo["precision"]): L.DivIcon {
-  const key = precision ?? "unknown";
-  const existing = DOT_ICONS[key];
-  if (existing) return existing;
-  const icon = makeDotIcon(precision);
-  DOT_ICONS[key] = icon;
-  return icon;
+// Single shared icon — DOM is reused across all markers.
+let DOT_ICON: L.DivIcon | null = null;
+function dotIcon(): L.DivIcon {
+  if (!DOT_ICON) DOT_ICON = makeDotIcon();
+  return DOT_ICON;
 }
-
-const PRECISION_LABEL: Record<string, string> = {
-  house: "Hausgenau",
-  street: "Straße (ungefähr)",
-  city: "Ort (ungefähr)",
-  none: "Keine Koordinaten",
-};
 
 function clusterIcon(cluster: { getChildCount: () => number }) {
   const count = cluster.getChildCount();
@@ -204,6 +183,8 @@ interface Props {
   onSelectMember: (adrNr: number) => void;
   className?: string;
   mode?: MapMode;
+  /** Optional legend / count overlay text shown in the bottom-left corner. */
+  legendLabel?: string;
 }
 
 interface HoverState {
@@ -229,7 +210,7 @@ function HoverDismissOnMove({ onDismiss }: { onDismiss: () => void }) {
 }
 
 const MemberMap = forwardRef<MemberMapHandle, Props>(function MemberMap(
-  { points, onSelectMember, className, mode = "dots" },
+  { points, onSelectMember, className, mode = "dots", legendLabel },
   ref,
 ) {
   const mapRef = useRef<L.Map | null>(null);
@@ -285,7 +266,7 @@ const MemberMap = forwardRef<MemberMapHandle, Props>(function MemberMap(
               <Marker
                 key={p.adr_nr}
                 position={[p.lat, p.lng]}
-                icon={dotIconFor(p.precision ?? null)}
+                icon={dotIcon()}
                 eventHandlers={{
                   click: () => onSelectMember(p.adr_nr),
                   mouseover: (e) => {
@@ -307,6 +288,12 @@ const MemberMap = forwardRef<MemberMapHandle, Props>(function MemberMap(
           </MarkerClusterGroup>
         )}
       </MapContainer>
+      {legendLabel && (
+        <div className="svums-map__legend" aria-hidden="true">
+          <span className="svums-map__legend-dot" />
+          {legendLabel}
+        </div>
+      )}
       {hover && <MemberHoverCard hover={hover} />}
     </div>
   );
@@ -317,12 +304,7 @@ function MemberHoverCard({ hover }: { hover: HoverState }) {
   const name =
     [point.vorname, point.nachname].filter(Boolean).join(" ") || `AdrNr ${point.adr_nr}`;
   const place = [point.plz, point.ort].filter(Boolean).join(" ");
-  const precision = point.precision ?? null;
-  const precisionLabel = precision ? PRECISION_LABEL[precision] : null;
 
-  // Portal into body so the card escapes both the map container's
-  // overflow:hidden and any rounded-xl wrapper above it. position:fixed
-  // keeps it pinned to the captured viewport coords.
   return createPortal(
     <div
       style={{
@@ -342,13 +324,6 @@ function MemberHoverCard({ hover }: { hover: HoverState }) {
           </div>
         )}
         {place && <div className="svums-member-tooltip__meta">{place}</div>}
-        {precisionLabel && precision !== "house" && (
-          <div
-            className={`svums-member-tooltip__precision svums-member-tooltip__precision--${precision}`}
-          >
-            {precisionLabel}
-          </div>
-        )}
         <div className="svums-member-tooltip__hint">Klicken für Details</div>
       </div>
     </div>,
