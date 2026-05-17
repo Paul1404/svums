@@ -1,4 +1,5 @@
-import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef } from "react";
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import "leaflet.heat";
@@ -6,7 +7,6 @@ import {
   MapContainer,
   TileLayer,
   Marker,
-  Tooltip,
   useMap,
 } from "react-leaflet";
 import MarkerClusterGroup from "react-leaflet-cluster";
@@ -206,6 +206,28 @@ interface Props {
   mode?: MapMode;
 }
 
+interface HoverState {
+  point: LwMemberGeo;
+  x: number;
+  y: number;
+}
+
+// Listens for map-level events and hides the hover card whenever the
+// viewport changes, so a stale portal can't be left pointing at a marker
+// that just slid off-screen during a pan.
+function HoverDismissOnMove({ onDismiss }: { onDismiss: () => void }) {
+  const map = useMap();
+  useEffect(() => {
+    map.on("movestart", onDismiss);
+    map.on("zoomstart", onDismiss);
+    return () => {
+      map.off("movestart", onDismiss);
+      map.off("zoomstart", onDismiss);
+    };
+  }, [map, onDismiss]);
+  return null;
+}
+
 const MemberMap = forwardRef<MemberMapHandle, Props>(function MemberMap(
   { points, onSelectMember, className, mode = "dots" },
   ref,
@@ -213,6 +235,8 @@ const MemberMap = forwardRef<MemberMapHandle, Props>(function MemberMap(
   const mapRef = useRef<L.Map | null>(null);
   const { resolved } = useTheme();
   const tile = TILES[resolved];
+  const [hover, setHover] = useState<HoverState | null>(null);
+  const dismissHover = useCallback(() => setHover(null), []);
 
   useImperativeHandle(ref, () => ({ getMap: () => mapRef.current }), []);
 
@@ -243,6 +267,7 @@ const MemberMap = forwardRef<MemberMapHandle, Props>(function MemberMap(
           maxZoom={19}
         />
         <FitBounds points={displayPoints} />
+        <HoverDismissOnMove onDismiss={dismissHover} />
         {mode === "heat" ? (
           <HeatLayer points={displayPoints} active />
         ) : (
@@ -256,55 +281,79 @@ const MemberMap = forwardRef<MemberMapHandle, Props>(function MemberMap(
             spiderfyDistanceMultiplier={1.4}
             iconCreateFunction={clusterIcon}
           >
-            {displayPoints.map((p) => {
-              const name =
-                [p.vorname, p.nachname].filter(Boolean).join(" ") || `AdrNr ${p.adr_nr}`;
-              const place = [p.plz, p.ort].filter(Boolean).join(" ");
-              const precision = p.precision ?? null;
-              const precisionLabel = precision ? PRECISION_LABEL[precision] : null;
-              return (
-                <Marker
-                  key={p.adr_nr}
-                  position={[p.lat, p.lng]}
-                  icon={dotIconFor(precision)}
-                  eventHandlers={{
-                    click: () => onSelectMember(p.adr_nr),
-                  }}
-                >
-                  <Tooltip
-                    direction="top"
-                    offset={[0, -10]}
-                    opacity={1}
-                    className="svums-member-tooltip"
-                  >
-                    <div className="svums-member-tooltip__card">
-                      <div className="svums-member-tooltip__name">{name}</div>
-                      {p.mitgliedsnummer && (
-                        <div className="svums-member-tooltip__meta">
-                          Nr. {p.mitgliedsnummer}
-                        </div>
-                      )}
-                      {place && (
-                        <div className="svums-member-tooltip__meta">{place}</div>
-                      )}
-                      {precisionLabel && precision !== "house" && (
-                        <div
-                          className={`svums-member-tooltip__precision svums-member-tooltip__precision--${precision}`}
-                        >
-                          {precisionLabel}
-                        </div>
-                      )}
-                      <div className="svums-member-tooltip__hint">Klicken für Details</div>
-                    </div>
-                  </Tooltip>
-                </Marker>
-              );
-            })}
+            {displayPoints.map((p) => (
+              <Marker
+                key={p.adr_nr}
+                position={[p.lat, p.lng]}
+                icon={dotIconFor(p.precision ?? null)}
+                eventHandlers={{
+                  click: () => onSelectMember(p.adr_nr),
+                  mouseover: (e) => {
+                    // Anchor the portal card to the dot's screen rect so it
+                    // can extend past the map container's overflow:hidden.
+                    const el = (e.target as L.Marker).getElement();
+                    if (!el) return;
+                    const rect = el.getBoundingClientRect();
+                    setHover({
+                      point: p,
+                      x: rect.left + rect.width / 2,
+                      y: rect.top,
+                    });
+                  },
+                  mouseout: () => setHover(null),
+                }}
+              />
+            ))}
           </MarkerClusterGroup>
         )}
       </MapContainer>
+      {hover && <MemberHoverCard hover={hover} />}
     </div>
   );
 });
+
+function MemberHoverCard({ hover }: { hover: HoverState }) {
+  const { point, x, y } = hover;
+  const name =
+    [point.vorname, point.nachname].filter(Boolean).join(" ") || `AdrNr ${point.adr_nr}`;
+  const place = [point.plz, point.ort].filter(Boolean).join(" ");
+  const precision = point.precision ?? null;
+  const precisionLabel = precision ? PRECISION_LABEL[precision] : null;
+
+  // Portal into body so the card escapes both the map container's
+  // overflow:hidden and any rounded-xl wrapper above it. position:fixed
+  // keeps it pinned to the captured viewport coords.
+  return createPortal(
+    <div
+      style={{
+        position: "fixed",
+        left: x,
+        top: y,
+        transform: "translate(-50%, calc(-100% - 12px))",
+        zIndex: 1000,
+        pointerEvents: "none",
+      }}
+    >
+      <div className="svums-member-tooltip__card">
+        <div className="svums-member-tooltip__name">{name}</div>
+        {point.mitgliedsnummer && (
+          <div className="svums-member-tooltip__meta">
+            Nr. {point.mitgliedsnummer}
+          </div>
+        )}
+        {place && <div className="svums-member-tooltip__meta">{place}</div>}
+        {precisionLabel && precision !== "house" && (
+          <div
+            className={`svums-member-tooltip__precision svums-member-tooltip__precision--${precision}`}
+          >
+            {precisionLabel}
+          </div>
+        )}
+        <div className="svums-member-tooltip__hint">Klicken für Details</div>
+      </div>
+    </div>,
+    document.body,
+  );
+}
 
 export default MemberMap;
