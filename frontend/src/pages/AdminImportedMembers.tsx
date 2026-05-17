@@ -200,11 +200,38 @@ export default function AdminImportedMembers() {
     }
   }, [exporting, club.club_name, club.club_short_name]);
 
+  // Only house-precision pins make it onto the map. Anything else sits on a
+  // PLZ centroid and would clutter the view with fake "addresses". They get
+  // shown in a separate panel below the map instead.
+  const housePoints = useMemo(
+    () => geoPoints.filter((p) => p.precision === "house"),
+    [geoPoints],
+  );
+  const approxPoints = useMemo(
+    () =>
+      geoPoints.filter(
+        (p) => p.precision === "street" || p.precision === "city",
+      ),
+    [geoPoints],
+  );
+
   const locationCount = useMemo(() => {
     const keys = new Set<string>();
-    for (const p of geoPoints) keys.add(`${p.lat.toFixed(3)},${p.lng.toFixed(3)}`);
+    for (const p of housePoints) keys.add(`${p.lat.toFixed(3)},${p.lng.toFixed(3)}`);
     return keys.size;
-  }, [geoPoints]);
+  }, [housePoints]);
+
+  const approxByCity = useMemo(() => {
+    const groups = new Map<string, LwMemberGeo[]>();
+    for (const p of approxPoints) {
+      const key = [p.plz, p.ort].filter(Boolean).join(" ") || "Ohne Ort";
+      const arr = groups.get(key);
+      if (arr) arr.push(p);
+      else groups.set(key, [p]);
+    }
+    return Array.from(groups.entries())
+      .sort((a, b) => b[1].length - a[1].length || a[0].localeCompare(b[0]));
+  }, [approxPoints]);
 
   const fetchStats = useCallback(async () => {
     try {
@@ -571,6 +598,7 @@ export default function AdminImportedMembers() {
                 </h2>
                 {geoStatus && (
                   <span className="text-xs text-gray-500 dark:text-gray-400">
+                    {housePoints.length.toLocaleString("de-DE")} hausgenau ·{" "}
                     {geoStatus.geocoded.toLocaleString("de-DE")} von{" "}
                     {geoStatus.total_with_address.toLocaleString("de-DE")} Adressen geocodiert
                   </span>
@@ -633,7 +661,7 @@ export default function AdminImportedMembers() {
                     )}
                   </>
                 )}
-                {showMap && geoPoints.length > 0 && (
+                {showMap && housePoints.length > 0 && (
                   <>
                     <div
                       className="inline-flex items-center rounded-lg border border-gray-200 dark:border-gray-700 p-0.5 bg-gray-50 dark:bg-gray-900"
@@ -728,22 +756,36 @@ export default function AdminImportedMembers() {
 
             {showMap && (
               <div className="relative">
-                {geoPoints.length === 0 ? (
+                {housePoints.length === 0 ? (
                   <div className="h-[450px] flex flex-col items-center justify-center gap-3 text-center px-6">
                     <MapIcon className="w-10 h-10 text-gray-300 dark:text-gray-600" />
                     <div>
                       <p className="text-sm text-gray-600 dark:text-gray-300">
-                        Noch keine Adressen geocodiert.
+                        {geoPoints.length === 0
+                          ? "Noch keine Adressen geocodiert."
+                          : "Noch keine hausgenauen Treffer."}
                       </p>
                       <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                        Wir nutzen den HERE Geocoder mit acht parallelen
-                        Anfragen. Bei {geoStatus?.total_with_address ?? 0}{" "}
-                        Adressen dauert das ca.{" "}
-                        {Math.max(
-                          1,
-                          Math.ceil(((geoStatus?.total_with_address ?? 0) * SECONDS_PER_REQUEST) / 60),
-                        )}{" "}
-                        Minuten.
+                        {geoPoints.length === 0 ? (
+                          <>
+                            Wir nutzen den HERE Geocoder mit acht parallelen
+                            Anfragen. Bei {geoStatus?.total_with_address ?? 0}{" "}
+                            Adressen dauert das ca.{" "}
+                            {Math.max(
+                              1,
+                              Math.ceil(((geoStatus?.total_with_address ?? 0) * SECONDS_PER_REQUEST) / 60),
+                            )}{" "}
+                            Minuten.
+                          </>
+                        ) : (
+                          <>
+                            {approxPoints.length.toLocaleString("de-DE")} Adresse
+                            {approxPoints.length === 1 ? "" : "n"} konnte
+                            {approxPoints.length === 1 ? "" : "n"} nur als
+                            PLZ-Mittelpunkt aufgelöst werden. Sie finden sie
+                            unten in der Liste &bdquo;Ohne genaue Adresse&ldquo;.
+                          </>
+                        )}
                       </p>
                     </div>
                     {geoStatus && geoStatus.pending > 0 && !geoStatus.running && (
@@ -758,9 +800,10 @@ export default function AdminImportedMembers() {
                   </div>
                 ) : (
                   <MemberMap
-                    points={geoPoints}
+                    points={housePoints}
                     onSelectMember={setSelectedAdrNr}
                     mode={mapMode}
+                    legendLabel={`${housePoints.length.toLocaleString("de-DE")} Mitglied${housePoints.length === 1 ? "" : "er"}`}
                     className="h-[500px] relative z-0"
                   />
                 )}
@@ -770,6 +813,15 @@ export default function AdminImportedMembers() {
                   </div>
                 )}
               </div>
+            )}
+
+            {showMap && approxPoints.length > 0 && (
+              <ApproximateAddressesPanel
+                groups={approxByCity}
+                total={approxPoints.length}
+                onSelectMember={setSelectedAdrNr}
+                onOpenStuck={() => setStuckOpen(true)}
+              />
             )}
           </section>
         )}
@@ -955,7 +1007,7 @@ export default function AdminImportedMembers() {
         />
       )}
 
-      {exporting && geoPoints.length > 0 && (
+      {exporting && housePoints.length > 0 && (
         <div
           aria-hidden="true"
           style={{
@@ -971,14 +1023,14 @@ export default function AdminImportedMembers() {
             height={1000}
             meta={{
               clubName: club.club_name || "Sportverein",
-              memberCount: geoPoints.length,
+              memberCount: housePoints.length,
               locationCount,
               generatedAt: new Date(),
             }}
           >
             <MemberMap
               ref={exportMapRef}
-              points={geoPoints}
+              points={housePoints}
               onSelectMember={() => undefined}
               mode={mapMode}
               className="h-full w-full"
@@ -1215,6 +1267,95 @@ function GeocodeStuckPanel({
           )}
         </div>
       </aside>
+    </div>
+  );
+}
+
+function ApproximateAddressesPanel({
+  groups,
+  total,
+  onSelectMember,
+  onOpenStuck,
+}: {
+  groups: [string, LwMemberGeo[]][];
+  total: number;
+  onSelectMember: (adrNr: number) => void;
+  onOpenStuck: () => void;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const visible = expanded ? groups : groups.slice(0, 8);
+  return (
+    <div className="border-t dark:border-gray-700 bg-gray-50/60 dark:bg-gray-900/30 px-4 py-4">
+      <div className="flex flex-wrap items-baseline justify-between gap-2 mb-3">
+        <div>
+          <h3 className="text-sm font-semibold text-gray-900 dark:text-white flex items-center gap-1.5">
+            <MapPin className="w-4 h-4 text-amber-500" />
+            Ohne genaue Adresse
+          </h3>
+          <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+            {total.toLocaleString("de-DE")} Mitglied{total === 1 ? "" : "er"} mit ungenauer Lage. Diese Adressen liegen auf dem PLZ-Mittelpunkt und werden daher nicht auf der Karte angezeigt.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={onOpenStuck}
+          className="flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-amber-700 bg-amber-50 border border-amber-200 rounded-lg hover:bg-amber-100 dark:bg-amber-900/20 dark:text-amber-300 dark:border-amber-800"
+        >
+          <AlertTriangle className="w-3.5 h-3.5" />
+          Adressen prüfen
+        </button>
+      </div>
+      <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-2">
+        {visible.map(([city, members]) => (
+          <details
+            key={city}
+            className="group rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 overflow-hidden"
+          >
+            <summary className="flex items-center justify-between gap-2 px-3 py-2 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/40 list-none">
+              <span className="text-sm text-gray-900 dark:text-gray-100 truncate">
+                {city}
+              </span>
+              <span className="inline-flex items-center justify-center min-w-[1.5rem] h-5 px-1.5 rounded-full bg-amber-100 text-amber-800 text-[11px] font-semibold dark:bg-amber-900/30 dark:text-amber-300">
+                {members.length}
+              </span>
+            </summary>
+            <ul className="divide-y divide-gray-100 dark:divide-gray-700 border-t dark:border-gray-700 max-h-56 overflow-y-auto">
+              {members.map((m) => {
+                const name =
+                  [m.vorname, m.nachname].filter(Boolean).join(" ") ||
+                  `AdrNr ${m.adr_nr}`;
+                return (
+                  <li key={m.adr_nr}>
+                    <button
+                      type="button"
+                      onClick={() => onSelectMember(m.adr_nr)}
+                      className="w-full text-left px-3 py-1.5 text-xs hover:bg-svu-50 dark:hover:bg-svu-900/20 flex items-center justify-between gap-2"
+                    >
+                      <span className="truncate text-gray-700 dark:text-gray-200">
+                        {name}
+                      </span>
+                      {m.mitgliedsnummer && (
+                        <span className="font-mono text-[10px] text-gray-500 dark:text-gray-400">
+                          {m.mitgliedsnummer}
+                        </span>
+                      )}
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          </details>
+        ))}
+      </div>
+      {groups.length > 8 && (
+        <button
+          type="button"
+          onClick={() => setExpanded((v) => !v)}
+          className="mt-3 text-xs text-svu-700 hover:text-svu-800 dark:text-svu-300 dark:hover:text-svu-200"
+        >
+          {expanded ? "Weniger anzeigen" : `Alle ${groups.length} Orte anzeigen`}
+        </button>
+      )}
     </div>
   );
 }
