@@ -971,7 +971,27 @@ export interface LwGeocodeStatus {
   street_hits: number;
   city_hits: number;
   approximate: number;
+  ignored: number;
   scope: LwGeocodeScope;
+}
+
+export type LwGeocodeStuckBucket = "pending" | "approximate" | "ignored" | "all";
+
+export interface LwGeocodeStuckMember {
+  adr_nr: number;
+  mitgliedsnummer: string | null;
+  vorname: string | null;
+  nachname: string | null;
+  strasse: string | null;
+  hausnummer: string | null;
+  plz: string | null;
+  ort: string | null;
+  geocode_status: string | null;
+  geocode_precision: string | null;
+  geocode_notes: string | null;
+  geocode_ignored: boolean | null;
+  geocoded_at: string | null;
+  bucket: "pending" | "approximate" | "ignored";
 }
 
 export async function getMembersGeo(opts: {
@@ -1010,4 +1030,23 @@ export async function clearMemberGeocode(adrNr: number): Promise<void> {
   await apiRequest(`/api/admin/imports/members/${adrNr}/geocode`, {
     method: "DELETE",
   });
+}
+
+export async function getGeocodeStuck(
+  bucket: LwGeocodeStuckBucket = "all",
+  limit = 200,
+): Promise<LwGeocodeStuckMember[]> {
+  const qs = new URLSearchParams({ bucket, limit: String(limit) });
+  return apiRequest(`/api/admin/imports/geocode/stuck?${qs}`);
+}
+
+export async function setMemberGeocodeIgnored(
+  adrNr: number,
+  ignore: boolean,
+): Promise<void> {
+  const qs = new URLSearchParams({ ignore: String(ignore) });
+  await apiRequest(
+    `/api/admin/imports/members/${adrNr}/geocode/ignore?${qs}`,
+    { method: "POST" },
+  );
 }

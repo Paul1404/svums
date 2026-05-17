@@ -14,12 +14,16 @@ import {
   stopGeocode,
   clearGeocodeCoordinates,
   clearMemberGeocode,
+  getGeocodeStuck,
+  setMemberGeocodeIgnored,
   type LwImportStats,
   type LwMemberListResponse,
   type LwMemberDetail,
   type LwMemberSummary,
   type LwMemberGeo,
   type LwGeocodeStatus,
+  type LwGeocodeStuckBucket,
+  type LwGeocodeStuckMember,
 } from "../services/api";
 import { errorMessage } from "../lib/utils";
 import MemberMap, { type MapMode, type MemberMapHandle } from "../components/MemberMap";
@@ -52,6 +56,9 @@ import {
   Circle,
   Loader2,
   Crosshair,
+  AlertTriangle,
+  EyeOff,
+  Eye,
 } from "lucide-react";
 
 function formatDate(value: string | null | undefined): string {
@@ -134,6 +141,7 @@ export default function AdminImportedMembers() {
   const [showMap, setShowMap] = useState(true);
   const [mapMode, setMapMode] = useState<MapMode>("dots");
   const [exporting, setExporting] = useState(false);
+  const [stuckOpen, setStuckOpen] = useState(false);
   const club = useClubConfig();
   const posterRef = useRef<HTMLDivElement | null>(null);
   const exportMapRef = useRef<MemberMapHandle | null>(null);
@@ -601,6 +609,17 @@ export default function AdminImportedMembers() {
                         {geoStatus.approximate.toLocaleString("de-DE")} verfeinern
                       </button>
                     )}
+                    {geoStatus && (geoStatus.pending > 0 || geoStatus.approximate > 0 || geoStatus.ignored > 0) && (
+                      <button
+                        type="button"
+                        onClick={() => setStuckOpen(true)}
+                        className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-gray-700 bg-gray-50 border border-gray-200 rounded-lg hover:bg-gray-100 dark:bg-gray-900/40 dark:text-gray-200 dark:border-gray-700"
+                        title="Adressen anzeigen, die der Geocoder nicht auflösen kann"
+                      >
+                        <AlertTriangle className="w-3.5 h-3.5" />
+                        Probleme ({(geoStatus.pending + geoStatus.approximate).toLocaleString("de-DE")})
+                      </button>
+                    )}
                     {geoStatus && geoStatus.geocoded > 0 && (
                       <button
                         type="button"
@@ -923,6 +942,19 @@ export default function AdminImportedMembers() {
         <GeocodeMiniStatus status={geoStatus} onStop={handleStopGeocode} />
       )}
 
+      {stuckOpen && (
+        <GeocodeStuckPanel
+          onClose={() => setStuckOpen(false)}
+          onSelectMember={(adrNr) => setSelectedAdrNr(adrNr)}
+          onStatusChange={(status) => {
+            setGeoStatus(status);
+            // Refresh the pins so a freshly ignored row's stale dot
+            // disappears from the map immediately.
+            fetchGeo();
+          }}
+        />
+      )}
+
       {exporting && geoPoints.length > 0 && (
         <div
           aria-hidden="true"
@@ -995,6 +1027,209 @@ function GeocodeMiniStatus({
         />
       </div>
     </div>
+  );
+}
+
+function GeocodeStuckPanel({
+  onClose,
+  onSelectMember,
+  onStatusChange,
+}: {
+  onClose: () => void;
+  onSelectMember: (adrNr: number) => void;
+  onStatusChange: (status: LwGeocodeStatus) => void;
+}) {
+  useBodyOverlay();
+  useEscapeKey(true, onClose);
+
+  const [bucket, setBucket] = useState<LwGeocodeStuckBucket>("all");
+  const [rows, setRows] = useState<LwGeocodeStuckMember[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [togglingAdr, setTogglingAdr] = useState<number | null>(null);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      setRows(await getGeocodeStuck(bucket));
+    } catch (e) {
+      toast.error(errorMessage(e));
+    } finally {
+      setLoading(false);
+    }
+  }, [bucket]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  const handleToggleIgnore = useCallback(
+    async (adrNr: number, currentlyIgnored: boolean) => {
+      setTogglingAdr(adrNr);
+      try {
+        await setMemberGeocodeIgnored(adrNr, !currentlyIgnored);
+        const next = await getGeocodeStatus();
+        onStatusChange(next);
+        await load();
+        toast.success(
+          currentlyIgnored ? "Wieder im Geocoding berücksichtigt." : "Adresse wird ignoriert.",
+        );
+      } catch (e) {
+        toast.error(errorMessage(e));
+      } finally {
+        setTogglingAdr(null);
+      }
+    },
+    [load, onStatusChange],
+  );
+
+  return (
+    <div
+      className="fixed inset-0 z-40 flex"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Geocoding-Probleme"
+    >
+      <div
+        className="flex-1 bg-black/40 backdrop-blur-sm"
+        onClick={onClose}
+        aria-hidden="true"
+      />
+      <aside className="w-full max-w-3xl bg-white dark:bg-gray-800 shadow-2xl overflow-y-auto">
+        <div className="sticky top-0 z-10 bg-white dark:bg-gray-800 border-b dark:border-gray-700 px-6 py-4 flex items-center justify-between">
+          <div>
+            <h2 className="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2">
+              <AlertTriangle className="w-5 h-5 text-amber-500" />
+              Geocoding-Probleme
+            </h2>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+              Adressen, die HERE nicht hausgenau auflöst. Ignorierte Adressen
+              werden bei "geocodieren" und "verfeinern" übersprungen.
+            </p>
+          </div>
+          <button
+            onClick={onClose}
+            className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg"
+            aria-label="Schließen"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        <div className="px-6 py-3 border-b dark:border-gray-700 flex items-center gap-2 flex-wrap">
+          {([
+            ["all", "Alle"],
+            ["pending", "Ohne Koordinaten"],
+            ["approximate", "Ungenau"],
+            ["ignored", "Ignoriert"],
+          ] as const).map(([key, label]) => (
+            <button
+              key={key}
+              type="button"
+              onClick={() => setBucket(key)}
+              aria-pressed={bucket === key}
+              className={`px-3 py-1 text-xs rounded-full border transition-colors ${
+                bucket === key
+                  ? "bg-svu-600 text-white border-svu-600"
+                  : "bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-200 border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800"
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+
+        <div className="px-6 py-4 space-y-2">
+          {loading ? (
+            <div className="flex justify-center py-12">
+              <RefreshCw className="w-6 h-6 text-svu-600 animate-spin" />
+            </div>
+          ) : rows.length === 0 ? (
+            <p className="text-sm text-gray-500 dark:text-gray-400 text-center py-12">
+              Keine Einträge in dieser Kategorie.
+            </p>
+          ) : (
+            rows.map((row) => {
+              const ignored = !!row.geocode_ignored;
+              const fullName = [row.vorname, row.nachname].filter(Boolean).join(" ") || `AdrNr ${row.adr_nr}`;
+              const addr = [
+                [row.strasse, row.hausnummer].filter(Boolean).join(" "),
+                [row.plz, row.ort].filter(Boolean).join(" "),
+              ]
+                .filter(Boolean)
+                .join(", ");
+              return (
+                <div
+                  key={row.adr_nr}
+                  className="rounded-lg border border-gray-200 dark:border-gray-700 p-3"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0 flex-1">
+                      <button
+                        type="button"
+                        onClick={() => onSelectMember(row.adr_nr)}
+                        className="text-sm font-medium text-gray-900 dark:text-white hover:text-svu-600 dark:hover:text-svu-300 text-left"
+                      >
+                        {fullName}
+                      </button>
+                      <div className="text-xs text-gray-600 dark:text-gray-400 mt-0.5">
+                        {addr || <span className="italic">Keine Adressfelder</span>}
+                      </div>
+                      <div className="mt-1.5 flex items-center gap-2 flex-wrap">
+                        <BucketBadge bucket={row.bucket} />
+                        {row.geocode_precision && row.geocode_precision !== "house" && (
+                          <span className="inline-block px-1.5 py-0.5 text-[10px] rounded bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300">
+                            Genauigkeit: {row.geocode_precision}
+                          </span>
+                        )}
+                      </div>
+                      {row.geocode_notes && (
+                        <p className="mt-1.5 text-xs text-gray-700 dark:text-gray-300 leading-snug">
+                          {row.geocode_notes}
+                        </p>
+                      )}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleToggleIgnore(row.adr_nr, ignored)}
+                      disabled={togglingAdr === row.adr_nr}
+                      className={`flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-lg border whitespace-nowrap disabled:opacity-60 disabled:cursor-wait ${
+                        ignored
+                          ? "text-svu-700 bg-svu-50 border-svu-200 hover:bg-svu-100 dark:bg-svu-900/20 dark:text-svu-300 dark:border-svu-800"
+                          : "text-amber-700 bg-amber-50 border-amber-200 hover:bg-amber-100 dark:bg-amber-900/20 dark:text-amber-300 dark:border-amber-800"
+                      }`}
+                      title={ignored ? "Wieder im Geocoding berücksichtigen" : "Beim nächsten Lauf überspringen"}
+                    >
+                      {togglingAdr === row.adr_nr ? (
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      ) : ignored ? (
+                        <Eye className="w-3.5 h-3.5" />
+                      ) : (
+                        <EyeOff className="w-3.5 h-3.5" />
+                      )}
+                      {ignored ? "Beachten" : "Ignorieren"}
+                    </button>
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </div>
+      </aside>
+    </div>
+  );
+}
+
+function BucketBadge({ bucket }: { bucket: LwGeocodeStuckMember["bucket"] }) {
+  const styles: Record<LwGeocodeStuckMember["bucket"], { label: string; color: string }> = {
+    pending: { label: "Ohne Koordinaten", color: "bg-svu-100 text-svu-700 dark:bg-svu-900/30 dark:text-svu-300" },
+    approximate: { label: "Ungenau", color: "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300" },
+    ignored: { label: "Ignoriert", color: "bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-200" },
+  };
+  const s = styles[bucket];
+  return (
+    <span className={`inline-block px-1.5 py-0.5 text-[10px] rounded ${s.color}`}>
+      {s.label}
+    </span>
   );
 }
 

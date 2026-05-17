@@ -573,6 +573,154 @@ INSERT INTO `adresse` VALUES (1,'A');
     assert res.status_code == 404
 
 
+def test_geocode_status_excludes_no_address_from_pending(client, admin_cookie, db_session):
+    """Members with no address fields used to be stuck in the pending counter
+    because the geocoder kept re-marking them as ``no_address`` without
+    coords. They should now drop out of the counter and out of the worker
+    queue."""
+    from app.services.imported_writer import write_dump
+
+    sql = """
+CREATE TABLE `adresse` (`AdrNr` int NOT NULL, `Vorname` varchar(30), `Strasse` varchar(200), `Ort` varchar(80), PRIMARY KEY (`AdrNr`));
+INSERT INTO `adresse` VALUES (1,'WithAddr','Mainstr. 1','Hamburg'),(2,'NoAddr',NULL,NULL);
+"""
+    write_dump(db_session, parse_dump(sql), filename="t.sql", file_size_bytes=len(sql))
+
+    # Simulate what the worker writes for a "no address" row.
+    no_addr = db_session.query(LwMember).filter(LwMember.adr_nr == 2).first()
+    no_addr.geocode_status = "no_address"
+    no_addr.geocode_precision = "none"
+    no_addr.geocode_notes = "Keine Adressfelder vorhanden."
+    db_session.commit()
+
+    res = client.get("/api/admin/imports/geocode/status", cookies=admin_cookie)
+    body = res.json()
+    # Only the row with a real address remains pending.
+    assert body["pending"] == 1
+
+
+def test_geocode_ignore_excludes_from_counters(client, admin_cookie, db_session):
+    from app.services.imported_writer import write_dump
+
+    sql = """
+CREATE TABLE `adresse` (`AdrNr` int NOT NULL, `Vorname` varchar(30), `Strasse` varchar(200), `Ort` varchar(80), PRIMARY KEY (`AdrNr`));
+INSERT INTO `adresse` VALUES (1,'Pending','Foostr. 1','Berlin'),(2,'Approx','Barstr. 2','Berlin');
+"""
+    write_dump(db_session, parse_dump(sql), filename="t.sql", file_size_bytes=len(sql))
+
+    approx = db_session.query(LwMember).filter(LwMember.adr_nr == 2).first()
+    approx.lat = 52.5
+    approx.lng = 13.4
+    approx.geocode_status = "found"
+    approx.geocode_precision = "street"
+    db_session.commit()
+
+    before = client.get("/api/admin/imports/geocode/status", cookies=admin_cookie).json()
+    assert before["pending"] == 1
+    assert before["approximate"] == 1
+    assert before["ignored"] == 0
+
+    # Mute both rows.
+    for adr in (1, 2):
+        res = client.post(
+            f"/api/admin/imports/members/{adr}/geocode/ignore?ignore=true",
+            cookies=admin_cookie,
+            headers={"X-CSRF-Token": "test-csrf-token"},
+        )
+        assert res.status_code == 200
+
+    after = client.get("/api/admin/imports/geocode/status", cookies=admin_cookie).json()
+    assert after["pending"] == 0
+    assert after["approximate"] == 0
+    assert after["ignored"] == 2
+
+    # Un-mute one row and re-check.
+    res = client.post(
+        "/api/admin/imports/members/1/geocode/ignore?ignore=false",
+        cookies=admin_cookie,
+        headers={"X-CSRF-Token": "test-csrf-token"},
+    )
+    assert res.status_code == 200
+    after2 = client.get("/api/admin/imports/geocode/status", cookies=admin_cookie).json()
+    assert after2["pending"] == 1
+    assert after2["ignored"] == 1
+
+
+def test_geocode_stuck_endpoint_returns_buckets(client, admin_cookie, db_session):
+    from app.services.imported_writer import write_dump
+
+    sql = """
+CREATE TABLE `adresse` (`AdrNr` int NOT NULL, `Vorname` varchar(30), `Strasse` varchar(200), `Ort` varchar(80), PRIMARY KEY (`AdrNr`));
+INSERT INTO `adresse` VALUES (1,'Pend','Foostr','Berlin'),(2,'Approx','Barstr','Berlin'),(3,'Good','Bazstr','Berlin');
+"""
+    write_dump(db_session, parse_dump(sql), filename="t.sql", file_size_bytes=len(sql))
+    rows = {m.adr_nr: m for m in db_session.query(LwMember).all()}
+    # adr_nr=1 stays pending, no coords.
+    rows[1].geocode_notes = "Test note"
+    # adr_nr=2 has coords but street precision.
+    rows[2].lat = 52.5
+    rows[2].lng = 13.4
+    rows[2].geocode_status = "found"
+    rows[2].geocode_precision = "street"
+    rows[2].geocode_notes = "HERE kennt die Hausnummer nicht."
+    # adr_nr=3 is fully resolved -- must not appear.
+    rows[3].lat = 52.6
+    rows[3].lng = 13.5
+    rows[3].geocode_status = "found"
+    rows[3].geocode_precision = "house"
+    db_session.commit()
+
+    res = client.get(
+        "/api/admin/imports/geocode/stuck?bucket=all",
+        cookies=admin_cookie,
+    )
+    assert res.status_code == 200
+    items = res.json()
+    assert {it["adr_nr"] for it in items} == {1, 2}
+    by_id = {it["adr_nr"]: it for it in items}
+    assert by_id[1]["bucket"] == "pending"
+    assert by_id[2]["bucket"] == "approximate"
+    assert by_id[2]["geocode_notes"] == "HERE kennt die Hausnummer nicht."
+
+    # bucket=pending narrows to just the unresolved row.
+    res = client.get(
+        "/api/admin/imports/geocode/stuck?bucket=pending",
+        cookies=admin_cookie,
+    )
+    assert {it["adr_nr"] for it in res.json()} == {1}
+
+
+def test_geocode_describe_here_hit_notes():
+    """The German notes should explain the demotion reason clearly."""
+    from app.services.geocode import _describe_here_hit
+
+    # Interpolated -> demoted to street
+    note = _describe_here_hit(
+        {"resultType": "houseNumber", "houseNumberType": "interpolated",
+         "address": {"houseNumber": "12"}},
+        "street",
+        "12",
+    )
+    assert "interpoliert" in note
+
+    # House number mismatch
+    note = _describe_here_hit(
+        {"resultType": "houseNumber", "houseNumberType": "PA",
+         "address": {"houseNumber": "9"}},
+        "street",
+        "12",
+    )
+    assert "9" in note and "12" in note
+
+    # Plain street centroid
+    note = _describe_here_hit(
+        {"resultType": "street"},
+        "street",
+        "12",
+    )
+    assert "Hausnummer" in note
+
+
 def test_geocode_start_refuses_without_api_key(client, admin_cookie, monkeypatch):
     from app.config import get_settings
 

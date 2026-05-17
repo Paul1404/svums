@@ -28,6 +28,7 @@ from app.routers.admin import require_admin
 from app.schemas.imported import (
     LwFeeTypeResponse,
     LwGeocodeStatus,
+    LwGeocodeStuckMember,
     LwImportBatchResponse,
     LwImportResult,
     LwImportStatsResponse,
@@ -40,8 +41,10 @@ from app.services.crypto import decrypt_iban_safe
 from app.services.geocode import (
     clear_member_geocode,
     get_state as get_geocode_state,
+    set_member_ignored,
     start_geocoder,
     stop_geocoder,
+    _not_ignored,
     _reset_for_scope,
 )
 from app.services.imported_writer import write_dump
@@ -335,12 +338,15 @@ async def purge_imported_data(
 
 def _geocode_status_snapshot(db: Session) -> LwGeocodeStatus:
     state = get_geocode_state()
+    # ``pending`` and ``approximate`` mirror what the worker would
+    # actually pick up: ignored rows and previously processed dead-ends
+    # (failed / no_address) are excluded so the counters can hit zero.
     pending = (
-        db.query(func.count(LwMember.adr_nr))
+        _not_ignored(db.query(func.count(LwMember.adr_nr)))
         .filter(LwMember.lat.is_(None))
         .filter(
             (LwMember.geocode_status.is_(None))
-            | (LwMember.geocode_status != "failed")
+            | (LwMember.geocode_status.notin_(["failed", "no_address"]))
         )
         .scalar()
         or 0
@@ -359,12 +365,18 @@ def _geocode_status_snapshot(db: Session) -> LwGeocodeStatus:
         or 0
     )
     approximate = (
-        db.query(func.count(LwMember.adr_nr))
+        _not_ignored(db.query(func.count(LwMember.adr_nr)))
         .filter(LwMember.lat.isnot(None))
         .filter(
             (LwMember.geocode_precision.is_(None))
             | (LwMember.geocode_precision != "house")
         )
+        .scalar()
+        or 0
+    )
+    ignored = (
+        db.query(func.count(LwMember.adr_nr))
+        .filter(LwMember.geocode_ignored.is_(True))
         .scalar()
         or 0
     )
@@ -386,6 +398,7 @@ def _geocode_status_snapshot(db: Session) -> LwGeocodeStatus:
         street_hits=state.street_hits,
         city_hits=state.city_hits,
         approximate=approximate,
+        ignored=ignored,
         scope=state.scope,
     )
 
@@ -467,6 +480,118 @@ async def geocode_clear_member(
         raise HTTPException(status_code=404, detail="Mitglied nicht gefunden")
     logger.info("Geocode pin cleared for member adr_nr=%d", adr_nr)
     return {"ok": True, "adr_nr": adr_nr}
+
+
+@router.get("/geocode/stuck", response_model=list[LwGeocodeStuckMember])
+async def geocode_stuck(
+    bucket: str = Query("all", pattern="^(pending|approximate|ignored|all)$"),
+    limit: int = Query(200, ge=1, le=1000),
+    db: Session = Depends(get_db),
+    _: bool = Depends(require_admin),
+):
+    """List members the geocoder keeps re-visiting without progress.
+
+    ``bucket=pending`` -- never resolved to coordinates.
+    ``bucket=approximate`` -- resolved, but below house precision.
+    ``bucket=ignored`` -- explicitly muted by the admin.
+    ``bucket=all`` -- pending + approximate (the actionable rows).
+    """
+
+    def _query(b: str):
+        q = db.query(LwMember)
+        if b == "pending":
+            return (
+                _not_ignored(q)
+                .filter(LwMember.lat.is_(None))
+                .filter(
+                    (LwMember.geocode_status.is_(None))
+                    | (
+                        LwMember.geocode_status.notin_(["failed", "no_address"])
+                    )
+                )
+            )
+        if b == "approximate":
+            return (
+                _not_ignored(q)
+                .filter(LwMember.lat.isnot(None))
+                .filter(
+                    (LwMember.geocode_precision.is_(None))
+                    | (LwMember.geocode_precision != "house")
+                )
+            )
+        if b == "ignored":
+            return q.filter(LwMember.geocode_ignored.is_(True))
+        # "all" intentionally drops ignored rows -- they are listed under
+        # the dedicated ``ignored`` filter to keep the actionable list clean.
+        return _not_ignored(q).filter(
+            (
+                LwMember.lat.is_(None)
+                & (
+                    (LwMember.geocode_status.is_(None))
+                    | (
+                        LwMember.geocode_status.notin_(["failed", "no_address"])
+                    )
+                )
+            )
+            | (
+                LwMember.lat.isnot(None)
+                & (
+                    (LwMember.geocode_precision.is_(None))
+                    | (LwMember.geocode_precision != "house")
+                )
+            )
+        )
+
+    rows = (
+        _query(bucket)
+        .order_by(LwMember.ort.asc().nullslast(), LwMember.nachname.asc().nullslast())
+        .limit(limit)
+        .all()
+    )
+
+    def _bucket_of(m: LwMember) -> str:
+        if m.geocode_ignored:
+            return "ignored"
+        if m.lat is None:
+            return "pending"
+        return "approximate"
+
+    return [
+        LwGeocodeStuckMember(
+            adr_nr=m.adr_nr,
+            mitgliedsnummer=m.mitgliedsnummer,
+            vorname=m.vorname,
+            nachname=m.nachname,
+            strasse=m.strasse,
+            hausnummer=m.hausnummer,
+            plz=m.plz,
+            ort=m.ort,
+            geocode_status=m.geocode_status,
+            geocode_precision=m.geocode_precision,
+            geocode_notes=m.geocode_notes,
+            geocode_ignored=m.geocode_ignored,
+            geocoded_at=m.geocoded_at,
+            bucket=_bucket_of(m),
+        )
+        for m in rows
+    ]
+
+
+@router.post("/members/{adr_nr}/geocode/ignore")
+async def geocode_set_ignored(
+    adr_nr: int = Path(..., ge=1),
+    ignore: bool = Query(True),
+    db: Session = Depends(get_db),
+    _: bool = Depends(require_admin),
+):
+    """Mute / un-mute one member from the geocode counters and worker queue."""
+    updated = set_member_ignored(db, adr_nr, ignore)
+    if not updated:
+        raise HTTPException(status_code=404, detail="Mitglied nicht gefunden")
+    logger.info(
+        "Geocode ignore=%s for member adr_nr=%d", ignore, adr_nr,
+    )
+    return {"ok": True, "adr_nr": adr_nr, "ignored": ignore}
 
 
 # HERE Raster Tile API v3 styles we expose. Both are minimal cartography
