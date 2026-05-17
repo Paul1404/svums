@@ -84,6 +84,15 @@ class LwMember(Base):
     # house = house-number resolved, street = road centroid,
     # city = PLZ+Ort fallback, none = no usable coordinates
     geocode_precision = Column(String(10), nullable=True)
+    # Short German diagnostic written by the geocoder so the admin can
+    # see why a row landed in the "stuck" list (no address fields, HERE
+    # returned only a street centroid, house number not in HERE's index,
+    # etc.). Overwritten on every run.
+    geocode_notes = Column(Text, nullable=True)
+    # When True the geocoder skips this row and it drops out of the
+    # "geocodieren" and "verfeinern" counters. Used for addresses that
+    # HERE cannot resolve precisely no matter how often we ask.
+    geocode_ignored = Column(Boolean, nullable=True, default=False)
 
     @property
     def full_name(self) -> str:

@@ -183,4 +183,27 @@ class LwGeocodeStatus(BaseModel):
     street_hits: int = 0  # members pinned to a road centroid
     city_hits: int = 0  # members pinned to a PLZ + Ort fallback
     approximate: int = 0  # members with non-house precision (refine candidates)
+    ignored: int = 0  # members the admin has muted out of the counters
     scope: str = "pending"  # which scope the worker is/was running
+
+
+class LwGeocodeStuckMember(BaseModel):
+    """One row in the "stuck addresses" panel."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    adr_nr: int
+    mitgliedsnummer: str | None
+    vorname: str | None
+    nachname: str | None
+    strasse: str | None
+    hausnummer: str | None
+    plz: str | None
+    ort: str | None
+    geocode_status: str | None
+    geocode_precision: str | None
+    geocode_notes: str | None
+    geocode_ignored: bool | None
+    geocoded_at: datetime | None
+    # "pending" -- no coords yet; "approximate" -- coords but not house-level
+    bucket: str

@@ -299,16 +299,75 @@ def _build_structured_query(
     return ";".join(parts)
 
 
+@dataclass
+class GeocodeOutcome:
+    """Result of one address lookup, with a human-readable diagnostic.
+
+    ``coords`` and ``precision`` are ``None`` for a complete failure
+    (HERE returned nothing AND we couldn't resolve the PLZ either).
+    ``note`` is always set so the admin can see in the UI why a row
+    landed in the "stuck" list -- a missing street, an interpolated
+    HERE hit, a mismatched house number, etc.
+    """
+
+    coords: tuple[float, float] | None
+    precision: Precision | None
+    note: str
+
+
+def _describe_here_hit(
+    item: dict,
+    classified: Precision,
+    expected_house: str,
+) -> str:
+    """Compose the German note we write to ``geocode_notes`` after a hit."""
+    result_type = (item.get("resultType") or "?").strip() or "?"
+    house_number_type = (item.get("houseNumberType") or "").strip()
+    address = item.get("address") or {}
+    returned_house = str(address.get("houseNumber") or "").strip()
+
+    if classified == "house":
+        return "Hausgenauer HERE-Treffer."
+    if result_type == "houseNumber":
+        if house_number_type and house_number_type != "PA":
+            return (
+                "HERE konnte die Hausnummer nur entlang der Straße schätzen "
+                "(interpoliert); auf PLZ-Mittelpunkt zurückgestuft."
+            )
+        if expected_house and returned_house and not _housenumbers_match(
+            expected_house, returned_house
+        ):
+            return (
+                f"HERE lieferte Hausnummer {returned_house} statt "
+                f"{expected_house}; auf PLZ-Mittelpunkt zurückgestuft."
+            )
+        return "HERE-Treffer auf Hausnummer, aber nicht punktgenau."
+    if result_type == "street":
+        return (
+            "HERE kennt die Straße, aber nicht die Hausnummer; "
+            "auf PLZ-Mittelpunkt gesetzt."
+        )
+    if result_type in _LOCALITY_TYPES:
+        return (
+            f"HERE-Treffer nur auf Orts-/PLZ-Ebene ({result_type}); "
+            "Pin sitzt auf dem PLZ-Mittelpunkt."
+        )
+    return f"HERE-Treffer-Typ {result_type!r}; auf PLZ-Mittelpunkt gesetzt."
+
+
 async def _geocode_member(
     client: httpx.AsyncClient,
     member: LwMember,
     plz_cache: dict[str, tuple[float, float] | None],
-) -> tuple[float, float, Precision] | None:
+) -> GeocodeOutcome:
     """Geocode one member, snapping sub-house hits to the PLZ centroid."""
     street = (member.strasse or "").strip()
     house = (member.hausnummer or "").strip()
     plz = (member.plz or "").strip()
     ort = (member.ort or "").strip()
+
+    if not street and not (plz or ort):
+        return GeocodeOutcome(None, None, "Keine Adressfelder vorhanden.")
 
     item: dict | None = None
     if street and (plz or ort):
@@ -319,35 +378,59 @@ async def _geocode_member(
         coords = _coords_from_item(item)
         if coords is not None:
             precision = _classify(item, house or None)
+            note = _describe_here_hit(item, precision, house)
             lat, lng = coords
             if precision == "house":
-                return lat, lng, precision
+                return GeocodeOutcome((lat, lng), precision, note)
             # Anything below house-level shouldn't pretend to be on a
             # building. Swap to the PLZ centroid so the dot lives in
             # an honestly approximate spot. Fall back to the raw
             # coordinate only if we can't resolve the PLZ.
             centroid = await _get_plz_centroid(client, plz, plz_cache)
             if centroid is not None:
-                return centroid[0], centroid[1], precision
-            return lat, lng, precision
+                return GeocodeOutcome(centroid, precision, note)
+            return GeocodeOutcome((lat, lng), precision, note)
 
     # No address-level hit at all. The PLZ centroid is the best we can
     # honestly offer.
     centroid = await _get_plz_centroid(client, plz, plz_cache)
     if centroid is not None:
-        return centroid[0], centroid[1], "city"
+        note = (
+            "HERE kennt diese Adresse nicht; Pin sitzt auf dem PLZ-Mittelpunkt."
+            if street
+            else "Nur PLZ/Ort bekannt; Pin sitzt auf dem PLZ-Mittelpunkt."
+        )
+        return GeocodeOutcome(centroid, "city", note)
 
-    return None
+    return GeocodeOutcome(
+        None,
+        None,
+        "Weder Adresse noch PLZ-Mittelpunkt bei HERE auffindbar.",
+    )
+
+
+def _not_ignored(q):
+    """Add the ``geocode_ignored IS NOT TRUE`` filter to a query.
+
+    Members the admin has marked as ignored are excluded from worker
+    queries and from the "stuck" counters. NULL counts as not-ignored
+    so legacy rows behave normally.
+    """
+    return q.filter(
+        (LwMember.geocode_ignored.is_(None)) | (LwMember.geocode_ignored.is_(False))
+    )
 
 
 def _reset_for_scope(db: Session, scope: GeocodeScope) -> int:
     """Null out coordinates so the worker picks the rows back up.
 
     Returns the number of rows reset. ``pending`` resets nothing.
+    Ignored rows are never touched -- the admin took them out of the
+    rotation on purpose.
     """
     if scope == "pending":
         return 0
-    q = db.query(LwMember)
+    q = _not_ignored(db.query(LwMember))
     if scope == "approximate":
         # NULL precision counts as approximate -- those rows were geocoded
         # before we started tracking precision and should be refined.
@@ -361,6 +444,7 @@ def _reset_for_scope(db: Session, scope: GeocodeScope) -> int:
         LwMember.geocode_status: None,
         LwMember.geocoded_at: None,
         LwMember.geocode_precision: None,
+        LwMember.geocode_notes: None,
     }
     count = q.update(updates, synchronize_session=False)
     db.commit()
@@ -380,30 +464,49 @@ def clear_member_geocode(db: Session, adr_nr: int) -> bool:
     member.geocode_status = None
     member.geocoded_at = None
     member.geocode_precision = None
+    member.geocode_notes = None
     db.commit()
     return True
 
 
-def _apply_hit(
+def set_member_ignored(db: Session, adr_nr: int, ignored: bool) -> bool:
+    """Toggle the ``geocode_ignored`` flag for one member.
+
+    Returns True if the row was found, False otherwise. When ignored is
+    set the row disappears from both the pending and approximate
+    counters, and the worker stops picking it up.
+    """
+    member = db.query(LwMember).filter(LwMember.adr_nr == adr_nr).first()
+    if member is None:
+        return False
+    member.geocode_ignored = bool(ignored)
+    db.commit()
+    return True
+
+
+def _apply_outcome(
     members: list[LwMember],
-    hit: tuple[float, float, Precision] | None,
+    outcome: GeocodeOutcome,
     ts: datetime,
 ) -> None:
-    """Write a geocode result onto every member sharing the same address."""
-    if hit is None:
+    """Write a geocode outcome onto every member sharing the same address."""
+    if outcome.coords is None:
         for member in members:
             member.geocode_status = "failed"
             member.geocode_precision = "none"
+            member.geocode_notes = outcome.note
             member.geocoded_at = ts
             _state.failed += 1
             _state.processed += 1
         return
-    lat, lng, precision = hit
+    lat, lng = outcome.coords
+    precision = outcome.precision or "city"
     for member in members:
         member.lat = lat
         member.lng = lng
         member.geocode_status = "found"
         member.geocode_precision = precision
+        member.geocode_notes = outcome.note
         member.geocoded_at = ts
         _state.found += 1
         _state.processed += 1
@@ -425,11 +528,15 @@ async def _run_geocoder():
     try:
         async with httpx.AsyncClient() as client:
             unresolved = (
-                db.query(LwMember)
-                .filter(LwMember.lat.is_(None))
-                .filter(
-                    (LwMember.geocode_status.is_(None))
-                    | (LwMember.geocode_status != "failed")
+                _not_ignored(
+                    db.query(LwMember)
+                    .filter(LwMember.lat.is_(None))
+                    .filter(
+                        (LwMember.geocode_status.is_(None))
+                        | (
+                            LwMember.geocode_status.notin_(["failed", "no_address"])
+                        )
+                    )
                 )
                 .all()
             )
@@ -460,6 +567,7 @@ async def _run_geocoder():
             for member in empty:
                 member.geocode_status = "no_address"
                 member.geocode_precision = "none"
+                member.geocode_notes = "Keine Adressfelder vorhanden."
                 member.geocoded_at = now
                 _state.processed += 1
                 _state.skipped += 1
@@ -494,11 +602,11 @@ async def _run_geocoder():
 
             async def process_group(
                 members: list[LwMember],
-            ) -> tuple[list[LwMember], tuple[float, float, Precision] | None]:
+            ) -> tuple[list[LwMember], GeocodeOutcome]:
                 async with sem:
                     _state.last_address = _describe_member(members[0])
-                    hit = await _geocode_member(client, members[0], plz_cache)
-                return members, hit
+                    outcome = await _geocode_member(client, members[0], plz_cache)
+                return members, outcome
 
             tasks = [
                 asyncio.create_task(process_group(members))
@@ -507,8 +615,8 @@ async def _run_geocoder():
             try:
                 groups_done = 0
                 for fut in asyncio.as_completed(tasks):
-                    members, hit = await fut
-                    _apply_hit(members, hit, datetime.utcnow())
+                    members, outcome = await fut
+                    _apply_outcome(members, outcome, datetime.utcnow())
                     groups_done += 1
                     # Commit roughly every 10 groups so the map can
                     # show new pins live while the worker keeps going.
