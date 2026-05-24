@@ -17,7 +17,7 @@
     "leaflet": "^1.9.4",
     "leaflet.heat": "^0.2.0",
     "lucide-react": "^1.16.0",
-    "posthog-js": "^1.373.5",
+    "posthog-js": "^1.376.0",
     "react": "^19.2.6",
     "react-dom": "^19.2.5",
     "react-leaflet": "^5.0.0",
