@@ -11,5 +11,58 @@
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
+    <script>
+      // Boot probe: if React hasn't mounted into #root after 4s, something
+      // broke at runtime (version mismatch, bundle parse error, etc.) and
+      // the user sees a white screen. Report it to the backend so it gets
+      // logged loudly, then show a minimal fallback so the page isn't blank.
+      (function () {
+        var firstError = null;
+        window.addEventListener("error", function (e) {
+          if (!firstError && e && (e.message || e.error)) {
+            firstError = {
+              message: String(e.message || ""),
+              filename: String(e.filename || ""),
+              lineno: e.lineno || 0,
+              colno: e.colno || 0,
+              stack: e.error && e.error.stack ? String(e.error.stack).slice(0, 2000) : "",
+            };
+          }
+        });
+        setTimeout(function () {
+          var root = document.getElementById("root");
+          if (root && root.childElementCount > 0) return;
+          var payload = {
+            error: firstError,
+            ua: navigator.userAgent,
+            url: location.href,
+          };
+          try {
+            var body = JSON.stringify(payload);
+            if (navigator.sendBeacon) {
+              navigator.sendBeacon(
+                "/api/health/frontend-error",
+                new Blob([body], { type: "application/json" })
+              );
+            } else {
+              fetch("/api/health/frontend-error", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: body,
+                keepalive: true,
+              }).catch(function () {});
+            }
+          } catch (_) {}
+          if (root && root.childElementCount === 0) {
+            root.innerHTML =
+              '<div style="font-family:system-ui,sans-serif;max-width:640px;margin:64px auto;padding:0 24px;color:#111;">' +
+              '<h1 style="font-size:20px;margin:0 0 12px;">Die Seite konnte nicht geladen werden.</h1>' +
+              '<p style="margin:0 0 16px;color:#555;">Bitte laden Sie die Seite neu. Falls das Problem bestehen bleibt, melden Sie sich beim Vereinsadmin.</p>' +
+              '<button onclick="location.reload()" style="padding:8px 16px;border:1px solid #111;background:#111;color:#fff;border-radius:6px;cursor:pointer;">Neu laden</button>' +
+              "</div>";
+          }
+        }, 4000);
+      })();
+    </script>
   </body>
 </html>
