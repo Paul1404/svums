@@ -5,6 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "check-versions": "node scripts/check-versions.mjs",
+    "prebuild": "node scripts/check-versions.mjs",
     "build": "tsc && vite build",
     "preview": "vite preview"
   },
