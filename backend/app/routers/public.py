@@ -468,15 +468,113 @@ async def lookup_iban(iban: str):
     return result
 
 
+_FRONTEND_HEALTH_CACHE: dict | None = None
+
+
+def _inspect_frontend(static_dir: Path) -> dict:
+    """Pure function for testing: inspect a static dir without touching cache."""
+    import re
+    index_html = static_dir / "index.html"
+    result: dict = {"static_dir": str(static_dir)}
+
+    if not static_dir.exists():
+        result["status"] = "missing_static_dir"
+        return result
+    if not index_html.exists():
+        result["status"] = "missing_index_html"
+        return result
+
+    try:
+        html = index_html.read_text(encoding="utf-8")
+    except Exception as e:
+        result["status"] = "index_unreadable"
+        result["error"] = str(e)
+        return result
+
+    script_srcs = re.findall(r'<script[^>]+src="([^"]+)"', html)
+    if not script_srcs:
+        result["status"] = "no_script_tag"
+        return result
+
+    missing_assets = [
+        src for src in script_srcs
+        if not (static_dir / src.lstrip("/")).exists()
+    ]
+    if missing_assets:
+        result["status"] = "missing_assets"
+        result["missing"] = missing_assets
+        return result
+
+    result["status"] = "ok"
+    result["assets"] = script_srcs
+    return result
+
+
+def _frontend_health() -> dict:
+    """Verify the built frontend exists and is internally consistent.
+
+    Catches: missing static dir, missing index.html, index.html that references
+    a JS bundle that isn't on disk (broken deploy / partial copy). Does NOT
+    catch runtime JS errors; the boot probe handles that.
+    """
+    global _FRONTEND_HEALTH_CACHE
+    if _FRONTEND_HEALTH_CACHE is not None:
+        return _FRONTEND_HEALTH_CACHE
+    static_dir = Path(__file__).resolve().parent.parent.parent / "static"
+    _FRONTEND_HEALTH_CACHE = _inspect_frontend(static_dir)
+    return _FRONTEND_HEALTH_CACHE
+
+
+@router.post("/health/frontend-error")
+async def report_frontend_error(request: Request):
+    """Receive boot-probe reports from index.html when React fails to mount.
+
+    Logged at ERROR so it surfaces in monitoring. Best-effort: never raises,
+    never trusts the payload beyond size limits.
+    """
+    try:
+        raw = await request.body()
+        if len(raw) > 8192:
+            raw = raw[:8192]
+        try:
+            payload = json.loads(raw.decode("utf-8", errors="replace"))
+        except Exception:
+            payload = {"_raw": raw.decode("utf-8", errors="replace")}
+        client_ip = (
+            request.headers.get("x-forwarded-for", "").split(",")[0].strip()
+            or (request.client.host if request.client else "?")
+        )
+        logger.error(
+            "frontend boot failure: ip=%s ua=%r url=%r error=%r",
+            client_ip,
+            (payload.get("ua") or "")[:200],
+            (payload.get("url") or "")[:200],
+            payload.get("error"),
+        )
+    except Exception as e:
+        logger.error("frontend-error endpoint failed: %s", e)
+    return {"received": True}
+
+
 @router.get("/health")
 def health_check(db: Session = Depends(get_db)):
-    """Health check that also keeps the DB connection warm (prevents Neon cold-start)."""
+    """Health check.
+
+    - Keeps the DB connection warm (prevents Neon cold-start).
+    - Verifies the built frontend is present and references existing JS assets.
+    Returns 200 always so Railway's healthcheck won't kill the container on
+    transient DB blips; the response body carries the detail.
+    """
     from sqlalchemy import text
+    db_status = "ok"
     try:
         db.execute(text("SELECT 1"))
-        return {"status": "ok"}
     except Exception:
-        return {"status": "degraded", "db": "unavailable"}
+        db_status = "unavailable"
+
+    fe = _frontend_health()
+    overall = "ok" if db_status == "ok" and fe["status"] == "ok" else "degraded"
+    return {"status": overall, "db": db_status, "frontend": fe}
 
 
 @router.get("/client-config")
