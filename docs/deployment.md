@@ -52,12 +52,11 @@ Railway setzt `PORT` automatisch. Das Entrypoint-Script liest `$PORT` (Default 8
 | `AWS_REGION` | S3 Region (Default `auto`) |
 | `BUCKET_NAME` | S3 Bucket Name (Default `svums-uploads`) |
 
-### Analytics (optional)
+### Analytics
 
-| Variable | Beschreibung |
-|---|---|
-| `POSTHOG_KEY` | PostHog API Key (Analytics deaktiviert wenn nicht gesetzt) |
-| `POSTHOG_HOST` | PostHog Host |
+Die Analyse laeuft client-seitig ueber Umami. Die Tracking-Skripte sind direkt
+in `frontend/index.html` eingebettet, es werden keine Backend-Umgebungsvariablen
+benoetigt.
 
 ## Datenpersistenz
 

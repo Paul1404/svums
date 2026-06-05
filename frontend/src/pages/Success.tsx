@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { CheckCircle2, ArrowLeft, Clock, Mail, Upload, Copy } from "lucide-react";
 import { formatFee } from "../services/api";
-import { captureEvent, identifyApplicant } from "../lib/analytics";
+import { captureEvent } from "../lib/analytics";
 import { useClubConfig } from "../context/ClubConfigContext";
 
 const CONFETTI_COLORS = ["#b91c1c", "#dc2626", "#f87171", "#f59e0b", "#22c55e", "#ffffff"];
@@ -57,7 +57,6 @@ export default function Success() {
 
   useEffect(() => {
     if (!state?.antragsnummer) return;
-    identifyApplicant(state.antragsnummer, { app_area: "public" });
     captureEvent("membership_success_viewed", {
       app_area: "public",
       signed_online: Boolean(state.signedOnline),

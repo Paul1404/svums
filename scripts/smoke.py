@@ -42,7 +42,6 @@ os.environ.setdefault("COOKIE_SECRET", "smoke-cookie-secret-long-enough-for-chec
 os.environ.setdefault("COOKIE_SECURE", "false")
 os.environ.setdefault("CORS_ORIGINS", "http://localhost:5173")
 os.environ.setdefault("PUBLIC_BASE_URL", "http://localhost:5173")
-os.environ.setdefault("POSTHOG_API_KEY", "")
 
 sys.path.insert(0, str(BACKEND))
 
@@ -174,12 +173,12 @@ def s_health(ctx: Context) -> None:
     ctx.check("body has 'status' key", "status" in body, detail=str(body))
 
 
-@scenario("client-config", "GET /api/client-config returns posthog + club keys")
+@scenario("client-config", "GET /api/client-config returns club key")
 def s_client_config(ctx: Context) -> None:
     r = ctx.client.get("/api/client-config")
     ctx.check("status 200", r.status_code == 200)
     body = r.json()
-    for key in ("posthog_enabled", "club"):
+    for key in ("club",):
         ctx.check(f"key '{key}'", key in body, detail=", ".join(body.keys()))
 
 

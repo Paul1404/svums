@@ -14,10 +14,6 @@ class Settings(BaseSettings):
     cors_origins: str = "http://localhost:5173"
     public_base_url: str = "http://localhost:8000"
 
-    # PostHog (optional analytics)
-    posthog_key: str = ""
-    posthog_host: str = ""
-
     # HERE Geocoding & Search API key (https://developer.here.com).
     # Used to geocode imported member addresses into map coordinates.
     # Without it the geocoder refuses to start.

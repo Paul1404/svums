@@ -6,7 +6,6 @@ import React, {
   useCallback,
 } from "react";
 import { adminCheck, adminLogin, adminLogout, setSessionExpiredHandler } from "../services/api";
-import { identifyAdmin, resetAnalyticsIdentity } from "../lib/analytics";
 import { toast } from "sonner";
 
 interface AdminContextType {
@@ -26,7 +25,6 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
     adminCheck()
       .then(() => {
         setIsAuthenticated(true);
-        identifyAdmin({ app_area: "admin" });
       })
       .catch(() => setIsAuthenticated(false))
       .finally(() => setIsLoading(false));
@@ -43,13 +41,11 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
   const login = useCallback(async (password: string) => {
     await adminLogin(password);
     setIsAuthenticated(true);
-    identifyAdmin({ app_area: "admin" });
   }, []);
 
   const logout = useCallback(async () => {
     await adminLogout();
     setIsAuthenticated(false);
-    resetAnalyticsIdentity();
   }, []);
 
   return (

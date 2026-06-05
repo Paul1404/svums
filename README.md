@@ -55,9 +55,9 @@ Behind the scenes:
 - Rate limit on the public application endpoint (3 per 10 min per IP) and
   on admin login (5 attempts per 15 min, 30 min lockout).
 - Mandate reference and Antragsnummer are generated automatically.
-- Optional PostHog analytics on form and admin events. PII fields (names,
-  email, IBAN, addresses, etc.) are blocked from being captured even if
-  someone tries to attach them.
+- Client-side Umami analytics on form events. PII fields (names, email,
+  IBAN, addresses, etc.) are stripped from custom events before they leave
+  the browser.
 - Optional S3-compatible storage (Tigris, MinIO, AWS S3) for uploaded and
   generated PDFs. Without it, file features are no-ops; everything else
   still works.
@@ -122,7 +122,6 @@ set of values has to come from the environment:
 | `CORS_ORIGINS`          | no       | —                       | Comma-separated list of allowed origins.               |
 | `COOKIE_SECURE`         | no       | `true`                  | Set to `false` for plain HTTP local dev.               |
 | `AWS_*`, `BUCKET_NAME`  | no       | —                       | S3-compatible storage. Disable to skip uploads.        |
-| `POSTHOG_KEY`           | no       | —                       | Enables analytics if set.                              |
 
 The full list with explanations is in [`.env.example`](.env.example).
 
@@ -158,7 +157,7 @@ svums/
       routers/               public, admin, address
       schemas/               request/response shapes incl. ClubConfig
       services/              email, pdf, fees, crypto, storage, urls,
-                             posthog, rate_limit
+                             rate_limit
       templates/             Jinja2 HTML for PDFs and emails
     tests/                   pytest suite
   frontend/
@@ -237,7 +236,7 @@ Im Hintergrund:
 - IBANs werden mit Fernet verschlüsselt gespeichert. Klartext-Werte werden
   beim Start automatisch verschlüsselt.
 - CSRF-Schutz, Rate-Limit auf dem Antrags-Endpoint und beim Admin-Login.
-- Optionale PostHog-Analyse mit hartem PII-Filter.
+- Client-seitige Umami-Analyse mit hartem PII-Filter.
 - Optionaler S3-kompatibler Speicher (Tigris, MinIO, AWS S3) für PDFs.
 
 ### Schnellstart mit Docker
