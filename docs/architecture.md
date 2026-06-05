@@ -47,7 +47,6 @@ svums/
         crypto.py         IBAN Ver-/Entschluesselung (Fernet)
         storage.py        S3/Tigris Storage (Upload, Download, Delete)
         urls.py           URL-Builder (nutzt PUBLIC_BASE_URL)
-        posthog.py        Analytics Events
         rate_limit.py     DB-basiertes Rate-Limiting
       templates/          Jinja2 HTML-Templates fuer PDFs und E-Mails
   frontend/

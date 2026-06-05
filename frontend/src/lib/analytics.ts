@@ -1,7 +1,19 @@
-import posthog from "posthog-js";
+// Thin wrapper around Umami analytics. The Umami tracking script is loaded in
+// index.html and exposes `window.umami` once ready. Pageviews (including SPA
+// route changes) are tracked automatically by the script. These helpers send
+// custom events for the membership funnel and strip personal data before it
+// leaves the browser.
 
 type Primitive = string | number | boolean | null | undefined;
 type EventProperties = Record<string, Primitive>;
+
+declare global {
+  interface Window {
+    umami?: {
+      track: (eventName: string, data?: Record<string, string | number | boolean | null>) => void;
+    };
+  }
+}
 
 const DISALLOWED_KEYS = new Set([
   "vorname",
@@ -25,10 +37,6 @@ const DISALLOWED_KEYS = new Set([
   "smtp_password",
 ]);
 
-let analyticsEnabled = false;
-let initPromise: Promise<void> | null = null;
-let lastPageViewKey: string | null = null;
-
 function sanitizeProperties(properties?: EventProperties): Record<string, string | number | boolean | null> {
   const sanitized: Record<string, string | number | boolean | null> = {};
   if (!properties) return sanitized;
@@ -50,91 +58,6 @@ export function normalizeFailureReason(status?: number | null): string {
   return "server_error";
 }
 
-export async function initAnalytics(): Promise<void> {
-  if (initPromise) return initPromise;
-  initPromise = (async () => {
-    try {
-      const response = await fetch("/api/client-config", { credentials: "include" });
-      if (!response.ok) return;
-      const config = await response.json() as {
-        posthog_enabled?: boolean;
-        posthog_key?: string | null;
-        posthog_host?: string | null;
-      };
-      if (!config.posthog_enabled || !config.posthog_key) return;
-
-      posthog.init(config.posthog_key, {
-        api_host: config.posthog_host ?? "https://eu.i.posthog.com",
-        autocapture: false,
-        capture_pageview: false,
-        disable_session_recording: true,
-        capture_pageleave: true,
-      });
-      analyticsEnabled = true;
-    } catch {
-      analyticsEnabled = false;
-    }
-  })();
-  return initPromise;
-}
-
 export function captureEvent(event: string, properties?: EventProperties): void {
-  if (!analyticsEnabled) return;
-  posthog.capture(event, sanitizeProperties({ source: "frontend", ...properties }));
-}
-
-export function capturePageView(routeName: string, properties?: EventProperties): void {
-  if (!analyticsEnabled) return;
-  const payload = sanitizeProperties({
-    route_name: routeName,
-    source: "frontend",
-    ...properties,
-  });
-  const pageKey = JSON.stringify([
-    window.location.pathname,
-    window.location.search,
-    routeName,
-    payload,
-  ]);
-  if (pageKey === lastPageViewKey) return;
-  lastPageViewKey = pageKey;
-  posthog.capture("$pageview", payload);
-}
-
-export function identifyApplicant(antragsnummer: string, properties?: EventProperties): void {
-  if (!analyticsEnabled || !antragsnummer.trim()) return;
-  const distinctId = antragsnummer.trim();
-  const currentDistinctId = posthog.get_distinct_id();
-  if (currentDistinctId && currentDistinctId !== distinctId) {
-    try {
-      posthog.alias(distinctId, currentDistinctId);
-    } catch {
-      // Alias can fail when already linked; identify is still safe.
-    }
-  }
-  posthog.identify(
-    distinctId,
-    sanitizeProperties({ source: "frontend", ...properties })
-  );
-}
-
-export function identifyAdmin(properties?: EventProperties): void {
-  if (!analyticsEnabled) return;
-  const distinctId = posthog.get_distinct_id();
-  if (!distinctId) return;
-  posthog.identify(
-    distinctId,
-    sanitizeProperties({ role: "admin", source: "frontend", ...properties })
-  );
-}
-
-export function resetAnalyticsIdentity(): void {
-  if (!analyticsEnabled) return;
-  posthog.reset();
-}
-
-export function getAdminDistinctIdHeader(): Record<string, string> {
-  if (!analyticsEnabled) return {};
-  const distinctId = posthog.get_distinct_id();
-  return distinctId ? { "X-PostHog-Distinct-Id": distinctId } : {};
+  window.umami?.track(event, sanitizeProperties({ source: "frontend", ...properties }));
 }

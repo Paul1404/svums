@@ -7,7 +7,6 @@ from datetime import date, datetime
 from pathlib import Path
 from urllib.parse import quote
 
-from app.services.posthog import capture as posthog_capture, get_admin_distinct_id
 from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, Request, Response, UploadFile
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, ConfigDict, ValidationError
@@ -129,19 +128,6 @@ def _log_email(
         )
         db.add(entry)
         db.commit()
-        posthog_capture(
-            "email_delivery_result",
-            antragsnummer or "system:email",
-            properties={
-                "app_area": _email_app_area(email_type),
-                "source": "backend",
-                "email_type": email_type,
-                "result": "success" if success else "failed",
-                "antragsnummer": antragsnummer,
-                "has_application": bool(antragsnummer),
-                "has_error": bool(error),
-            },
-        )
     except Exception as log_err:
         logger.error(f"Failed to write email log: {log_err}")
 
@@ -209,15 +195,6 @@ async def admin_login(
     )
     if not limit_status.allowed:
         logger.warning("Admin login blocked (rate limited) from %s", client_ip)
-        posthog_capture(
-            "admin_login_failed",
-            get_admin_distinct_id(request),
-            properties={
-                "app_area": "admin",
-                "source": "backend",
-                "reason": "rate_limited",
-            },
-        )
         raise HTTPException(
             status_code=429,
             detail="Zu viele fehlgeschlagene Anmeldeversuche. Bitte versuchen Sie es später erneut.",
@@ -233,41 +210,17 @@ async def admin_login(
             block_seconds=ADMIN_LOGIN_BLOCK_SECONDS,
         )
         if not failure_status.allowed:
-            posthog_capture(
-                "admin_login_failed",
-                get_admin_distinct_id(request),
-                properties={
-                    "app_area": "admin",
-                    "source": "backend",
-                    "reason": "rate_limited",
-                },
-            )
             raise HTTPException(
                 status_code=429,
                 detail="Zu viele fehlgeschlagene Anmeldeversuche. Bitte versuchen Sie es später erneut.",
             )
         logger.warning("Admin login failed (wrong password) from %s", client_ip)
-        posthog_capture(
-            "admin_login_failed",
-            get_admin_distinct_id(request),
-            properties={
-                "app_area": "admin",
-                "source": "backend",
-                "reason": "unauthorized",
-            },
-        )
         raise HTTPException(status_code=401, detail="Falsches Passwort")
 
     reset_rate_limit(db, scope="admin_login", key=client_ip)
     logger.info("Admin login successful from %s", client_ip)
     serializer = get_serializer(settings)
     token = serializer.dumps({"admin": True})
-
-    posthog_capture(
-        "admin_login",
-        get_admin_distinct_id(request),
-        properties={"app_area": "admin", "source": "backend"},
-    )
 
     response.set_cookie(
         key=settings.cookie_name,
@@ -284,11 +237,6 @@ async def admin_login(
 @router.post("/logout")
 async def admin_logout(request: Request, response: Response):
     settings = get_settings()
-    posthog_capture(
-        "admin_logout",
-        get_admin_distinct_id(request),
-        properties={"app_area": "admin", "source": "backend"},
-    )
     response.delete_cookie(key=settings.cookie_name, path="/")
     return {"message": "Abgemeldet"}
 
@@ -554,56 +502,7 @@ async def update_application(
     db.commit()
     db.refresh(app)
 
-    # Track status changes for approve/decline
     new_status = app.status
-    admin_distinct_id = get_admin_distinct_id(request)
-    if new_status != old_status:
-        shared_status_props = {
-            "app_area": "admin",
-            "source": "backend",
-            "application_id": app.id,
-            "antragsnummer": app.antragsnummer,
-            "antragstyp": app.antragstyp or "einzel",
-            "mitgliedschaft_typ": app.mitgliedschaft_typ,
-            "previous_status": old_status,
-            "new_status": new_status,
-            "status": new_status,
-            "hours_since_submission": _hours_since(app.created_at),
-            "hours_since_upload": _hours_since(app.uploaded_at),
-            "has_upload": bool(app.uploaded_file),
-            "has_approved_file": bool(app.admin_approved_file),
-        }
-        posthog_capture(
-            "admin_application_status_changed",
-            admin_distinct_id,
-            properties=shared_status_props,
-        )
-        if new_status == "genehmigt":
-            posthog_capture(
-                "membership_application_approved",
-                admin_distinct_id,
-                properties=shared_status_props,
-            )
-        elif new_status == "abgelehnt":
-            posthog_capture(
-                "membership_application_rejected",
-                admin_distinct_id,
-                properties=shared_status_props,
-            )
-    elif data.notes is not None and app.notes != old_notes:
-        posthog_capture(
-            "admin_application_notes_updated",
-            admin_distinct_id,
-            properties={
-                "app_area": "admin",
-                "source": "backend",
-                "application_id": app.id,
-                "antragsnummer": app.antragsnummer,
-                "status": app.status,
-                "has_upload": bool(app.uploaded_file),
-                "has_approved_file": bool(app.admin_approved_file),
-            },
-        )
 
     # Send status email to applicant on approve/decline
     if new_status != old_status and new_status in ("genehmigt", "abgelehnt"):
@@ -698,21 +597,6 @@ async def delete_application(
     db.delete(app)
     db.commit()
 
-    posthog_capture(
-        "membership_application_deleted",
-        get_admin_distinct_id(request),
-        properties={
-            "app_area": "admin",
-            "source": "backend",
-            "application_id": application_id,
-            "antragsnummer": _antragsnummer,
-            "antragstyp": _antragstyp,
-            "status_at_delete": _status,
-            "had_upload": _had_upload,
-            "had_approved_file": _had_approved_file,
-        },
-    )
-
     for key in storage_keys:
         try:
             storage.delete_file(key)
@@ -748,18 +632,6 @@ async def resend_email(
     from app.config import get_settings
     cfg = get_settings()
     background_tasks.add_task(_send_email_task, application_id, cfg.database_url)
-
-    posthog_capture(
-        "membership_application_email_resent",
-        get_admin_distinct_id(request),
-        properties={
-            "app_area": "admin",
-            "source": "backend",
-            "application_id": app.id,
-            "antragsnummer": app.antragsnummer,
-            "status": app.status,
-        },
-    )
 
     return {"message": "E-Mail wird erneut gesendet"}
 
@@ -868,17 +740,6 @@ async def delete_upload(
         db.rollback()
         raise
     storage.delete_file(filename)
-    posthog_capture(
-        "admin_uploaded_document_deleted",
-        get_admin_distinct_id(request),
-        properties={
-            "app_area": "admin",
-            "source": "backend",
-            "application_id": app.id,
-            "antragsnummer": app.antragsnummer,
-            "previous_status": previous_status,
-        },
-    )
     return {"ok": True}
 
 
@@ -1047,16 +908,6 @@ async def delete_approved(
         db.rollback()
         raise
     storage.delete_file(filename)
-    posthog_capture(
-        "admin_approved_document_deleted",
-        get_admin_distinct_id(request),
-        properties={
-            "app_area": "admin",
-            "source": "backend",
-            "application_id": app.id,
-            "antragsnummer": app.antragsnummer,
-        },
-    )
     return {"ok": True}
 
 
@@ -1121,21 +972,6 @@ async def admin_upload_document(
     # Remove previous upload only after the new DB state was committed.
     if old_filename:
         storage.delete_file(old_filename)
-
-    posthog_capture(
-        "admin_document_uploaded",
-        get_admin_distinct_id(request),
-        properties={
-            "app_area": "admin",
-            "source": "backend",
-            "application_id": app.id,
-            "antragsnummer": app.antragsnummer,
-            "file_extension": ext,
-            "file_size_bytes": len(contents),
-            "replaced_existing": bool(old_filename),
-            "status_after_upload": app.status,
-        },
-    )
 
     return ApplicationResponse.model_validate(app)
 
@@ -1381,26 +1217,6 @@ async def create_legacy_application(
                 old_filename_to_delete, _e,
             )
 
-    posthog_capture(
-        "membership_application_legacy_imported",
-        get_admin_distinct_id(request),
-        properties={
-            "app_area": "admin",
-            "source": "backend",
-            "application_id": application.id,
-            "antragsnummer": application.antragsnummer,
-            "antragstyp": application.antragstyp or "einzel",
-            "mitgliedschaft_typ": application.mitgliedschaft_typ,
-            "jahresbeitrag": float(application.jahresbeitrag),
-            "abteilungen_count": len(application.get_abteilungen()),
-            "file_extension": ext or Path(application.uploaded_file or "").suffix.lower().lstrip("."),
-            "file_size_bytes": contents_len,
-            "has_signed_on_date": parsed.signed_on is not None,
-            "from_placeholder": placeholder is not None,
-            "scan_replaced": placeholder is not None and has_upload,
-        },
-    )
-
     return ApplicationResponse.model_validate(application)
 
 
@@ -1532,16 +1348,6 @@ async def export_csv(
             app.source or "online",
         ])
 
-    posthog_capture(
-        "members_csv_exported",
-        get_admin_distinct_id(request),
-        properties={
-            "app_area": "admin",
-            "source": "backend",
-            "record_count": len(applications),
-        },
-    )
-
     output.seek(0)
     return StreamingResponse(
         iter([output.getvalue()]),
@@ -1592,21 +1398,6 @@ async def update_admin_settings(
 
     db.commit()
     db.refresh(settings)
-    posthog_capture(
-        "admin_settings_updated",
-        get_admin_distinct_id(request),
-        properties={
-            "app_area": "admin",
-            "source": "backend",
-            "smtp_changed": previous["smtp_host"] != settings.smtp_host,
-            "smtp_from_changed": previous["smtp_from"] != settings.smtp_from,
-            "notification_email_changed": previous["notification_email"] != settings.notification_email,
-            "tls_changed": previous["smtp_use_tls"] != settings.smtp_use_tls,
-            "password_updated": bool(smtp_password),
-            "password_cleared": clear_smtp_password,
-            "signature_changed": previous["admin_signature_base64"] != settings.admin_signature_base64,
-        },
-    )
     return _serialize_settings(settings)
 
 
@@ -1634,20 +1425,10 @@ async def test_smtp(
             recipient=data.recipient,
         )
         _log_email(db, "test", data.recipient, "Test-E-Mail", True)
-        posthog_capture(
-            "admin_smtp_test_result",
-            get_admin_distinct_id(request),
-            properties={"app_area": "admin", "source": "backend", "result": "success"},
-        )
         return {"message": "Test-E-Mail wurde erfolgreich gesendet"}
     except Exception as e:
         _test_err = e
         _log_email(db, "test", data.recipient, "Test-E-Mail", False, _test_err)
-        posthog_capture(
-            "admin_smtp_test_result",
-            get_admin_distinct_id(request),
-            properties={"app_area": "admin", "source": "backend", "result": "failed"},
-        )
         logger.error("SMTP test failed: %s", e, exc_info=True)
         raise HTTPException(
             status_code=500,
@@ -1694,11 +1475,6 @@ async def update_club_config(
     db.commit()
     db.refresh(settings)
 
-    posthog_capture(
-        "admin_club_config_updated",
-        get_admin_distinct_id(request),
-        properties={"app_area": "admin", "source": "backend"},
-    )
     return new_config.to_template_dict()
 
 
@@ -1876,17 +1652,6 @@ async def cancellation_pdf(
         storage.delete_file(stored_filename)
         raise
 
-    posthog_capture(
-        "cancellation_pdf_generated",
-        get_admin_distinct_id(request),
-        properties={
-            "app_area": "admin",
-            "source": "backend",
-            "signature_source": signature_source,
-            "has_mitgliedsnummer": bool(data.mitgliedsnummer),
-        },
-    )
-
     if data.is_family and data.familienmitglieder:
         filename = f"Kuendigungsbestaetigung_Familie_{data.nachname}.pdf"
     else:
@@ -1958,16 +1723,6 @@ def delete_cancellation_document(
         db.rollback()
         raise
     storage.delete_file(filename)
-    posthog_capture(
-        "admin_cancellation_document_deleted",
-        get_admin_distinct_id(request),
-        properties={
-            "app_area": "admin",
-            "source": "backend",
-            "document_id": document_id,
-            "signature_source": signature_source,
-        },
-    )
     return {"ok": True}
 
 

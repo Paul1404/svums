@@ -1,11 +1,6 @@
-import { getAdminDistinctIdHeader } from "../lib/analytics";
-
 // ---- Types ----
 
 export interface ClientConfig {
-  posthog_enabled: boolean;
-  posthog_key: string | null;
-  posthog_host: string | null;
   club: Record<string, unknown>;
 }
 
@@ -345,9 +340,6 @@ async function apiRequest<T>(
   const baseHeaders: Record<string, string> = body instanceof FormData
     ? {}
     : { "Content-Type": "application/json" };
-  const adminHeaders = url.startsWith("/api/admin")
-    ? getAdminDistinctIdHeader()
-    : {};
   // Include CSRF token on all state-changing requests (defense-in-depth)
   const method = (rest.method || "GET").toUpperCase();
   const csrfHeaders: Record<string, string> = {};
@@ -364,7 +356,6 @@ async function apiRequest<T>(
     ...rest,
     headers: {
       ...baseHeaders,
-      ...adminHeaders,
       ...csrfHeaders,
       ...(extraHeaders as Record<string, string>),
     },

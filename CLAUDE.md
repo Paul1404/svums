@@ -59,7 +59,7 @@ A `SessionStart` hook in `.claude/settings.json` auto-runs `scripts/dev-setup.sh
 **Running tests in Claude Code sessions:**
 ```bash
 make test                          # quick run, stops on first failure
-make test ARGS="-k test_posthog"   # run specific tests
+make test ARGS="-k test_legacy"    # run specific tests
 make test ARGS="--tb=short"        # shorter tracebacks
 ```
 
@@ -102,7 +102,6 @@ svums/
         crypto.py         IBAN encrypt/decrypt (Fernet, key from COOKIE_SECRET)
         storage.py        S3/Tigris object storage (upload, download, delete)
         urls.py           Public URL builder (uses PUBLIC_BASE_URL)
-        posthog.py        Analytics events
         rate_limit.py     DB-backed rate limiter
       templates/          Jinja2 HTML templates for PDFs and emails
   frontend/
