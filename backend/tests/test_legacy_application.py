@@ -5,6 +5,7 @@ from datetime import date
 from app.routers import admin as admin_router
 from app.services import storage
 from app.models.application import MembershipApplication
+from app.models.email_log import EmailLog
 
 
 def _stub_storage(monkeypatch):
@@ -176,12 +177,13 @@ def test_legacy_application_skips_email_dispatch(
     written by the create path."""
     _stub_storage(monkeypatch)
 
-    captured: list[tuple[str, str, dict]] = []
+    sent_emails: list[str] = []
 
-    def fake_capture(event, distinct_id, properties=None):
-        captured.append((event, distinct_id, properties or {}))
+    async def fail_if_called(*args, **kwargs):
+        sent_emails.append("called")
 
-    monkeypatch.setattr(admin_router, "posthog_capture", fake_capture)
+    monkeypatch.setattr(admin_router, "_send_email_task", fail_if_called)
+    monkeypatch.setattr(admin_router, "send_status_email", fail_if_called)
 
     response = client.post(
         "/api/admin/applications/legacy",
@@ -191,11 +193,24 @@ def test_legacy_application_skips_email_dispatch(
         files={"file": ("scan.pdf", io.BytesIO(b"%PDF"), "application/pdf")},
     )
     assert response.status_code == 201
+    antragsnummer = response.json()["antragsnummer"]
 
-    # Posthog event for legacy import was emitted.
-    legacy_events = [e for e in captured if e[0] == "membership_application_legacy_imported"]
-    assert len(legacy_events) == 1
+    # No email was dispatched during legacy creation.
+    assert sent_emails == []
 
-    # No email events fired during legacy creation.
-    email_events = [e for e in captured if e[0] == "email_delivery_result"]
-    assert email_events == []
+    # The application is flagged as already handled so later resends are suppressed.
+    application = (
+        db_session.query(MembershipApplication)
+        .filter(MembershipApplication.antragsnummer == antragsnummer)
+        .first()
+    )
+    assert application is not None
+    assert application.email_sent is True
+
+    # No email log rows were written by the create path.
+    email_logs = (
+        db_session.query(EmailLog)
+        .filter(EmailLog.antragsnummer == antragsnummer)
+        .all()
+    )
+    assert email_logs == []

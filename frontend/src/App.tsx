@@ -21,7 +21,6 @@ import { ClubConfigProvider } from "./context/ClubConfigContext";
 import { ThemeProvider } from "./context/ThemeContext";
 import ThemeToggle from "./components/ThemeToggle";
 import CommandPalette from "./components/CommandPalette";
-import { capturePageView } from "./lib/analytics";
 
 function AdminRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, isLoading } = useAdmin();
@@ -124,74 +123,6 @@ function AdminRoutes() {
   );
 }
 
-function RouteAnalytics() {
-  const location = useLocation();
-
-  React.useEffect(() => {
-    const params = new URLSearchParams(location.search);
-    const state = (location.state ?? {}) as { signedOnline?: boolean } | null;
-    let routeName: string | null = null;
-    let appArea: "public" | "admin" | null = null;
-
-    if (location.pathname === "/") {
-      routeName = "application_form";
-      appArea = "public";
-    } else if (location.pathname === "/erfolg") {
-      routeName = "success";
-      appArea = "public";
-    } else if (location.pathname.startsWith("/upload/")) {
-      routeName = "upload";
-      appArea = "public";
-    } else if (location.pathname === "/papierformular") {
-      routeName = "paper_form_upload";
-      appArea = "public";
-    } else if (location.pathname === "/status") {
-      routeName = "status";
-      appArea = "public";
-    } else if (location.pathname === "/admin/login") {
-      routeName = "admin_login";
-      appArea = "admin";
-    } else if (location.pathname === "/admin") {
-      routeName = "admin_dashboard";
-      appArea = "admin";
-    } else if (location.pathname.startsWith("/admin/applications/")) {
-      routeName = "admin_application_detail";
-      appArea = "admin";
-    } else if (location.pathname === "/admin/settings") {
-      routeName = "admin_settings";
-      appArea = "admin";
-    } else if (location.pathname === "/admin/club-settings") {
-      routeName = "admin_club_settings";
-      appArea = "admin";
-    } else if (location.pathname === "/admin/cancellation") {
-      routeName = "admin_cancellation";
-      appArea = "admin";
-    } else if (location.pathname === "/admin/email-log") {
-      routeName = "admin_email_log";
-      appArea = "admin";
-    } else if (location.pathname === "/admin/documents") {
-      routeName = "admin_documents";
-      appArea = "admin";
-    } else if (location.pathname === "/admin/legacy-application") {
-      routeName = "admin_legacy_application";
-      appArea = "admin";
-    } else if (location.pathname === "/admin/imported") {
-      routeName = "admin_imported_members";
-      appArea = "admin";
-    }
-
-    if (!routeName || !appArea) return;
-
-    capturePageView(routeName, {
-      app_area: appArea,
-      has_query_nr: location.pathname === "/status" ? params.has("nr") : undefined,
-      signed_online: location.pathname === "/erfolg" ? Boolean(state?.signedOnline) : undefined,
-    });
-  }, [location.pathname, location.search, location.state]);
-
-  return null;
-}
-
 function FloatingThemeToggle() {
   const location = useLocation();
   // Admin pages (except login) have their own dense header and the command
@@ -208,7 +139,6 @@ export default function App() {
     <ThemeProvider>
       <ClubConfigProvider>
         <BrowserRouter>
-          <RouteAnalytics />
           <Toaster position="top-right" richColors theme="system" />
           <FloatingThemeToggle />
           <Routes>

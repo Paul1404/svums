@@ -13,7 +13,6 @@ import {
 import { ApiError, lookupStatus, type StatusLookupResponse } from "../services/api";
 import {
   captureEvent,
-  identifyApplicant,
   normalizeFailureReason,
 } from "../lib/analytics";
 import { useClubConfig } from "../context/ClubConfigContext";
@@ -83,7 +82,6 @@ export default function StatusPage() {
     try {
       const result = await lookupStatus(query);
       setData(result);
-      identifyApplicant(result.antragsnummer, { app_area: "public" });
     } catch (err: any) {
       captureEvent("membership_status_lookup_failed", {
         app_area: "public",

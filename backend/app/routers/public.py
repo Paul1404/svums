@@ -6,7 +6,6 @@ from datetime import date, datetime
 from pathlib import Path
 
 from app.config import get_settings
-from app.services.posthog import capture as posthog_capture
 from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, Request, UploadFile, File, Form
 
 from app.services import storage
@@ -377,26 +376,6 @@ async def submit_application(
             logger.error(f"Failed to generate inline-signed PDF: {exc}")
             # Non-fatal: continue without embedding; status stays "neu"
 
-    # Track membership application submission
-    posthog_capture(
-        "membership_application_submitted",
-        application.antragsnummer,
-        properties={
-            "app_area": "public",
-            "source": "backend",
-            "application_id": application.id,
-            "antragsnummer": application.antragsnummer,
-            "antragstyp": application.antragstyp or "einzel",
-            "mitgliedschaft_typ": application.mitgliedschaft_typ,
-            "jahresbeitrag": float(application.jahresbeitrag),
-            "abteilungen_count": len(application.get_abteilungen()),
-            "online_signed": bool(data.unterschrift_base64),
-            "signature_mode": "inline" if data.unterschrift_base64 else "paper_upload",
-            "status_after_submit": application.status,
-            "hours_to_submit": 0,
-        },
-    )
-
     # Send email in background (signature forwarded so PDF in email also carries it)
     from app.config import get_settings
     settings = get_settings()
@@ -579,17 +558,11 @@ def health_check(db: Session = Depends(get_db)):
 
 @router.get("/client-config")
 async def client_config(db: Session = Depends(get_db)):
-    env = get_settings()
-    posthog_enabled = bool(env.posthog_key)
-
     app_settings = db.query(AppSettings).filter(AppSettings.id == 1).first()
     from app.schemas.club_config import ClubConfig
     club = app_settings.get_club_config() if app_settings else ClubConfig()
 
     return {
-        "posthog_enabled": posthog_enabled,
-        "posthog_key": env.posthog_key if posthog_enabled else None,
-        "posthog_host": env.posthog_host if posthog_enabled else None,
         "club": club.to_template_dict(),
     }
 
@@ -637,18 +610,6 @@ def _check_upload_expiry(app: MembershipApplication) -> None:
         return
     days_since = (datetime.utcnow() - app.created_at).days
     if days_since > 30:
-        posthog_capture(
-            "membership_upload_link_expired",
-            app.antragsnummer or "public",
-            properties={
-                "app_area": "public",
-                "source": "backend",
-                "application_id": app.id,
-                "antragsnummer": app.antragsnummer,
-                "days_since_submission": days_since,
-                "reason": "expired_link",
-            },
-        )
         raise HTTPException(
             status_code=410,
             detail="Der Upload-Link ist abgelaufen (30 Tage). Bitte kontaktieren Sie den Verein."
@@ -662,11 +623,6 @@ async def get_upload_info(token: str, db: Session = Depends(get_db)):
         MembershipApplication.upload_token == token
     ).first()
     if not app:
-        posthog_capture(
-            "membership_upload_link_invalid",
-            "public",
-            properties={"app_area": "public", "source": "backend", "reason": "not_found"},
-        )
         raise HTTPException(status_code=404, detail="Ungültiger Upload-Link")
 
     _check_upload_expiry(app)
@@ -692,11 +648,6 @@ async def upload_signed_document(
         MembershipApplication.upload_token == token
     ).first()
     if not app:
-        posthog_capture(
-            "membership_upload_link_invalid",
-            "public",
-            properties={"app_area": "public", "source": "backend", "reason": "not_found"},
-        )
         raise HTTPException(status_code=404, detail="Ungültiger Upload-Link")
 
     _check_upload_expiry(app)
@@ -748,21 +699,6 @@ async def upload_signed_document(
         storage.delete_file(old_filename)
 
     logger.info(f"Upload received for {app.antragsnummer}: {filename} ({len(contents)} bytes)")
-
-    # Track document upload
-    posthog_capture(
-        "membership_document_uploaded",
-        app.antragsnummer,
-        properties={
-            "app_area": "public",
-            "source": "backend",
-            "application_id": app.id,
-            "antragsnummer": app.antragsnummer,
-            "status_after_upload": app.status,
-            "file_extension": ext,
-            "file_size_bytes": len(contents),
-        },
-    )
 
     # Send notifications
     try:
@@ -972,19 +908,6 @@ async def upload_paper_form(
         application.antragsnummer, len(contents), ext,
     )
 
-    posthog_capture(
-        "membership_paper_form_uploaded",
-        application.antragsnummer,
-        properties={
-            "app_area": "public",
-            "source": "backend",
-            "application_id": application.id,
-            "antragsnummer": application.antragsnummer,
-            "file_extension": ext,
-            "file_size_bytes": len(contents),
-        },
-    )
-
     # Notify admin so they can start the transcription. Best-effort; the
     # submission is already saved if email fails.
     try:
@@ -1101,20 +1024,6 @@ async def lookup_status(antragsnummer: str, db: Session = Depends(get_db)):
     ).first()
     if not app:
         raise HTTPException(status_code=404, detail="Antragsnummer nicht gefunden")
-
-    posthog_capture(
-        "membership_status_lookup",
-        app.antragsnummer,
-        properties={
-            "app_area": "public",
-            "source": "backend",
-            "application_id": app.id,
-            "antragsnummer": app.antragsnummer,
-            "status": app.status,
-            "has_upload": app.uploaded_file is not None,
-            "days_since_submission": _days_since(app.created_at),
-        },
-    )
 
     result = {
         "antragsnummer": app.antragsnummer,

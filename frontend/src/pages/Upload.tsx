@@ -3,7 +3,6 @@ import { useState, useEffect, useCallback } from "react";
 import { ApiError } from "../services/api";
 import {
   captureEvent,
-  identifyApplicant,
   normalizeFailureReason,
 } from "../lib/analytics";
 import { useClubConfig } from "../context/ClubConfigContext";
@@ -49,7 +48,6 @@ export default function UploadPage() {
       })
       .then((data) => {
         setInfo(data);
-        identifyApplicant(data.antragsnummer, { app_area: "public" });
         captureEvent("membership_upload_page_loaded", {
           app_area: "public",
           antragsnummer: data.antragsnummer,
