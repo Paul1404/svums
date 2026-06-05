@@ -15,7 +15,6 @@ import AddressFields from "../components/AddressFields";
 import type { ApplicationData, ChildData, FeeResponse } from "../services/api";
 import {
   captureEvent,
-  identifyApplicant,
   normalizeFailureReason,
 } from "../lib/analytics";
 import { useClubConfig } from "../context/ClubConfigContext";
@@ -1012,7 +1011,6 @@ export default function ApplicationForm() {
       };
 
       const result = await submitApplication(payload);
-      identifyApplicant(result.antragsnummer, { app_area: "public" });
       clearDraft();
       navigate("/erfolg", {
         state: {

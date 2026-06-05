@@ -5,7 +5,6 @@ import { ArrowLeft, Download, FileText, Loader2, PenLine, Plus, Trash2, Upload, 
 import SignatureCanvas from "../lib/SignatureCanvas";
 import type { SignatureCanvasType } from "../lib/SignatureCanvas";
 import { extractApiError, getCsrfToken, getCsrfTokenFromCookie, getSettings, updateSettings } from "../services/api";
-import { getAdminDistinctIdHeader } from "../lib/analytics";
 
 interface CancellationForm {
   anrede: string;
@@ -157,7 +156,6 @@ export default function AdminCancellation() {
         credentials: "include",
         headers: {
           "Content-Type": "application/json",
-          ...getAdminDistinctIdHeader(),
           "X-CSRF-Token": csrfToken,
         },
         body: JSON.stringify({
