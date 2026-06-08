@@ -24,8 +24,15 @@ def generate_approval_page(
     mitgliedsnummer: str = "",
     club_config: dict | None = None,
     notification_email: str = "",
+    empfaenger_anrede_text: str = "",
+    empfaenger_anrede_greeting: str = "",
+    empfaenger_name: str = "",
+    empfaenger_strasse: str = "",
+    empfaenger_plz: str = "",
+    empfaenger_ort: str = "",
+    document_id: str = "",
 ) -> bytes:
-    """Generate a single-page PDF with the formal membership confirmation and admin approval block."""
+    """Generate a single-page DIN 5008 letter confirming membership with the admin approval block."""
     if club_config is None:
         from app.schemas.club_config import ClubConfig
         club_config = ClubConfig().to_template_dict()
@@ -40,6 +47,13 @@ def generate_approval_page(
         mitgliedsnummer=mitgliedsnummer or "",
         club=club_config,
         notification_email=notification_email,
+        empfaenger_anrede_text=empfaenger_anrede_text,
+        empfaenger_anrede_greeting=empfaenger_anrede_greeting,
+        empfaenger_name=empfaenger_name or applicant_name,
+        empfaenger_strasse=empfaenger_strasse,
+        empfaenger_plz=empfaenger_plz,
+        empfaenger_ort=empfaenger_ort,
+        document_id=document_id,
     )
     pdf_bytes = HTML(string=html_content, base_url=str(TEMPLATE_DIR)).write_pdf()
     logger.info(
