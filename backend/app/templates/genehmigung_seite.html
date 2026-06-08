@@ -1,191 +1,85 @@
-<!DOCTYPE html>
-<html lang="de">
-<head>
-<meta charset="UTF-8">
-<style>
-  @page {
-    size: A4;
-    margin: 20mm 25mm;
-  }
-  body {
-    font-family: 'Helvetica', 'Arial', sans-serif;
-    font-size: 11pt;
-    line-height: 1.5;
-    color: #1a1a1a;
-    margin: 0;
-    padding: 0;
-  }
-  .header {
-    display: flex;
-    align-items: flex-start;
-    margin-bottom: 24px;
-    padding-bottom: 12px;
-    border-bottom: 2px solid #b91c1c;
-  }
-  .header-text {
-    flex: 1;
-    text-align: center;
-  }
-  .header img {
-    height: 50px;
-    width: auto;
-    margin-left: 15px;
-    flex-shrink: 0;
-  }
-  .confirmation-page {
-    page-break-inside: avoid;
-    break-inside: avoid;
-  }
-  .confirmation-body {
-    margin: 0;
-    line-height: 1.5;
-  }
-  .confirmation-body h2 {
-    font-size: 14pt;
-    color: #1a1a1a;
-    margin: 0 0 14px 0;
-  }
-  .detail-box {
-    border: 1px solid #ddd;
-    border-radius: 4px;
-    padding: 12px 16px;
-    margin: 0 0 16px 0;
-    background: #fafafa;
-  }
-  .detail-row {
-    display: flex;
-    gap: 8px;
-    margin-bottom: 4px;
-  }
-  .detail-row:last-child {
-    margin-bottom: 0;
-  }
-  .detail-label {
-    width: 180px;
-    font-weight: bold;
-    flex-shrink: 0;
-    font-size: 10pt;
-  }
-  .detail-value {
-    flex: 1;
-    font-size: 10pt;
-  }
-  .confirmation-body p {
-    margin: 0 0 8px 0;
-  }
-  .confirmation-body ul {
-    margin: 8px 0;
-    padding-left: 24px;
-  }
-  .confirmation-body li {
-    margin-bottom: 4px;
-  }
-  .approval-box {
-    margin-top: 20px;
-    padding: 16px;
-    border: 1px solid #999;
-    border-radius: 4px;
-    background: #fff;
-  }
-  .approval-title {
-    font-size: 12pt;
-    font-weight: bold;
-    color: #333;
-    margin: 0 0 8px 0;
-  }
-  .approval-date {
-    font-size: 10pt;
-    margin: 0 0 16px 0;
-    color: #555;
-  }
-  .sig-img-line img {
-    max-height: 55px;
-    max-width: 180px;
-    display: block;
-    margin-bottom: 4px;
-  }
-  .sig-label {
-    font-size: 9pt;
-    color: #555;
-  }
-  .footer {
-    margin-top: 40px;
-    padding-top: 10px;
-    border-top: 1px solid #ccc;
-    text-align: center;
-    font-size: 8pt;
-    color: #888;
-  }
-</style>
-</head>
-<body>
+{% extends "_letter_base.html" %}
 
-<div class="confirmation-page">
-<div class="header">
-  <div class="header-text">
-    <h1 style="font-size: 14pt; color: #b91c1c; margin: 0;">{{ club.club_name }}</h1>
-    <p style="font-size: 10pt; color: #666; margin: 4px 0 0 0;">Antragsnummer: {{ antragsnummer }}</p>
+{% block recipient %}
+  {% if empfaenger_anrede_text %}{{ empfaenger_anrede_text }}<br>{% endif %}
+  {{ empfaenger_name or applicant_name }}<br>
+  {% if empfaenger_strasse %}{{ empfaenger_strasse }}<br>{% endif %}
+  {% if empfaenger_plz or empfaenger_ort %}{{ empfaenger_plz }} {{ empfaenger_ort }}{% endif %}
+{% endblock %}
+
+{% block info %}
+<div class="din-info__row">
+  <span class="din-info__label">Antragsnummer</span>
+  <span class="din-info__value mono">{{ antragsnummer }}</span>
+</div>
+{% if mitgliedsnummer %}
+<div class="din-info__row">
+  <span class="din-info__label">Mitgliedsnummer</span>
+  <span class="din-info__value">{{ mitgliedsnummer }}</span>
+</div>
+{% endif %}
+{% if mandatsreferenz %}
+<div class="din-info__row">
+  <span class="din-info__label">Mandatsreferenz</span>
+  <span class="din-info__value mono">{{ mandatsreferenz }}</span>
+</div>
+{% endif %}
+<div class="din-info__row">
+  <span class="din-info__label">Datum</span>
+  <span class="din-info__value">{{ club.club_city }}, {{ approval_datum }}</span>
+</div>
+{% endblock %}
+
+{% block subject %}Aufnahmebestätigung Ihrer Mitgliedschaft{% endblock %}
+
+{% block salutation %}
+<div class="din-salutation">{{ empfaenger_anrede_greeting or ('Guten Tag ' ~ (empfaenger_name or applicant_name)) }},</div>
+{% endblock %}
+
+{% block content %}
+<p>wir freuen uns, Ihnen die Aufnahme in den {{ club.club_name }} zu bestätigen.
+Ihr Aufnahmeantrag wurde durch das Ressort Finanzen &amp; Verwaltung geprüft und genehmigt.</p>
+
+<div class="din-databox">
+  <div class="din-databox__row">
+    <span class="din-databox__label">Mitglied</span>
+    <span class="din-databox__value">{{ applicant_name }}</span>
   </div>
-  <img src="logo_svu.png" alt="SVU Logo">
-</div>
-
-<div class="confirmation-body">
-  <h2>Aufnahmebestätigung</h2>
-
-  <div class="detail-box">
-    <div class="detail-row">
-      <span class="detail-label">Mitglied:</span>
-      <span class="detail-value">{{ applicant_name }}</span>
-    </div>
-    <div class="detail-row">
-      <span class="detail-label">Antragsnummer:</span>
-      <span class="detail-value" style="font-family: monospace;">{{ antragsnummer }}</span>
-    </div>
-    {% if mitgliedsnummer %}
-    <div class="detail-row">
-      <span class="detail-label">Mitgliedsnummer:</span>
-      <span class="detail-value" style="font-weight: bold;">{{ mitgliedsnummer }}</span>
-    </div>
-    {% endif %}
-    <div class="detail-row">
-      <span class="detail-label">Mandatsreferenz:</span>
-      <span class="detail-value" style="font-family: monospace;">{{ mandatsreferenz }}</span>
-    </div>
+  {% if mitgliedsnummer %}
+  <div class="din-databox__row">
+    <span class="din-databox__label">Mitgliedsnummer</span>
+    <span class="din-databox__value">{{ mitgliedsnummer }}</span>
   </div>
-
-  <p>Der Aufnahmeantrag wurde durch das Ressort Finanzen &amp; Verwaltung geprüft und genehmigt.</p>
-
-  <p style="font-weight: bold; margin: 14px 0 8px 0;">Hinweise:</p>
-  <ul>
-    <li><strong>Vereinssatzung:</strong> Die aktuell gültige Fassung ist einsehbar unter:<br>
-    {{ club.satzung_url }}</li>
-
-    <li><strong>Mitgliedsbeitrag:</strong> Der Jahresbeitrag wird gemäß dem erteilten SEPA-Mandat (Mandatsreferenz: {{ mandatsreferenz }}) vom angegebenen Konto eingezogen.</li>
-
-    <li><strong>Datenänderungen:</strong> Änderungen der Anschrift oder Bankverbindung sind zeitnah mitzuteilen, um Rücklastschriftgebühren zu vermeiden.</li>
-  </ul>
-
-  <p style="margin-top: 12px; font-size: 10pt;">Kontakt für Mitgliedschaftsfragen: {{ notification_email or club.contact_email }}</p>
-</div>
-
-<div class="approval-box">
-  <p class="approval-title">Antrag genehmigt</p>
-  <p class="approval-date">Genehmigt am {{ approval_datum }}</p>
-  <div class="sig-img-line">
-    <img src="{{ admin_unterschrift_base64 }}" alt="Unterschrift">
-    <div class="sig-label">Mitgliederverwaltung - {{ club.club_name }}</div>
+  {% endif %}
+  <div class="din-databox__row">
+    <span class="din-databox__label">Antragsnummer</span>
+    <span class="din-databox__value mono">{{ antragsnummer }}</span>
   </div>
-</div>
-</div>
-
-<div class="footer">
-  <strong>{{ club.club_name }}</strong><br>
-  {{ club.club_address }}<br>
-  {{ club.contact_role }}: {{ club.contact_name }} · Tel: {{ club.contact_phone }}<br>
-  E-Mail: {{ club.contact_email }}<br>
-  Registergericht: {{ club.registergericht }} · Registernummer: {{ club.registernummer }} · Steuer-ID: {{ club.steuernummer }}<br>
-  Datenschutz: {{ club.datenschutz_url }} · Satzung: {{ club.satzung_url }} · Impressum: {{ club.impressum_url }}
+  {% if mandatsreferenz %}
+  <div class="din-databox__row">
+    <span class="din-databox__label">Mandatsreferenz</span>
+    <span class="din-databox__value mono">{{ mandatsreferenz }}</span>
+  </div>
+  {% endif %}
 </div>
 
-</body>
-</html>
+<p>Bitte beachten Sie folgende Hinweise:</p>
+<ul>
+  <li>Die aktuell gültige Fassung der Vereinssatzung finden Sie unter {{ club.satzung_url }}.</li>
+  <li>Der Jahresbeitrag wird gemäß dem erteilten SEPA-Mandat{% if mandatsreferenz %} (Mandatsreferenz {{ mandatsreferenz }}){% endif %} von dem angegebenen Konto eingezogen.</li>
+  <li>Änderungen Ihrer Anschrift oder Bankverbindung teilen Sie uns bitte zeitnah mit, um Rücklastschriftgebühren zu vermeiden.</li>
+</ul>
+
+<p>Bei Fragen zu Ihrer Mitgliedschaft erreichen Sie uns unter {{ notification_email or club.contact_email }}.</p>
+{% endblock %}
+
+{% block after_body %}
+<div class="din-closing">Mit freundlichen Grüßen</div>
+<div class="din-signature">
+  {% if admin_unterschrift_base64 %}
+  <img class="din-signature__img" src="{{ admin_unterschrift_base64 }}" alt="Unterschrift">
+  {% endif %}
+  <div class="din-signature__name">Mitgliederverwaltung</div>
+  <div class="din-signature__role">{{ club.club_name }}</div>
+</div>
+{% endblock %}

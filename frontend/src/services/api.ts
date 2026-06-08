@@ -751,6 +751,23 @@ export async function getCancellationDocuments(
   return apiRequest(`/api/admin/cancellation-documents?limit=${limit}`);
 }
 
+export interface GeneratedDocumentResponse {
+  id: number;
+  document_id: string;
+  doc_type: string;
+  doc_type_label: string;
+  application_id: number | null;
+  cancellation_letter_id: number | null;
+  recipient_name: string | null;
+  created_at: string;
+}
+
+export async function getGeneratedDocuments(
+  limit = 1000
+): Promise<GeneratedDocumentResponse[]> {
+  return apiRequest(`/api/admin/documents?limit=${limit}`);
+}
+
 // ---- Club Config API ----
 
 export async function getClubConfig(): Promise<ClubConfigData> {

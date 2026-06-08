@@ -34,6 +34,7 @@ from app.schemas.settings import (
     TestSmtpRequest,
 )
 from app.schemas.cancellation import CancellationLetterResponse
+from app.schemas.document import GeneratedDocumentResponse
 from app.services.email import send_test_email
 from app.services.fees import calculate_fee
 from app.services.pdf import (
@@ -45,6 +46,14 @@ from app.services.pdf import (
 from app.services.crypto import decrypt_iban_safe, encrypt_iban
 from app.services.email import send_status_email
 from app.services import ocr as ocr_service
+from app.models.generated_document import GeneratedDocument
+from app.services.documents import (
+    DOC_TYPE_AUFNAHME,
+    DOC_TYPE_KUENDIGUNG,
+    DOC_TYPE_LABELS,
+    generate_document_id,
+    record_document,
+)
 from app.services import storage
 from app.services.rate_limit import (
     is_rate_limited,
@@ -450,10 +459,22 @@ async def update_application(
         antragstyp = app.antragstyp or "einzel"
         if antragstyp == "kind" and (app.erziehungsberechtigter_vorname or app.erziehungsberechtigter_nachname):
             applicant_name = f"{app.erziehungsberechtigter_vorname or ''} {app.erziehungsberechtigter_nachname or ''}".strip()
+            recipient_anrede = app.geschlecht or ""
+            recipient_nachname = app.erziehungsberechtigter_nachname or ""
         else:
             applicant_name = f"{app.vorname} {app.nachname}"
+            recipient_anrede = app.geschlecht or ""
+            recipient_nachname = app.nachname or ""
         if data.mitgliedsnummer:
             app.mitgliedsnummer = data.mitgliedsnummer.strip()
+        # DIN 5008 recipient address line + salutation
+        _anrede_map = {"Herr": ("Herrn", "Sehr geehrter Herr"), "Frau": ("Frau", "Sehr geehrte Frau")}
+        _addr_prefix, _greet = _anrede_map.get(recipient_anrede, ("", ""))
+        if _greet and recipient_nachname:
+            empfaenger_anrede_greeting = f"{_greet} {recipient_nachname}"
+        else:
+            empfaenger_anrede_greeting = f"Guten Tag {applicant_name}"
+        document_id = generate_document_id(db)
         approval_page_bytes = generate_approval_page(
             admin_unterschrift_base64=effective_sig,
             approval_datum=approval_datum,
@@ -463,6 +484,13 @@ async def update_application(
             mitgliedsnummer=app.mitgliedsnummer or "",
             club_config=club_dict,
             notification_email=settings_obj.notification_email,
+            empfaenger_anrede_text=_addr_prefix,
+            empfaenger_anrede_greeting=empfaenger_anrede_greeting,
+            empfaenger_name=applicant_name,
+            empfaenger_strasse=app.strasse or "",
+            empfaenger_plz=app.plz or "",
+            empfaenger_ort=app.ort or "",
+            document_id=document_id,
         )
         if app.uploaded_file:
             base_bytes = storage.download_file(app.uploaded_file)
@@ -472,16 +500,26 @@ async def update_application(
                 app_data = _build_application_data(app, club_config=club_dict)
                 app_data["admin_unterschrift_base64"] = effective_sig
                 app_data["approval_datum"] = approval_datum
+                app_data["document_id"] = document_id
                 pdf_bytes = generate_pdf(app_data)
         else:
             app_data = _build_application_data(app, club_config=club_dict)
             app_data["admin_unterschrift_base64"] = effective_sig
             app_data["approval_datum"] = approval_datum
+            app_data["document_id"] = document_id
             pdf_bytes = generate_pdf(app_data)
         approved_filename = f"{antragsnummer}_approved.pdf"
         storage.upload_file(approved_filename, pdf_bytes, content_type="application/pdf")
         app.admin_approved_file = approved_filename
         app.admin_decline_reason = None
+        record_document(
+            db,
+            document_id=document_id,
+            doc_type=DOC_TYPE_AUFNAHME,
+            storage_filename=approved_filename,
+            application_id=app.id,
+            recipient_name=applicant_name,
+        )
 
     # When changing to abgelehnt: require reason, clear approved file
     if data.status == "abgelehnt" and old_status != "abgelehnt":
@@ -1586,6 +1624,7 @@ async def cancellation_pdf(
             f"{m['name']}: {m['nummer']}" for m in all_mitgliedsnummern
         )
 
+    document_id = generate_document_id(db)
     pdf_data = {
         "empfaenger_anrede": empfaenger_anrede_full,
         "empfaenger_anrede_text": empfaenger_anrede_text,
@@ -1611,6 +1650,7 @@ async def cancellation_pdf(
         "all_mitgliedsnummern": all_mitgliedsnummern,
         "club": cancel_club_dict,
         "notification_email": settings.notification_email,
+        "document_id": document_id,
     }
 
     pdf_bytes = generate_cancellation_pdf(pdf_data)
@@ -1645,6 +1685,15 @@ async def cancellation_pdf(
         display_name=display_name,
     )
     db.add(letter)
+    db.flush()
+    record_document(
+        db,
+        document_id=document_id,
+        doc_type=DOC_TYPE_KUENDIGUNG,
+        storage_filename=stored_filename,
+        cancellation_letter_id=letter.id,
+        recipient_name=display_name,
+    )
     try:
         db.commit()
     except Exception:
@@ -1724,6 +1773,80 @@ def delete_cancellation_document(
         raise
     storage.delete_file(filename)
     return {"ok": True}
+
+
+def _document_to_response(doc: GeneratedDocument) -> GeneratedDocumentResponse:
+    return GeneratedDocumentResponse(
+        id=doc.id,
+        document_id=doc.document_id,
+        doc_type=doc.doc_type,
+        doc_type_label=DOC_TYPE_LABELS.get(doc.doc_type, doc.doc_type),
+        application_id=doc.application_id,
+        cancellation_letter_id=doc.cancellation_letter_id,
+        recipient_name=doc.recipient_name,
+        created_at=doc.created_at,
+    )
+
+
+@router.get("/documents", response_model=list[GeneratedDocumentResponse])
+def list_generated_documents(
+    is_admin: bool = Depends(require_admin),
+    db: Session = Depends(get_db),
+    limit: int = 1000,
+):
+    """List every generated document by its unique document ID, newest first."""
+    safe_limit = max(1, min(limit, 5000))
+    rows = (
+        db.query(GeneratedDocument)
+        .order_by(GeneratedDocument.created_at.desc(), GeneratedDocument.id.desc())
+        .limit(safe_limit)
+        .all()
+    )
+    return [_document_to_response(r) for r in rows]
+
+
+@router.get("/documents/{document_id}")
+def lookup_generated_document(
+    document_id: str,
+    is_admin: bool = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    """Look up a single document by its public document ID."""
+    doc = (
+        db.query(GeneratedDocument)
+        .filter(GeneratedDocument.document_id == document_id)
+        .first()
+    )
+    if not doc:
+        raise HTTPException(status_code=404, detail="Dokument nicht gefunden")
+    return _document_to_response(doc)
+
+
+@router.get("/documents/{document_id}/download")
+def download_generated_document(
+    document_id: str,
+    is_admin: bool = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    """Download a generated document by its public document ID."""
+    doc = (
+        db.query(GeneratedDocument)
+        .filter(GeneratedDocument.document_id == document_id)
+        .first()
+    )
+    if not doc:
+        raise HTTPException(status_code=404, detail="Dokument nicht gefunden")
+
+    _validate_filename(doc.storage_filename)
+    content = storage.download_file(doc.storage_filename)
+    if content is None:
+        raise HTTPException(status_code=404, detail="Datei nicht gefunden")
+    download_name = f"{doc.document_id}.pdf"
+    return Response(
+        content=content,
+        media_type="application/pdf",
+        headers={"Content-Disposition": _safe_content_disposition("inline", download_name)},
+    )
 
 
 # --- Email Log ---

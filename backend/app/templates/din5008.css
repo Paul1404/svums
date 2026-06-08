@@ -1,0 +1,273 @@
+/* DIN 5008 (Form B) letter layout for SVUMS generated documents.
+   Page geometry follows DIN 676 Form B: left margin 25 mm, right 20 mm,
+   address field starting 45 mm from the top edge, fold marks at 105/210 mm. */
+
+:root {
+  --din-accent: #b91c1c;
+  --din-ink: #1a1a1a;
+  --din-muted: #555;
+  --din-line: #b5b5b5;
+  --din-soft: #fafafa;
+}
+
+@page {
+  size: A4;
+  /* top applies to continuation pages (DIN head distance); first page is flush (see :first) */
+  margin: 16.9mm 20mm 16mm 25mm;
+  @bottom-left {
+    content: element(dinfooter);
+    width: 100%;
+  }
+}
+
+@page :first {
+  margin-top: 0;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  font-family: 'Helvetica', 'Arial', sans-serif;
+  font-size: 11pt;
+  line-height: 1.5;
+  color: var(--din-ink);
+  margin: 0;
+  padding: 0;
+}
+
+/* ── Fold and hole marks (Form B) ───────────────────────────────
+   position:fixed is content-area relative in WeasyPrint, so left:-25mm
+   pulls the mark out to the physical left paper edge. Top offsets are
+   exact on the first page (margin-top:0). */
+.din-mark {
+  position: fixed;
+  left: -25mm;
+  width: 4mm;
+  border-top: 0.4pt solid #9a9a9a;
+}
+.din-mark--fold1 { top: 105mm; }
+.din-mark--fold2 { top: 210mm; }
+.din-mark--hole  { top: 148.5mm; width: 5mm; }
+
+/* ── Briefkopf / letterhead (Form B head zone) ──────────────── */
+.din-letterhead {
+  height: 40mm;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 8mm;
+  border-bottom: 1.5pt solid var(--din-accent);
+  padding-bottom: 2.5mm;
+}
+.din-letterhead__brand {
+  flex: 1;
+}
+.din-letterhead__name {
+  font-size: 15pt;
+  font-weight: bold;
+  color: var(--din-accent);
+  margin: 0;
+  line-height: 1.2;
+}
+.din-letterhead__tagline {
+  font-size: 8.5pt;
+  color: var(--din-muted);
+  margin: 1mm 0 0 0;
+}
+.din-letterhead__logo {
+  height: 20mm;
+  width: auto;
+  flex-shrink: 0;
+}
+/* Compact head for forms that do not use the window-envelope address field */
+.din-letterhead--compact {
+  height: auto;
+  align-items: center;
+  margin-bottom: 4mm;
+}
+.din-letterhead--compact .din-letterhead__logo {
+  height: 16mm;
+}
+
+/* ── Address field + reference block ────────────────────────── */
+.din-address-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 8mm;
+  margin-top: 3mm;
+}
+.din-address {
+  width: 85mm;
+  min-height: 40mm;
+}
+.din-address__return {
+  font-size: 7pt;
+  color: var(--din-muted);
+  border-bottom: 0.4pt solid var(--din-line);
+  padding-bottom: 0.6mm;
+  margin-bottom: 5mm;
+}
+.din-address__recipient {
+  font-size: 11pt;
+  line-height: 1.4;
+}
+
+.din-info {
+  width: 62mm;
+  font-size: 9pt;
+  line-height: 1.45;
+  padding-top: 5.6mm; /* align with recipient block, below the return line */
+}
+.din-info__row {
+  display: flex;
+}
+.din-info__label {
+  width: 26mm;
+  flex-shrink: 0;
+  color: var(--din-muted);
+}
+.din-info__value {
+  flex: 1;
+}
+
+/* ── Letter body ────────────────────────────────────────────── */
+.din-subject {
+  font-size: 11pt;
+  font-weight: bold;
+  margin: 8.46mm 0 5mm 0;
+}
+.din-salutation {
+  margin: 0 0 4mm 0;
+}
+.din-body p {
+  margin: 0 0 4mm 0;
+  text-align: left;
+}
+.din-body ul {
+  margin: 3mm 0;
+  padding-left: 6mm;
+}
+.din-body li {
+  margin-bottom: 1.5mm;
+}
+
+/* ── Data box (key/value summary) ───────────────────────────── */
+.din-databox {
+  border: 0.5pt solid var(--din-line);
+  background: var(--din-soft);
+  padding: 3mm 4mm;
+  margin: 4mm 0;
+}
+.din-databox__row {
+  display: flex;
+  gap: 3mm;
+  margin-bottom: 1.2mm;
+}
+.din-databox__row:last-child {
+  margin-bottom: 0;
+}
+.din-databox__label {
+  width: 45mm;
+  flex-shrink: 0;
+  font-weight: bold;
+  font-size: 10pt;
+}
+.din-databox__value {
+  flex: 1;
+  font-size: 10pt;
+}
+.mono {
+  font-family: 'Courier New', monospace;
+}
+
+/* ── Closing and signature ──────────────────────────────────── */
+.din-closing {
+  margin-top: 8mm;
+}
+.din-signature {
+  margin-top: 4mm;
+  page-break-inside: avoid;
+  break-inside: avoid;
+}
+.din-signature__img {
+  height: 16mm;
+  width: auto;
+  display: block;
+  margin-bottom: 1mm;
+}
+.din-signature__name {
+  font-size: 10pt;
+}
+.din-signature__role {
+  font-size: 9pt;
+  color: var(--din-muted);
+}
+
+/* Approval / confirmation block reused across letters */
+.din-approval {
+  margin-top: 8mm;
+  padding: 4mm 5mm;
+  border: 0.5pt solid var(--din-line);
+  page-break-inside: avoid;
+  break-inside: avoid;
+}
+.din-approval__title {
+  font-weight: bold;
+  margin: 0 0 1.5mm 0;
+}
+.din-approval__date {
+  font-size: 10pt;
+  color: var(--din-muted);
+  margin: 0 0 4mm 0;
+}
+
+/* ── Supplementary info block (small print) ─────────────────── */
+.din-note {
+  font-size: 9pt;
+  color: var(--din-muted);
+  line-height: 1.45;
+  margin-top: 6mm;
+}
+.din-note h3 {
+  font-size: 9.5pt;
+  color: var(--din-ink);
+  margin: 0 0 2mm 0;
+}
+.din-note hr {
+  border: none;
+  border-top: 0.5pt solid var(--din-line);
+  margin-bottom: 3mm;
+}
+.din-note p {
+  margin: 0 0 2mm 0;
+}
+
+/* ── Fußzeile / footer (runs in the bottom margin on every page) ── */
+.din-footer {
+  position: running(dinfooter);
+  width: 100%;
+  border-top: 0.5pt solid var(--din-line);
+  padding-top: 1.5mm;
+  font-size: 7pt;
+  color: var(--din-muted);
+  line-height: 1.35;
+}
+.din-footer__docid {
+  text-align: right;
+  font-size: 6.5pt;
+  letter-spacing: 0.2pt;
+  margin-bottom: 0.8mm;
+}
+.din-footer__cols {
+  display: flex;
+  justify-content: space-between;
+  gap: 5mm;
+}
+.din-footer__col {
+  flex: 1;
+}
+.din-footer__col strong {
+  color: var(--din-ink);
+}

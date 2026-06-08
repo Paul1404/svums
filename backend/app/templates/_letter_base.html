@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<link rel="stylesheet" href="din5008.css">
+<style>
+  :root { --din-accent: {{ club.primary_color or '#b91c1c' }}; }
+</style>
+{% block extra_head %}{% endblock %}
+</head>
+<body>
+
+<div class="din-mark din-mark--fold1"></div>
+<div class="din-mark din-mark--hole"></div>
+<div class="din-mark din-mark--fold2"></div>
+
+<footer class="din-footer">
+  {% if document_id %}<div class="din-footer__docid">Dokument-ID: <span class="mono">{{ document_id }}</span></div>{% endif %}
+  <div class="din-footer__cols">
+    <div class="din-footer__col">
+      <strong>{{ club.club_name }}</strong><br>
+      {{ club.club_address }}
+    </div>
+    <div class="din-footer__col">
+      {{ club.contact_role }}: {{ club.contact_name }}<br>
+      Tel: {{ club.contact_phone }} · {{ club.contact_email }}
+    </div>
+    <div class="din-footer__col">
+      {{ club.registergericht }} · {{ club.registernummer }}<br>
+      Steuer-Nr.: {{ club.steuernummer }}
+    </div>
+  </div>
+</footer>
+
+<header class="din-letterhead">
+  <div class="din-letterhead__brand">
+    <p class="din-letterhead__name">{{ club.club_name }}</p>
+    {% block tagline %}{% endblock %}
+  </div>
+  <img class="din-letterhead__logo" src="logo_svu.png" alt="{{ club.club_abbreviation }}">
+</header>
+
+<div class="din-address-row">
+  <div class="din-address">
+    <div class="din-address__return">{{ club.club_name }} · {{ club.club_address }}</div>
+    <div class="din-address__recipient">
+      {% block recipient %}{% endblock %}
+    </div>
+  </div>
+  <div class="din-info">
+    {% block info %}
+    <div class="din-info__row">
+      <span class="din-info__label">Datum</span>
+      <span class="din-info__value">{{ club.club_city }}, {{ datum }}</span>
+    </div>
+    {% endblock %}
+  </div>
+</div>
+
+<main class="din-letter">
+  <p class="din-subject">{% block subject %}{% endblock %}</p>
+
+  {% block salutation %}{% endblock %}
+
+  <div class="din-body">
+    {% block content %}{% endblock %}
+  </div>
+
+  {% block after_body %}{% endblock %}
+</main>
+
+</body>
+</html>
