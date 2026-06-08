@@ -2,361 +2,269 @@
 <html lang="de">
 <head>
 <meta charset="UTF-8">
+<link rel="stylesheet" href="din5008.css">
 <style>
-  @page {
-    size: A4;
-    margin: 15mm 20mm;
-  }
-  body {
-    font-family: 'Helvetica', 'Arial', sans-serif;
-    font-size: 11pt;
-    line-height: 1.4;
-    color: #1a1a1a;
-    margin: 0;
-    padding: 0;
-  }
-  .header {
-    display: flex;
-    align-items: flex-start;
-    margin-bottom: 20px;
-    padding-bottom: 10px;
-    border-bottom: 2px solid #b91c1c;
-  }
-  .header-text {
-    flex: 1;
-    text-align: center;
-  }
-  .header img {
-    height: 60px;
-    width: auto;
-    margin-left: 15px;
-    flex-shrink: 0;
-  }
-  .header h1 {
-    font-size: 16pt;
-    color: #b91c1c;
-    margin: 0 0 5px 0;
-  }
-  .header h2 {
-    font-size: 13pt;
-    color: #333;
-    margin: 0;
-    font-weight: normal;
-  }
-  .section {
-    margin-bottom: 18px;
-  }
-  .section-title {
+  :root { --din-accent: {{ club.primary_color or '#b91c1c' }}; }
+
+  /* Beitrittserklärung form styles (DIN 5008 typography) */
+  .doc-title {
     font-size: 12pt;
     font-weight: bold;
-    color: #b91c1c;
-    border-bottom: 1px solid #b91c1c;
-    padding-bottom: 3px;
-    margin-bottom: 10px;
+    margin: 1mm 0 0 0;
   }
-  .field-row {
-    display: flex;
-    gap: 8px;
-    margin-bottom: 6px;
+  .doc-meta {
+    font-size: 9pt;
+    color: var(--din-muted);
+    margin: 1mm 0 0 0;
   }
-  .field-label {
-    width: 200px;
+  .type-badge {
+    display: inline-block;
+    border: 0.5pt solid var(--din-accent);
+    color: var(--din-accent);
+    padding: 1mm 3mm;
+    font-size: 9.5pt;
     font-weight: bold;
-    flex-shrink: 0;
+    margin: 6mm 0 4mm 0;
   }
-  .field-value {
+  .form-section {
+    margin-bottom: 5mm;
+  }
+  .form-section__title {
+    font-size: 10.5pt;
+    font-weight: bold;
+    color: var(--din-accent);
+    border-bottom: 0.5pt solid var(--din-accent);
+    padding-bottom: 1mm;
+    margin-bottom: 2.5mm;
+  }
+  .form-row {
+    display: flex;
+    gap: 3mm;
+    margin-bottom: 1.6mm;
+  }
+  .form-row__label {
+    width: 55mm;
+    flex-shrink: 0;
+    font-weight: bold;
+    font-size: 10pt;
+  }
+  .form-row__value {
     flex: 1;
-    border-bottom: 1px dotted #999;
-    padding-bottom: 1px;
+    border-bottom: 0.4pt dotted #999;
+    padding-bottom: 0.4mm;
+    font-size: 10pt;
+  }
+  .child-block {
+    border: 0.5pt solid var(--din-line);
+    background: var(--din-soft);
+    padding: 2.5mm 3mm;
+    margin-bottom: 2.5mm;
+  }
+  .child-block__title {
+    font-weight: bold;
+    font-size: 9.5pt;
+    color: var(--din-accent);
+    margin-bottom: 1.5mm;
+  }
+  .legal-text {
+    font-size: 8.5pt;
+    color: var(--din-muted);
+    line-height: 1.4;
+    margin: 3mm 0;
+  }
+  .consent-box {
+    border: 0.5pt solid var(--din-line);
+    background: var(--din-soft);
+    padding: 2.5mm 3mm;
+    page-break-inside: avoid;
+    break-inside: avoid;
   }
   .fee-table {
     width: 100%;
     border-collapse: collapse;
-    margin: 10px 0;
-    font-size: 10pt;
+    margin: 2.5mm 0;
+    font-size: 9.5pt;
   }
   .fee-table th {
-    background-color: #b91c1c;
-    color: white;
-    padding: 6px 10px;
+    background-color: var(--din-accent);
+    color: #fff;
+    padding: 1.5mm 3mm;
     text-align: left;
   }
   .fee-table td {
-    padding: 5px 10px;
-    border-bottom: 1px solid #ddd;
+    padding: 1.3mm 3mm;
+    border-bottom: 0.4pt solid var(--din-line);
   }
   .fee-table tr.active {
-    background-color: #fee2e2;
+    background-color: var(--din-soft);
     font-weight: bold;
   }
   .sepa-box {
-    border: 1px solid #333;
-    padding: 12px;
-    margin: 10px 0;
-  }
-  .sepa-box .title {
-    font-weight: bold;
-    font-size: 11pt;
-    margin-bottom: 8px;
-  }
-  .legal-text {
-    font-size: 9pt;
-    color: #555;
-    line-height: 1.3;
-    margin: 10px 0;
+    border: 0.5pt solid var(--din-ink);
+    padding: 3mm 4mm;
+    margin: 3mm 0;
   }
   .signature-area {
-    margin-top: 40px;
+    margin-top: 8mm;
     display: flex;
     justify-content: space-between;
+    gap: 8mm;
     page-break-inside: avoid;
     break-inside: avoid;
   }
   .signature-line {
-    width: 45%;
-    border-top: 1px solid #333;
-    padding-top: 4px;
-    font-size: 9pt;
+    width: 48%;
+    border-top: 0.5pt solid var(--din-ink);
+    padding-top: 1mm;
+    font-size: 8.5pt;
     text-align: center;
+  }
+  .sig-img-line {
+    width: 48%;
+    text-align: center;
+    font-size: 8.5pt;
+  }
+  .sig-img-line img {
+    max-height: 16mm;
+    max-width: 55mm;
+    display: block;
+    margin: 0 auto 1mm auto;
   }
   .iban-display {
     font-family: 'Courier New', monospace;
-    font-size: 12pt;
-    letter-spacing: 2px;
+    font-size: 11pt;
+    letter-spacing: 1pt;
   }
-  .child-block {
-    border: 1px solid #ddd;
-    border-radius: 4px;
-    padding: 10px;
-    margin-bottom: 8px;
-    background: #fafafa;
-  }
-  .child-block .child-title {
-    font-weight: bold;
-    font-size: 10pt;
-    color: #b91c1c;
-    margin-bottom: 6px;
-  }
-  .type-badge {
-    display: inline-block;
-    background: #fee2e2;
-    color: #b91c1c;
-    padding: 3px 10px;
-    border-radius: 10px;
-    font-size: 10pt;
-    font-weight: bold;
-    margin-bottom: 10px;
-  }
-  .sig-img-line {
-    width: 45%;
-    padding-top: 4px;
-    font-size: 9pt;
-    text-align: center;
-  }
-  .sig-img-line img {
-    max-height: 55px;
-    max-width: 180px;
-    display: block;
-    margin: 0 auto 4px auto;
-  }
-  .approval-block {
+  .callout {
+    margin-top: 4mm;
+    padding: 3mm 4mm;
+    border: 0.5pt solid var(--din-line);
     page-break-inside: avoid;
     break-inside: avoid;
+    font-size: 9pt;
+  }
+  .callout--action {
+    border: 1pt solid var(--din-accent);
+  }
+  .callout__title {
+    font-weight: bold;
+    margin: 0 0 1.5mm 0;
+  }
+  .callout--action .callout__title {
+    color: var(--din-accent);
+  }
+  .callout ol {
+    margin: 0;
+    padding-left: 5mm;
+    line-height: 1.5;
   }
 </style>
 </head>
 <body>
 
-<div class="header">
-  <div class="header-text">
-    <h1>{{ club.club_name }}</h1>
-    <h2>Beitrittserklärung</h2>
-    <p style="font-size: 10pt; color: #888; margin-top: 4px;">Antragsnummer: <strong style="color: #333; font-family: monospace;">{{ antragsnummer }}</strong></p>
+<div class="din-mark din-mark--fold1"></div>
+<div class="din-mark din-mark--hole"></div>
+<div class="din-mark din-mark--fold2"></div>
+
+<footer class="din-footer">
+  {% if document_id %}<div class="din-footer__docid">Dokument-ID: <span class="mono">{{ document_id }}</span></div>{% endif %}
+  <div class="din-footer__cols">
+    <div class="din-footer__col">
+      <strong>{{ club.club_name }}</strong><br>
+      {{ club.club_address }}
+    </div>
+    <div class="din-footer__col">
+      {{ club.contact_role }}: {{ club.contact_name }}<br>
+      Tel: {{ club.contact_phone }} · {{ club.contact_email }}
+    </div>
+    <div class="din-footer__col">
+      {{ club.registergericht }} · {{ club.registernummer }}<br>
+      Steuer-Nr.: {{ club.steuernummer }}
+    </div>
   </div>
-  <img src="logo_svu.png" alt="SVU Logo">
-</div>
+</footer>
+
+<header class="din-letterhead din-letterhead--compact">
+  <div class="din-letterhead__brand">
+    <p class="din-letterhead__name">{{ club.club_name }}</p>
+    <p class="doc-title">Beitrittserklärung</p>
+    <p class="doc-meta">Antragsnummer: <span class="mono">{{ antragsnummer }}</span></p>
+  </div>
+  <img class="din-letterhead__logo" src="logo_svu.png" alt="{{ club.club_abbreviation }}">
+</header>
 
 {% set antragstyp = antragstyp or 'einzel' %}
 
 {% if antragstyp == 'kind' %}
-{# ===== KIND / JUGENDLICHE ===== #}
-<div class="type-badge">Kind / Jugendliche – Einzelmitgliedschaft</div>
+<div class="type-badge">Kind / Jugendliche · Einzelmitgliedschaft</div>
 
-<div class="section">
-  <div class="section-title">Daten des Kindes / Jugendlichen</div>
-  <div class="field-row">
-    <span class="field-label">Nachname, Vorname:</span>
-    <span class="field-value">{{ nachname }}, {{ vorname }}</span>
-  </div>
-  <div class="field-row">
-    <span class="field-label">Geboren am:</span>
-    <span class="field-value">{{ geburtsdatum_formatted }}</span>
-  </div>
-  <div class="field-row">
-    <span class="field-label">Abteilung(en):</span>
-    <span class="field-value">{{ abteilungen_display }}</span>
-  </div>
+<div class="form-section">
+  <div class="form-section__title">Daten des Kindes / Jugendlichen</div>
+  <div class="form-row"><span class="form-row__label">Nachname, Vorname</span><span class="form-row__value">{{ nachname }}, {{ vorname }}</span></div>
+  <div class="form-row"><span class="form-row__label">Geboren am</span><span class="form-row__value">{{ geburtsdatum_formatted }}</span></div>
+  <div class="form-row"><span class="form-row__label">Abteilung(en)</span><span class="form-row__value">{{ abteilungen_display }}</span></div>
 </div>
 
-<div class="section">
-  <div class="section-title">Erziehungsberechtigte/r (Zahlungspflichtig)</div>
-  {% if geschlecht %}
-  <div class="field-row">
-    <span class="field-label">Anrede:</span>
-    <span class="field-value">{{ geschlecht }}</span>
-  </div>
-  {% endif %}
-  <div class="field-row">
-    <span class="field-label">Nachname, Vorname:</span>
-    <span class="field-value">{{ erziehungsberechtigter_nachname }}, {{ erziehungsberechtigter_vorname }}</span>
-  </div>
-  <div class="field-row">
-    <span class="field-label">Straße und Hausnummer:</span>
-    <span class="field-value">{{ strasse }}</span>
-  </div>
-  <div class="field-row">
-    <span class="field-label">PLZ und Ort:</span>
-    <span class="field-value">{{ plz }} {{ ort }}</span>
-  </div>
-  <div class="field-row">
-    <span class="field-label">Telefon:</span>
-    <span class="field-value">{{ telefon or '–' }}</span>
-  </div>
-  <div class="field-row">
-    <span class="field-label">E-Mail:</span>
-    <span class="field-value">{{ email }}</span>
-  </div>
-  <div class="field-row">
-    <span class="field-label">Elternteil Mitglied:</span>
-    <span class="field-value">{{ 'Ja' if elternteil_mitglied else 'Nein' }}</span>
-  </div>
+<div class="form-section">
+  <div class="form-section__title">Erziehungsberechtigte/r (zahlungspflichtig)</div>
+  {% if geschlecht %}<div class="form-row"><span class="form-row__label">Anrede</span><span class="form-row__value">{{ geschlecht }}</span></div>{% endif %}
+  <div class="form-row"><span class="form-row__label">Nachname, Vorname</span><span class="form-row__value">{{ erziehungsberechtigter_nachname }}, {{ erziehungsberechtigter_vorname }}</span></div>
+  <div class="form-row"><span class="form-row__label">Straße und Hausnummer</span><span class="form-row__value">{{ strasse }}</span></div>
+  <div class="form-row"><span class="form-row__label">PLZ und Ort</span><span class="form-row__value">{{ plz }} {{ ort }}</span></div>
+  <div class="form-row"><span class="form-row__label">Telefon</span><span class="form-row__value">{{ telefon or '–' }}</span></div>
+  <div class="form-row"><span class="form-row__label">E-Mail</span><span class="form-row__value">{{ email }}</span></div>
+  <div class="form-row"><span class="form-row__label">Elternteil Mitglied</span><span class="form-row__value">{{ 'Ja' if elternteil_mitglied else 'Nein' }}</span></div>
 </div>
 
 {% elif antragstyp == 'familie' %}
-{# ===== FAMILIE ===== #}
 <div class="type-badge">Familienmitgliedschaft</div>
 
-<div class="section">
-  <div class="section-title">Daten des Antragstellers (Elternteil)</div>
-  {% if geschlecht %}
-  <div class="field-row">
-    <span class="field-label">Anrede:</span>
-    <span class="field-value">{{ geschlecht }}</span>
-  </div>
-  {% endif %}
-  <div class="field-row">
-    <span class="field-label">Nachname, Vorname:</span>
-    <span class="field-value">{{ nachname }}, {{ vorname }}</span>
-  </div>
-  <div class="field-row">
-    <span class="field-label">Geboren am:</span>
-    <span class="field-value">{{ geburtsdatum_formatted }}</span>
-  </div>
-  <div class="field-row">
-    <span class="field-label">Straße und Hausnummer:</span>
-    <span class="field-value">{{ strasse }}</span>
-  </div>
-  <div class="field-row">
-    <span class="field-label">PLZ und Ort:</span>
-    <span class="field-value">{{ plz }} {{ ort }}</span>
-  </div>
-  <div class="field-row">
-    <span class="field-label">Telefon:</span>
-    <span class="field-value">{{ telefon or '–' }}</span>
-  </div>
-  <div class="field-row">
-    <span class="field-label">E-Mail:</span>
-    <span class="field-value">{{ email }}</span>
-  </div>
-  <div class="field-row">
-    <span class="field-label">Abteilung(en):</span>
-    <span class="field-value">{{ abteilungen_display }}</span>
-  </div>
+<div class="form-section">
+  <div class="form-section__title">Daten des Antragstellers (Elternteil)</div>
+  {% if geschlecht %}<div class="form-row"><span class="form-row__label">Anrede</span><span class="form-row__value">{{ geschlecht }}</span></div>{% endif %}
+  <div class="form-row"><span class="form-row__label">Nachname, Vorname</span><span class="form-row__value">{{ nachname }}, {{ vorname }}</span></div>
+  <div class="form-row"><span class="form-row__label">Geboren am</span><span class="form-row__value">{{ geburtsdatum_formatted }}</span></div>
+  <div class="form-row"><span class="form-row__label">Straße und Hausnummer</span><span class="form-row__value">{{ strasse }}</span></div>
+  <div class="form-row"><span class="form-row__label">PLZ und Ort</span><span class="form-row__value">{{ plz }} {{ ort }}</span></div>
+  <div class="form-row"><span class="form-row__label">Telefon</span><span class="form-row__value">{{ telefon or '–' }}</span></div>
+  <div class="form-row"><span class="form-row__label">E-Mail</span><span class="form-row__value">{{ email }}</span></div>
+  <div class="form-row"><span class="form-row__label">Abteilung(en)</span><span class="form-row__value">{{ abteilungen_display }}</span></div>
 </div>
 
 {% if partner_vorname and partner_nachname %}
-<div class="section">
-  <div class="section-title">Partner / 2. Elternteil</div>
-  <div class="field-row">
-    <span class="field-label">Nachname, Vorname:</span>
-    <span class="field-value">{{ partner_nachname }}, {{ partner_vorname }}</span>
-  </div>
-  {% if partner_geburtsdatum_formatted %}
-  <div class="field-row">
-    <span class="field-label">Geboren am:</span>
-    <span class="field-value">{{ partner_geburtsdatum_formatted }}</span>
-  </div>
-  {% endif %}
-  {% if partner_abteilungen_display %}
-  <div class="field-row">
-    <span class="field-label">Abteilung(en):</span>
-    <span class="field-value">{{ partner_abteilungen_display }}</span>
-  </div>
-  {% endif %}
+<div class="form-section">
+  <div class="form-section__title">Partner / 2. Elternteil</div>
+  <div class="form-row"><span class="form-row__label">Nachname, Vorname</span><span class="form-row__value">{{ partner_nachname }}, {{ partner_vorname }}</span></div>
+  {% if partner_geburtsdatum_formatted %}<div class="form-row"><span class="form-row__label">Geboren am</span><span class="form-row__value">{{ partner_geburtsdatum_formatted }}</span></div>{% endif %}
+  {% if partner_abteilungen_display %}<div class="form-row"><span class="form-row__label">Abteilung(en)</span><span class="form-row__value">{{ partner_abteilungen_display }}</span></div>{% endif %}
 </div>
 {% endif %}
 
 {% if kinder %}
-<div class="section">
-  <div class="section-title">Kinder</div>
+<div class="form-section">
+  <div class="form-section__title">Kinder</div>
   {% for kind in kinder %}
   <div class="child-block">
-    <div class="child-title">Kind {{ loop.index }}</div>
-    <div class="field-row">
-      <span class="field-label">Nachname, Vorname:</span>
-      <span class="field-value">{{ kind.nachname }}, {{ kind.vorname }}</span>
-    </div>
-    <div class="field-row">
-      <span class="field-label">Geboren am:</span>
-      <span class="field-value">{{ kind.geburtsdatum_formatted or kind.geburtsdatum }}</span>
-    </div>
-    <div class="field-row">
-      <span class="field-label">Abteilung(en):</span>
-      <span class="field-value">{{ kind.abteilungen_display or (kind.abteilungen | join(', ')) }}</span>
-    </div>
+    <div class="child-block__title">Kind {{ loop.index }}</div>
+    <div class="form-row"><span class="form-row__label">Nachname, Vorname</span><span class="form-row__value">{{ kind.nachname }}, {{ kind.vorname }}</span></div>
+    <div class="form-row"><span class="form-row__label">Geboren am</span><span class="form-row__value">{{ kind.geburtsdatum_formatted or kind.geburtsdatum }}</span></div>
+    <div class="form-row"><span class="form-row__label">Abteilung(en)</span><span class="form-row__value">{{ kind.abteilungen_display or (kind.abteilungen | join(', ')) }}</span></div>
   </div>
   {% endfor %}
 </div>
 {% endif %}
 
 {% else %}
-{# ===== EINZEL ===== #}
-<div class="section">
-  <div class="section-title">Persönliche Daten</div>
-  {% if geschlecht %}
-  <div class="field-row">
-    <span class="field-label">Anrede:</span>
-    <span class="field-value">{{ geschlecht }}</span>
-  </div>
-  {% endif %}
-  <div class="field-row">
-    <span class="field-label">Nachname, Vorname:</span>
-    <span class="field-value">{{ nachname }}, {{ vorname }}</span>
-  </div>
-  <div class="field-row">
-    <span class="field-label">Geboren am:</span>
-    <span class="field-value">{{ geburtsdatum_formatted }}</span>
-  </div>
-  <div class="field-row">
-    <span class="field-label">Straße und Hausnummer:</span>
-    <span class="field-value">{{ strasse }}</span>
-  </div>
-  <div class="field-row">
-    <span class="field-label">PLZ und Ort:</span>
-    <span class="field-value">{{ plz }} {{ ort }}</span>
-  </div>
-  <div class="field-row">
-    <span class="field-label">Telefon:</span>
-    <span class="field-value">{{ telefon or '–' }}</span>
-  </div>
-  <div class="field-row">
-    <span class="field-label">E-Mail:</span>
-    <span class="field-value">{{ email }}</span>
-  </div>
-  <div class="field-row">
-    <span class="field-label">Abteilung(en):</span>
-    <span class="field-value">{{ abteilungen_display }}</span>
-  </div>
+<div class="form-section" style="margin-top: 6mm;">
+  <div class="form-section__title">Persönliche Daten</div>
+  {% if geschlecht %}<div class="form-row"><span class="form-row__label">Anrede</span><span class="form-row__value">{{ geschlecht }}</span></div>{% endif %}
+  <div class="form-row"><span class="form-row__label">Nachname, Vorname</span><span class="form-row__value">{{ nachname }}, {{ vorname }}</span></div>
+  <div class="form-row"><span class="form-row__label">Geboren am</span><span class="form-row__value">{{ geburtsdatum_formatted }}</span></div>
+  <div class="form-row"><span class="form-row__label">Straße und Hausnummer</span><span class="form-row__value">{{ strasse }}</span></div>
+  <div class="form-row"><span class="form-row__label">PLZ und Ort</span><span class="form-row__value">{{ plz }} {{ ort }}</span></div>
+  <div class="form-row"><span class="form-row__label">Telefon</span><span class="form-row__value">{{ telefon or '–' }}</span></div>
+  <div class="form-row"><span class="form-row__label">E-Mail</span><span class="form-row__value">{{ email }}</span></div>
+  <div class="form-row"><span class="form-row__label">Abteilung(en)</span><span class="form-row__value">{{ abteilungen_display }}</span></div>
 </div>
 {% endif %}
 
@@ -366,57 +274,47 @@
   Datenschutzerklärung: {{ club.datenschutz_url }}<br>
   Satzung: {{ club.satzung_url }}<br>
   Impressum: {{ club.impressum_url }}<br><br>
-  Wenn Sie den Verein verlassen möchten, ist das zum Ende jedes Kalenderjahres möglich –
-  bitte melden Sie sich dafür mindestens sechs Wochen vorher per E-Mail an {{ notification_email or club.contact_email }} oder per Post.
+  Wenn Sie den Verein verlassen möchten, ist das zum Ende jedes Kalenderjahres möglich.
+  Bitte melden Sie sich dafür mindestens sechs Wochen vorher per E-Mail an {{ notification_email or club.contact_email }} oder per Post.
 </div>
 
 {% if consent_at_formatted %}
-<div class="legal-text" style="margin-top: 8px; padding: 8px; border: 1px solid #ddd; background: #fafafa; page-break-inside: avoid; break-inside: avoid;">
+<div class="consent-box legal-text" style="margin-top: 2mm;">
   Der/Die Antragsteller/in hat am {{ consent_at_formatted }} die Datenschutzerklärung
   ({{ club.datenschutz_url }}) und die Satzung
-  ({{ club.satzung_url }}) des {{ club.club_short_name }} zur Kenntnis genommen
-  und akzeptiert.
+  ({{ club.satzung_url }}) des {{ club.club_short_name }} zur Kenntnis genommen und akzeptiert.
 </div>
 {% endif %}
 
 <div class="signature-area">
   {% if unterschrift_base64 %}
   <div class="signature-line">Ort und Datum: {{ ort }}, {{ datum }}</div>
-  {% else %}
-  <div class="signature-line">Ort und Datum:</div>
-  {% endif %}
-  {% if unterschrift_base64 %}
   <div class="sig-img-line">
     <img src="{{ unterschrift_base64 }}" alt="Unterschrift">
-    <div class="sig-label">Unterschrift (digital erfasst)</div>
+    <div>Unterschrift (digital erfasst)</div>
   </div>
   {% else %}
+  <div class="signature-line">Ort und Datum</div>
   <div class="signature-line">Unterschrift bzw. Unterschrift<br>des Erziehungsberechtigten</div>
   {% endif %}
 </div>
 
 <div style="page-break-before: always;"></div>
 
-<div class="header">
-  <div class="header-text">
-    <h1>{{ club.club_name }}</h1>
-    <h2>SEPA-Lastschriftmandat</h2>
-    <p style="font-size: 10pt; color: #888; margin-top: 4px;">Antragsnummer: <strong style="color: #333; font-family: monospace;">{{ antragsnummer }}</strong></p>
+<header class="din-letterhead din-letterhead--compact">
+  <div class="din-letterhead__brand">
+    <p class="din-letterhead__name">{{ club.club_name }}</p>
+    <p class="doc-title">SEPA-Lastschriftmandat</p>
+    <p class="doc-meta">Antragsnummer: <span class="mono">{{ antragsnummer }}</span></p>
   </div>
-  <img src="logo_svu.png" alt="SVU Logo">
-</div>
+  <img class="din-letterhead__logo" src="logo_svu.png" alt="{{ club.club_abbreviation }}">
+</header>
 
-<div class="sepa-box">
-  <div class="field-row">
-    <span class="field-label">Gläubiger-ID:</span>
-    <span class="field-value" style="font-family: monospace;">{{ glaeubiger_id }}</span>
-  </div>
-  <div class="field-row">
-    <span class="field-label">Mandatsreferenz:</span>
-    <span class="field-value" style="font-family: monospace; font-weight: bold;">{{ mandatsreferenz }}</span>
-  </div>
+<div class="sepa-box" style="margin-top: 6mm;">
+  <div class="form-row"><span class="form-row__label">Gläubiger-ID</span><span class="form-row__value mono">{{ glaeubiger_id }}</span></div>
+  <div class="form-row"><span class="form-row__label">Mandatsreferenz</span><span class="form-row__value mono" style="font-weight: bold;">{{ mandatsreferenz }}</span></div>
 
-  <div class="legal-text" style="margin: 12px 0;">
+  <div class="legal-text" style="margin: 3mm 0;">
     Ich ermächtige den Zahlungsempfänger {{ club.club_name }} widerruflich, die von mir zu
     entrichtenden Zahlungen von meinem Konto mittels Lastschrift einzuziehen. Zugleich weise ich mein
     Kreditinstitut an, die vom Zahlungsempfänger {{ club.club_name }} auf mein Konto gezogenen
@@ -426,28 +324,13 @@
   </div>
 
   {% if antragstyp == 'kind' %}
-  <div class="field-row">
-    <span class="field-label">Kontoinhaber:</span>
-    <span class="field-value">{{ kontoinhaber or (erziehungsberechtigter_nachname + ', ' + erziehungsberechtigter_vorname) }}</span>
-  </div>
+  <div class="form-row"><span class="form-row__label">Kontoinhaber</span><span class="form-row__value">{{ kontoinhaber or (erziehungsberechtigter_nachname + ', ' + erziehungsberechtigter_vorname) }}</span></div>
   {% else %}
-  <div class="field-row">
-    <span class="field-label">Kontoinhaber:</span>
-    <span class="field-value">{{ kontoinhaber or (nachname + ', ' + vorname) }}</span>
-  </div>
+  <div class="form-row"><span class="form-row__label">Kontoinhaber</span><span class="form-row__value">{{ kontoinhaber or (nachname + ', ' + vorname) }}</span></div>
   {% endif %}
-  <div class="field-row">
-    <span class="field-label">IBAN:</span>
-    <span class="field-value iban-display">{{ iban_formatted }}</span>
-  </div>
-  <div class="field-row">
-    <span class="field-label">BIC:</span>
-    <span class="field-value">{{ bic or '–' }}</span>
-  </div>
-  <div class="field-row">
-    <span class="field-label">Kreditinstitut:</span>
-    <span class="field-value">{{ kreditinstitut or '–' }}</span>
-  </div>
+  <div class="form-row"><span class="form-row__label">IBAN</span><span class="form-row__value iban-display">{{ iban_formatted }}</span></div>
+  <div class="form-row"><span class="form-row__label">BIC</span><span class="form-row__value">{{ bic or '–' }}</span></div>
+  <div class="form-row"><span class="form-row__label">Kreditinstitut</span><span class="form-row__value">{{ kreditinstitut or '–' }}</span></div>
 </div>
 
 <div class="signature-area">
@@ -455,15 +338,15 @@
   {% if unterschrift_base64 %}
   <div class="sig-img-line">
     <img src="{{ unterschrift_base64 }}" alt="Unterschrift">
-    <div class="sig-label">Unterschrift Kontoinhaber (digital)</div>
+    <div>Unterschrift Kontoinhaber (digital)</div>
   </div>
   {% else %}
   <div class="signature-line">Unterschrift Kontoinhaber</div>
   {% endif %}
 </div>
 
-<div class="section" style="margin-top: 30px;">
-  <div class="section-title">Mitgliedsbeiträge</div>
+<div class="form-section" style="margin-top: 5mm;">
+  <div class="form-section__title">Mitgliedsbeiträge</div>
   <table class="fee-table">
     <thead>
       <tr><th>Kategorie</th><th>Jahresbeitrag</th></tr>
@@ -476,53 +359,42 @@
       {% endfor %}
     </tbody>
   </table>
-  <div class="legal-text">
-    Die Mitgliedsbeiträge werden einmal jährlich für das laufende Jahr eingezogen.
-  </div>
+  <div class="legal-text">Die Mitgliedsbeiträge werden einmal jährlich für das laufende Jahr eingezogen.</div>
 </div>
 
 {% if unterschrift_base64 %}
-<div style="margin-top: 25px; border: 1px solid #ccc; border-radius: 4px; padding: 12px; background: #fff; page-break-inside: avoid; break-inside: avoid;">
-  <p style="font-size: 10pt; font-weight: bold; color: #333; margin: 0 0 6px 0;">✓ Antrag digital unterzeichnet</p>
-  <p style="font-size: 9pt; color: #333; margin: 0; line-height: 1.5;">
+<div class="callout">
+  <p class="callout__title">Antrag digital unterzeichnet</p>
+  <p style="margin: 0; line-height: 1.5;">
     Ihr Antrag wurde mit digitaler Unterschrift eingereicht und wird zeitnah bearbeitet.
     Sie erhalten eine Bestätigung per E-Mail. Es sind keine weiteren Schritte erforderlich.
   </p>
 </div>
 {% else %}
-<div style="margin-top: 25px; border: 2px solid #b91c1c; border-radius: 4px; padding: 12px; background: #fef2f2; page-break-inside: avoid; break-inside: avoid;">
-  <p style="font-size: 10pt; font-weight: bold; color: #b91c1c; margin: 0 0 6px 0;">Wichtig – Nächste Schritte:</p>
-  <ol style="font-size: 9pt; color: #333; margin: 0; padding-left: 18px; line-height: 1.5;">
+<div class="callout callout--action">
+  <p class="callout__title">Wichtig: nächste Schritte</p>
+  <ol>
     <li>Bitte drucken Sie dieses Dokument aus.</li>
     <li>Unterschreiben Sie an den vorgesehenen Stellen (bei Minderjährigen: Erziehungsberechtigte/r).</li>
-    <li>Senden Sie das unterschriebene Dokument per Post oder als Scan/Foto per E-Mail an:<br>
+    <li>Senden Sie das unterschriebene Dokument per Post oder als Scan/Foto per E-Mail an:
         <strong>{{ notification_email or club.contact_email }}</strong></li>
   </ol>
 </div>
 {% endif %}
 
 {% if admin_unterschrift_base64 %}
-<div class="approval-block" style="margin-top: 30px; padding: 16px; border: 1px solid #999; border-radius: 4px; background: #fff;">
-  <p style="font-size: 11pt; font-weight: bold; color: #333; margin: 0 0 8px 0;">Antrag genehmigt</p>
-  <p style="font-size: 10pt; margin: 8px 0;">Genehmigt am {{ approval_datum }}</p>
-  <div class="sig-img-line">
-    <img src="{{ admin_unterschrift_base64 }}" alt="Unterschrift">
-    <div class="sig-label">Vorstandsmitglied Ressort Finanzen & Verwaltung</div>
+<div class="din-approval">
+  <p class="din-approval__title">Antrag genehmigt</p>
+  <p class="din-approval__date">Genehmigt am {{ approval_datum }}</p>
+  <div class="sig-img-line" style="width: auto; text-align: left;">
+    <img src="{{ admin_unterschrift_base64 }}" alt="Unterschrift" style="margin: 0 0 1mm 0;">
+    <div>Vorstandsmitglied Ressort Finanzen &amp; Verwaltung</div>
   </div>
 </div>
 {% endif %}
 
-<div class="legal-text" style="margin-top: 12px; text-align: center;">
+<div class="legal-text" style="margin: 2mm 0 0 0; text-align: center;">
   Dieses Dokument wurde elektronisch erstellt am {{ datum }} über {{ site_host_display }}
-</div>
-
-<div style="margin-top: 20px; padding-top: 10px; border-top: 1px solid #ccc; text-align: center; font-size: 8pt; color: #888; line-height: 1.6;">
-  <strong>{{ club.club_name }}</strong><br>
-  {{ club.club_address }}<br>
-  {{ club.contact_role }}: {{ club.contact_name }} · Tel: {{ club.contact_phone }}<br>
-  E-Mail: {{ club.contact_email }}<br>
-  Registergericht: {{ club.registergericht }} · Registernummer: {{ club.registernummer }} · Steuer-ID: {{ club.steuernummer }}<br>
-  Datenschutz: {{ club.datenschutz_url }} · Satzung: {{ club.satzung_url }} · Impressum: {{ club.impressum_url }}
 </div>
 
 </body>
