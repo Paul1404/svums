@@ -6,11 +6,13 @@ import {
   getApplications,
   adminUploadDocument,
   getCancellationDocuments,
+  getGeneratedDocuments,
   deleteApplicationUpload,
   deleteApplicationApproved,
   deleteCancellationDocument,
   type ApplicationResponse,
   type CancellationLetterResponse,
+  type GeneratedDocumentResponse,
 } from "../services/api";
 import {
   ArrowLeft,
@@ -103,16 +105,24 @@ export default function AdminDocuments() {
   const { isAuthenticated } = useAdmin();
   const [apps, setApps] = useState<ApplicationResponse[]>([]);
   const [cancellations, setCancellations] = useState<CancellationLetterResponse[]>([]);
+  const [registry, setRegistry] = useState<GeneratedDocumentResponse[]>([]);
   const [loading, setLoading] = useState(true);
   const [docFilter, setDocFilter] = useState<"all" | "with" | "without">("all");
 
   const fetchAll = useCallback(async () => {
     setLoading(true);
     try {
-      const [appsResult, cancellationsResult] = await Promise.allSettled([
+      const [appsResult, cancellationsResult, registryResult] = await Promise.allSettled([
         getApplications(1, 500),
         getCancellationDocuments(500),
+        getGeneratedDocuments(1000),
       ]);
+
+      if (registryResult.status === "fulfilled") {
+        setRegistry(registryResult.value);
+      } else {
+        setRegistry([]);
+      }
 
       if (appsResult.status === "fulfilled") {
         setApps(appsResult.value.items);
@@ -193,6 +203,36 @@ export default function AdminDocuments() {
     return true;
   });
 
+  // Latest registry document per application / per cancellation letter
+  const docByApp = new Map<number, GeneratedDocumentResponse>();
+  const docByCancellation = new Map<number, GeneratedDocumentResponse>();
+  for (const d of registry) {
+    if (d.application_id != null && !docByApp.has(d.application_id)) {
+      docByApp.set(d.application_id, d);
+    }
+    if (d.cancellation_letter_id != null && !docByCancellation.has(d.cancellation_letter_id)) {
+      docByCancellation.set(d.cancellation_letter_id, d);
+    }
+  }
+
+  const DocId = ({ id }: { id?: string }) => {
+    if (!id)
+      return <span className="text-gray-300 text-xs font-mono">—</span>;
+    return (
+      <button
+        type="button"
+        title="Dokument-ID kopieren"
+        onClick={() => {
+          navigator.clipboard?.writeText(id);
+          toast.success(`Dokument-ID ${id} kopiert`);
+        }}
+        className="font-mono text-xs text-gray-600 hover:text-svu-600 hover:underline"
+      >
+        {id}
+      </button>
+    );
+  };
+
   const signatureSourceLabel = (source: string) => {
     if (source === "request") return "Manuell (Zeichnen/Bild)";
     if (source === "admin_saved") return "Gespeicherte Admin-Signatur";
@@ -265,6 +305,7 @@ export default function AdminDocuments() {
                   <th className="text-left px-4 py-2.5 font-medium text-gray-600 hidden md:table-cell">Eingereicht</th>
                   <th className="text-left px-4 py-2.5 font-medium text-gray-600">Dokument</th>
                   <th className="text-left px-4 py-2.5 font-medium text-gray-600">Genehmigung</th>
+                  <th className="text-left px-4 py-2.5 font-medium text-gray-600 hidden lg:table-cell">Dokument-ID</th>
                   <th className="text-left px-4 py-2.5 font-medium text-gray-600 hidden md:table-cell">Hochgeladen am</th>
                   <th className="text-left px-4 py-2.5 font-medium text-gray-600">Aktionen</th>
                 </tr>
@@ -330,6 +371,9 @@ export default function AdminDocuments() {
                       ) : (
                         <span className="text-gray-400 text-xs" aria-label="kein Dokument" />
                       )}
+                    </td>
+                    <td className="px-4 py-3 hidden lg:table-cell whitespace-nowrap">
+                      <DocId id={docByApp.get(app.id)?.document_id} />
                     </td>
                     <td className="px-4 py-3 text-gray-500 hidden md:table-cell whitespace-nowrap">
                       {formatDate(app.uploaded_at)}
@@ -421,6 +465,7 @@ export default function AdminDocuments() {
                   <th className="text-left px-4 py-2.5 font-medium text-gray-600">Name</th>
                   <th className="text-left px-4 py-2.5 font-medium text-gray-600 hidden md:table-cell">Austritt</th>
                   <th className="text-left px-4 py-2.5 font-medium text-gray-600 hidden lg:table-cell">Signatur</th>
+                  <th className="text-left px-4 py-2.5 font-medium text-gray-600 hidden lg:table-cell">Dokument-ID</th>
                   <th className="text-left px-4 py-2.5 font-medium text-gray-600">Erstellt am</th>
                   <th className="text-left px-4 py-2.5 font-medium text-gray-600">Aktionen</th>
                 </tr>
@@ -436,6 +481,9 @@ export default function AdminDocuments() {
                     </td>
                     <td className="px-4 py-3 text-gray-500 hidden lg:table-cell">
                       {signatureSourceLabel(doc.signature_source)}
+                    </td>
+                    <td className="px-4 py-3 hidden lg:table-cell whitespace-nowrap">
+                      <DocId id={docByCancellation.get(doc.id)?.document_id} />
                     </td>
                     <td className="px-4 py-3 text-gray-500 whitespace-nowrap">
                       {formatDate(doc.created_at)}

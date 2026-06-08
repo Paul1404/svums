@@ -353,9 +353,17 @@ async def submit_application(
     # and advance status to "dokument_hochgeladen" immediately.
     if data.unterschrift_base64:
         try:
+            from app.services.documents import (
+                DOC_TYPE_BEITRITT,
+                generate_document_id,
+                record_document,
+            )
+
+            document_id = generate_document_id(db)
             app_data = _build_application_data(application, club_config=_club_dict)
             app_data["notification_email"] = _app_settings.notification_email if _app_settings else ""
             app_data["unterschrift_base64"] = data.unterschrift_base64
+            app_data["document_id"] = document_id
             pdf_bytes = generate_pdf(app_data)
 
             signed_filename = f"{application.antragsnummer}_signed.pdf"
@@ -364,6 +372,14 @@ async def submit_application(
             application.uploaded_file = signed_filename
             application.uploaded_at = datetime.utcnow()
             application.status = "dokument_hochgeladen"
+            record_document(
+                db,
+                document_id=document_id,
+                doc_type=DOC_TYPE_BEITRITT,
+                storage_filename=signed_filename,
+                application_id=application.id,
+                recipient_name=f"{application.vorname} {application.nachname}",
+            )
             try:
                 db.commit()
             except Exception:

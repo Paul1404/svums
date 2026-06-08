@@ -1,268 +1,132 @@
-<!DOCTYPE html>
-<html lang="de">
-<head>
-<meta charset="UTF-8">
-<style>
-  @page {
-    size: A4;
-    margin: 20mm 25mm;
-  }
-  body {
-    font-family: 'Helvetica', 'Arial', sans-serif;
-    font-size: 11pt;
-    line-height: 1.5;
-    color: #1a1a1a;
-    margin: 0;
-    padding: 0;
-  }
-  .header {
-    display: flex;
-    align-items: flex-start;
-    margin-bottom: 25px;
-    padding-bottom: 12px;
-    border-bottom: 2px solid #b91c1c;
-  }
-  .header-text {
-    flex: 1;
-    text-align: center;
-  }
-  .header img {
-    height: 60px;
-    width: auto;
-    margin-left: 15px;
-    flex-shrink: 0;
-  }
-  .header h1 {
-    font-size: 15pt;
-    color: #b91c1c;
-    margin: 0 0 3px 0;
-  }
-  .header .address {
-    font-size: 9pt;
-    color: #666;
-    margin: 0;
-  }
-  .sender-line {
-    font-size: 8pt;
-    color: #888;
-    border-bottom: 1px solid #ccc;
-    padding-bottom: 2px;
-    margin-bottom: 20px;
-  }
-  .recipient {
-    margin-bottom: 30px;
-    line-height: 1.6;
-  }
-  .meta {
-    text-align: right;
-    margin-bottom: 30px;
-    font-size: 10pt;
-    color: #555;
-  }
-  .subject {
-    font-size: 13pt;
-    font-weight: bold;
-    margin-bottom: 20px;
-    color: #1a1a1a;
-  }
-  .body-text {
-    margin-bottom: 15px;
-    text-align: left;
-  }
-  .detail-box {
-    border: 1px solid #ddd;
-    border-radius: 4px;
-    padding: 14px 18px;
-    margin: 20px 0;
-    background: #fafafa;
-  }
-  .detail-row {
-    display: flex;
-    gap: 8px;
-    margin-bottom: 4px;
-  }
-  .detail-label {
-    width: 200px;
-    font-weight: bold;
-    flex-shrink: 0;
-    font-size: 10pt;
-  }
-  .detail-value {
-    flex: 1;
-    font-size: 10pt;
-  }
-  .closing {
-    margin-top: 40px;
-  }
-  .signature-area {
-    margin-top: 20px;
-  }
-  .signature-img {
-    height: 55px;
-    width: auto;
-    display: block;
-    margin-bottom: 4px;
-  }
-  .signature-line {
-    width: 250px;
-    font-size: 9pt;
-  }
-  .signature-block {
-    page-break-inside: avoid;
-    break-inside: avoid;
-  }
-  .info-block {
-    margin-top: 30px;
-    font-size: 9pt;
-    color: #444;
-    line-height: 1.5;
-  }
-  .info-block hr {
-    border: none;
-    border-top: 1px solid #ccc;
-    margin-bottom: 14px;
-  }
-  .info-block h3 {
-    font-size: 10pt;
-    color: #1a1a1a;
-    margin: 0 0 8px 0;
-  }
-  .info-block p {
-    margin: 0 0 8px 0;
-    text-align: left;
-  }
-  .info-block .info-links {
-    margin: 8px 0;
-  }
-  .info-block .info-contact {
-    margin-top: 10px;
-  }
-</style>
-</head>
-<body>
+{% extends "_letter_base.html" %}
 
-<div class="header">
-  <div class="header-text">
-    <h1>{{ club.club_name }}</h1>
-  </div>
-  <img src="logo_svu.png" alt="SVU Logo">
-</div>
-
-<div class="recipient">
-  {{ empfaenger_anrede_text }}<br>
+{% block recipient %}
+  {% if empfaenger_anrede_text %}{{ empfaenger_anrede_text }}<br>{% endif %}
   {{ empfaenger_vorname }} {{ empfaenger_nachname }}<br>
   {{ empfaenger_strasse }}<br>
   {{ empfaenger_plz }} {{ empfaenger_ort }}
-</div>
+{% endblock %}
 
-<div class="meta">
-  {{ club.club_city }}, den {{ datum }}
+{% block info %}
+{% if mitgliedsnummer %}
+<div class="din-info__row">
+  <span class="din-info__label">Mitgliedsnummer</span>
+  <span class="din-info__value">{{ mitgliedsnummer }}</span>
 </div>
+{% endif %}
+<div class="din-info__row">
+  <span class="din-info__label">Austritt zum</span>
+  <span class="din-info__value">{{ austritt_datum }}</span>
+</div>
+<div class="din-info__row">
+  <span class="din-info__label">Datum</span>
+  <span class="din-info__value">{{ club.club_city }}, {{ datum }}</span>
+</div>
+{% endblock %}
 
-<div class="subject">
+{% block subject %}
   {% if is_family and familienmitglieder %}
-  Bestätigung des Austritts der Familienmitgliedschaft aus dem Verein
+  Bestätigung des Austritts der Familienmitgliedschaft
   {% elif ist_empfaenger_abweichend %}
-  Bestätigung des Austritts von {{ vorname }} {{ nachname }} aus dem Verein
+  Bestätigung des Austritts von {{ vorname }} {{ nachname }}
   {% else %}
   Bestätigung Ihres Austritts aus dem Verein
   {% endif %}
-</div>
+{% endblock %}
 
-<div class="body-text">
-  {{ empfaenger_anrede }},
-</div>
+{% block salutation %}
+<div class="din-salutation">{{ empfaenger_anrede }},</div>
+{% endblock %}
 
-<div class="body-text">
+{% block content %}
+<p>
   {% if is_family and familienmitglieder %}
   hiermit bestätigen wir den Eingang der schriftlichen Austrittserklärung und das Ende der
-  Familienmitgliedschaft beim {{ club.club_name }}
+  Familienmitgliedschaft beim {{ club.club_name }}.
   {% elif ist_empfaenger_abweichend %}
   hiermit bestätigen wir den Eingang der schriftlichen Austrittserklärung und das Ende der
-  Mitgliedschaft von {{ vorname }} {{ nachname }} beim {{ club.club_name }}
+  Mitgliedschaft von {{ vorname }} {{ nachname }} beim {{ club.club_name }}.
   {% else %}
   hiermit bestätigen wir den Eingang Ihrer schriftlichen Austrittserklärung und das Ende Ihrer
-  Mitgliedschaft beim {{ club.club_name }}
+  Mitgliedschaft beim {{ club.club_name }}.
   {% endif %}
-</div>
+</p>
 
-<div class="detail-box">
+<div class="din-databox">
   {% if is_family and familienmitglieder %}
-  <div class="detail-row">
-    <span class="detail-label">Hauptmitglied: </span>
-    <span class="detail-value">{{ vorname }} {{ nachname }} (geb. {{ geburtsdatum }}){% if mitgliedsnummer %} – Nr. {{ mitgliedsnummer }}{% endif %}</span>
+  <div class="din-databox__row">
+    <span class="din-databox__label">Hauptmitglied</span>
+    <span class="din-databox__value">{{ vorname }} {{ nachname }} (geb. {{ geburtsdatum }}){% if mitgliedsnummer %} · Nr. {{ mitgliedsnummer }}{% endif %}</span>
   </div>
   {% for fm in familienmitglieder %}
-  <div class="detail-row">
-    <span class="detail-label">{% if loop.index <= familienmitglieder|length %}Familienmitglied {{ loop.index }}: {% endif %}</span>
-    <span class="detail-value">{{ fm.vorname }} {{ fm.nachname }}{% if fm.geburtsdatum %} (geb. {{ fm.geburtsdatum }}){% endif %}{% if fm.mitgliedsnummer %} – Nr. {{ fm.mitgliedsnummer }}{% endif %}</span>
+  <div class="din-databox__row">
+    <span class="din-databox__label">Familienmitglied {{ loop.index }}</span>
+    <span class="din-databox__value">{{ fm.vorname }} {{ fm.nachname }}{% if fm.geburtsdatum %} (geb. {{ fm.geburtsdatum }}){% endif %}{% if fm.mitgliedsnummer %} · Nr. {{ fm.mitgliedsnummer }}{% endif %}</span>
   </div>
   {% endfor %}
   {% else %}
-  <div class="detail-row">
-    <span class="detail-label">Mitglied: </span>
-    <span class="detail-value">{{ vorname }} {{ nachname }}</span>
+  <div class="din-databox__row">
+    <span class="din-databox__label">Mitglied</span>
+    <span class="din-databox__value">{{ vorname }} {{ nachname }}</span>
   </div>
-  <div class="detail-row">
-    <span class="detail-label">Geburtsdatum: </span>
-    <span class="detail-value">{{ geburtsdatum }}</span>
+  <div class="din-databox__row">
+    <span class="din-databox__label">Geburtsdatum</span>
+    <span class="din-databox__value">{{ geburtsdatum }}</span>
   </div>
   {% if mitgliedsnummer %}
-  <div class="detail-row">
-    <span class="detail-label">Mitgliedsnummer: </span>
-    <span class="detail-value">{{ mitgliedsnummer }}</span>
+  <div class="din-databox__row">
+    <span class="din-databox__label">Mitgliedsnummer</span>
+    <span class="din-databox__value">{{ mitgliedsnummer }}</span>
   </div>
   {% endif %}
   {% endif %}
   {% if abteilung %}
-  <div class="detail-row">
-    <span class="detail-label">Abteilung(en): </span>
-    <span class="detail-value">{{ abteilung }}</span>
+  <div class="din-databox__row">
+    <span class="din-databox__label">Abteilung(en)</span>
+    <span class="din-databox__value">{{ abteilung }}</span>
   </div>
   {% endif %}
-  <div class="detail-row">
-    <span class="detail-label">Austritt zum: </span>
-    <span class="detail-value"><strong>{{ austritt_datum }}</strong></span>
+  <div class="din-databox__row">
+    <span class="din-databox__label">Austritt zum</span>
+    <span class="din-databox__value"><strong>{{ austritt_datum }}</strong></span>
   </div>
 </div>
 
-<div class="body-text">
+<p>
   Gemäß § 3 Abs. 2 der Vereinssatzung ist der Austritt nur zum Schluss eines Kalenderjahres unter
   Einhaltung einer Frist von sechs Wochen zulässig.
   {% if is_family and familienmitglieder %}
   Die Familienmitgliedschaft endet somit zum oben genannten Datum für alle genannten Mitglieder.
-  Bis dahin bestehende Beitragspflichten bleiben unberührt; der Anspruch des
-  Vereins auf rückständige Beiträge oder sonstige Forderungen bleibt gemäß § 3 Abs. 5 der
-  Satzung auch nach Beendigung der Mitgliedschaft bestehen. Das erteilte SEPA-Lastschriftmandat
-  wird mit Beendigung der Mitgliedschaft ebenfalls widerrufen.
+  Bis dahin bestehende Beitragspflichten bleiben unberührt; der Anspruch des Vereins auf rückständige
+  Beiträge oder sonstige Forderungen bleibt gemäß § 3 Abs. 5 der Satzung auch nach Beendigung der
+  Mitgliedschaft bestehen. Das erteilte SEPA-Lastschriftmandat wird mit Beendigung der Mitgliedschaft
+  ebenfalls widerrufen.
   {% elif ist_empfaenger_abweichend %}
-  Die Mitgliedschaft von {{ vorname }} {{ nachname }} endet somit zum oben
-  genannten Datum. Bis dahin bestehende Beitragspflichten bleiben unberührt; der Anspruch des
-  Vereins auf rückständige Beiträge oder sonstige Forderungen bleibt gemäß § 3 Abs. 5 der
-  Satzung auch nach Beendigung der Mitgliedschaft bestehen. Das von Ihnen erteilte SEPA-Lastschriftmandat
-  wird mit Beendigung der Mitgliedschaft ebenfalls widerrufen.
+  Die Mitgliedschaft von {{ vorname }} {{ nachname }} endet somit zum oben genannten Datum. Bis dahin
+  bestehende Beitragspflichten bleiben unberührt; der Anspruch des Vereins auf rückständige Beiträge oder
+  sonstige Forderungen bleibt gemäß § 3 Abs. 5 der Satzung auch nach Beendigung der Mitgliedschaft bestehen.
+  Das erteilte SEPA-Lastschriftmandat wird mit Beendigung der Mitgliedschaft ebenfalls widerrufen.
   {% else %}
-  Ihre Mitgliedschaft endet somit zum oben
-  genannten Datum. Bis dahin bestehende Beitragspflichten bleiben unberührt; der Anspruch des
-  Vereins auf rückständige Beiträge oder sonstige Forderungen bleibt gemäß § 3 Abs. 5 der
-  Satzung auch nach Beendigung der Mitgliedschaft bestehen. Das erteilte SEPA-Lastschriftmandat
-  wird mit Beendigung der Mitgliedschaft ebenfalls widerrufen.
+  Ihre Mitgliedschaft endet somit zum oben genannten Datum. Bis dahin bestehende Beitragspflichten bleiben
+  unberührt; der Anspruch des Vereins auf rückständige Beiträge oder sonstige Forderungen bleibt gemäß
+  § 3 Abs. 5 der Satzung auch nach Beendigung der Mitgliedschaft bestehen. Das von Ihnen erteilte
+  SEPA-Lastschriftmandat wird mit Beendigung der Mitgliedschaft ebenfalls widerrufen.
   {% endif %}
-</div>
+</p>
 
-<div class="body-text">
+<p>
   {% if ist_empfaenger_abweichend %}
-  Wir bedanken uns für die Zeit von {{ vorname }} {{ nachname }} als Mitglied in unserem Verein und wünschen Ihnen für die
-  Zukunft alles Gute.
+  Wir bedanken uns für die Zeit von {{ vorname }} {{ nachname }} als Mitglied in unserem Verein und
+  wünschen Ihnen für die Zukunft alles Gute.
   {% else %}
-  Wir bedanken uns für Ihre Zeit als Mitglied in unserem Verein und wünschen Ihnen für die
-  Zukunft alles Gute.
+  Wir bedanken uns für Ihre Zeit als Mitglied in unserem Verein und wünschen Ihnen für die Zukunft
+  alles Gute.
   {% endif %}
-</div>
+</p>
 
-<div class="info-block">
+<div class="din-note">
   <hr>
-  <h3>Datenschutz &amp; weitere Informationen</h3>
+  <h3>Datenschutz und weitere Informationen</h3>
   <p>
     Ihre personenbezogenen Daten werden im Rahmen der Vereinsmitgliedschaft gemäß § 18 unserer
     Vereinssatzung sowie den Vorgaben der Datenschutz-Grundverordnung (DS-GVO) verarbeitet. Nach
@@ -270,37 +134,24 @@
     aufbewahrt und anschließend gelöscht.
   </p>
   <p>
-    Sie haben jederzeit das Recht auf Auskunft über Ihre gespeicherten Daten, sowie das Recht auf
+    Sie haben jederzeit das Recht auf Auskunft über Ihre gespeicherten Daten sowie das Recht auf
     Berichtigung, Löschung oder Einschränkung der Verarbeitung. Unsere vollständige Datenschutzerklärung
-    mit allen Informationen zu Ihren Rechten und zur Datenverarbeitung im Verein finden Sie auf unserer Website.
+    finden Sie unter {{ club.datenschutz_url }}, die Vereinssatzung unter {{ club.satzung_url }}.
   </p>
   <p>
-    Unsere Vereinssatzung können Sie ebenfalls jederzeit online einsehen.
+    Bei Fragen zur Mitgliedschaft oder Ihren gespeicherten Daten erreichen Sie uns unter
+    {{ notification_email or club.contact_email }} oder {{ club.contact_phone }}.
   </p>
-  <div class="info-links">
-    Datenschutzerklärung: {{ club.datenschutz_url }} |
-    Vereinssatzung: {{ club.satzung_url }}
-  </div>
-  <div class="info-contact">
-    Bei Fragen zur Mitgliedschaft oder Ihren gespeicherten Daten stehen wir Ihnen gerne zur Verfügung:
-    {{ notification_email or club.contact_email }} | {{ club.contact_phone }}
-  </div>
 </div>
+{% endblock %}
 
-<div class="signature-block">
-  <div class="closing">
-    Mit freundlichen Grüßen aus {{ club.club_city }},<br>
-  </div>
-
-  <div class="signature-area">
-    {% if unterschrift_base64 %}
-    <img class="signature-img" src="{{ unterschrift_base64 }}" alt="Unterschrift">
-    {% endif %}
-    <div class="signature-line">
-      Mitgliederverwaltung – {{ club.club_name }}
-    </div>
-  </div>
+{% block after_body %}
+<div class="din-closing">Mit freundlichen Grüßen</div>
+<div class="din-signature">
+  {% if unterschrift_base64 %}
+  <img class="din-signature__img" src="{{ unterschrift_base64 }}" alt="Unterschrift">
+  {% endif %}
+  <div class="din-signature__name">Mitgliederverwaltung</div>
+  <div class="din-signature__role">{{ club.club_name }}</div>
 </div>
-
-</body>
-</html>
+{% endblock %}
