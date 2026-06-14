@@ -13,7 +13,7 @@ itsdangerous==2.2.0
 schwifty==2026.3.0
 httpx==0.28.1
 cryptography>=48.0.0
-boto3==1.43.25
+boto3==1.43.29
 pypdf==6.13.1
 pymupdf==1.27.2.3
 pytesseract==0.3.13
