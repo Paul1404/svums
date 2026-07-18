@@ -13,10 +13,14 @@
 @page {
   size: A4;
   /* top applies to continuation pages (DIN head distance); first page is flush (see :first) */
-  margin: 16.9mm 20mm 16mm 25mm;
+  margin: 16.9mm 20mm 20mm 25mm;
   @bottom-left {
     content: element(dinfooter);
     width: 100%;
+    /* Anchor the footer to the top of the bottom-margin band so that, even when
+       the club name / address wrap to extra lines under an unknown system font,
+       it grows downward into the margin instead of overflowing the paper edge. */
+    vertical-align: top;
   }
 }
 
@@ -29,7 +33,11 @@
 }
 
 body {
-  font-family: 'Helvetica', 'Arial', sans-serif;
+  /* 'Liberation Sans' / 'DejaVu Sans' are the fonts bundled in the Docker image
+     (see Dockerfile). They are metric-compatible with Arial/Helvetica, so the
+     layout renders identically in production instead of falling back to an
+     unpredictable, taller system font that overflows the footer / pages. */
+  font-family: 'Helvetica', 'Arial', 'Liberation Sans', 'DejaVu Sans', sans-serif;
   font-size: 11pt;
   line-height: 1.5;
   color: var(--din-ink);
@@ -85,7 +93,7 @@ body {
 .din-letterhead--compact {
   height: auto;
   align-items: center;
-  margin-bottom: 4mm;
+  margin-bottom: 3mm;
 }
 .din-letterhead--compact .din-letterhead__logo {
   height: 16mm;
@@ -179,7 +187,7 @@ body {
   font-size: 10pt;
 }
 .mono {
-  font-family: 'Courier New', monospace;
+  font-family: 'Courier New', 'Liberation Mono', 'DejaVu Sans Mono', monospace;
 }
 
 /* ── Closing and signature ──────────────────────────────────── */
@@ -249,16 +257,16 @@ body {
   position: running(dinfooter);
   width: 100%;
   border-top: 0.5pt solid var(--din-line);
-  padding-top: 1.5mm;
+  padding-top: 1.2mm;
   font-size: 7pt;
   color: var(--din-muted);
-  line-height: 1.35;
+  line-height: 1.3;
 }
 .din-footer__docid {
   text-align: right;
   font-size: 6.5pt;
   letter-spacing: 0.2pt;
-  margin-bottom: 0.8mm;
+  margin-bottom: 0.6mm;
 }
 .din-footer__cols {
   display: flex;

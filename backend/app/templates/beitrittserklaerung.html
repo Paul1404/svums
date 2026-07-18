@@ -82,17 +82,17 @@
   .fee-table {
     width: 100%;
     border-collapse: collapse;
-    margin: 2.5mm 0;
-    font-size: 9.5pt;
+    margin: 2mm 0;
+    font-size: 9pt;
   }
   .fee-table th {
     background-color: var(--din-accent);
     color: #fff;
-    padding: 1.5mm 3mm;
+    padding: 1.2mm 3mm;
     text-align: left;
   }
   .fee-table td {
-    padding: 1.3mm 3mm;
+    padding: 1mm 3mm;
     border-bottom: 0.4pt solid var(--din-line);
   }
   .fee-table tr.active {
@@ -105,7 +105,7 @@
     margin: 3mm 0;
   }
   .signature-area {
-    margin-top: 8mm;
+    margin-top: 5mm;
     display: flex;
     justify-content: space-between;
     gap: 8mm;
@@ -131,13 +131,13 @@
     margin: 0 auto 1mm auto;
   }
   .iban-display {
-    font-family: 'Courier New', monospace;
+    font-family: 'Courier New', 'Liberation Mono', 'DejaVu Sans Mono', monospace;
     font-size: 11pt;
     letter-spacing: 1pt;
   }
   .callout {
-    margin-top: 4mm;
-    padding: 3mm 4mm;
+    margin-top: 3mm;
+    padding: 2.5mm 4mm;
     border: 0.5pt solid var(--din-line);
     page-break-inside: avoid;
     break-inside: avoid;
@@ -310,7 +310,7 @@
   <img class="din-letterhead__logo" src="logo_svu.png" alt="{{ club.club_abbreviation }}">
 </header>
 
-<div class="sepa-box" style="margin-top: 6mm;">
+<div class="sepa-box" style="margin-top: 4mm;">
   <div class="form-row"><span class="form-row__label">Gläubiger-ID</span><span class="form-row__value mono">{{ glaeubiger_id }}</span></div>
   <div class="form-row"><span class="form-row__label">Mandatsreferenz</span><span class="form-row__value mono" style="font-weight: bold;">{{ mandatsreferenz }}</span></div>
 
@@ -345,7 +345,7 @@
   {% endif %}
 </div>
 
-<div class="form-section" style="margin-top: 5mm;">
+<div class="form-section" style="margin-top: 3.5mm;">
   <div class="form-section__title">Mitgliedsbeiträge</div>
   <table class="fee-table">
     <thead>

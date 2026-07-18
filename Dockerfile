@@ -27,6 +27,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libffi-dev \
     libglib2.0-0 \
     shared-mime-info \
+    fonts-liberation \
+    fonts-dejavu-core \
     tesseract-ocr \
     tesseract-ocr-deu \
     && rm -rf /var/lib/apt/lists/*
