@@ -54,6 +54,22 @@ def test_inspect_frontend_ok(tmp_path):
     assert result["assets"] == ["/assets/index-OK.js"]
 
 
+def test_inspect_frontend_ignores_external_scripts(tmp_path):
+    (tmp_path / "assets").mkdir()
+    (tmp_path / "assets" / "index-OK.js").write_text("// ok", encoding="utf-8")
+    (tmp_path / "index.html").write_text(
+        '<html><body><script src="https://analytics.example/script.js"></script>'
+        '<script src="//cdn.example/recorder.js"></script>'
+        '<script type="module" src="/assets/index-OK.js"></script></body></html>',
+        encoding="utf-8",
+    )
+
+    result = public_router._inspect_frontend(tmp_path)
+
+    assert result["status"] == "ok"
+    assert result["assets"] == ["/assets/index-OK.js"]
+
+
 def test_frontend_error_endpoint_logs_and_returns_ok(client, caplog):
     caplog.set_level(logging.ERROR, logger="app.routers.public")
     res = client.post(

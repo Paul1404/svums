@@ -491,8 +491,14 @@ def _inspect_frontend(static_dir: Path) -> dict:
         result["status"] = "no_script_tag"
         return result
 
+    local_script_srcs = [
+        src
+        for src in script_srcs
+        if not src.startswith(("http://", "https://", "//"))
+    ]
     missing_assets = [
-        src for src in script_srcs
+        src
+        for src in local_script_srcs
         if not (static_dir / src.lstrip("/")).exists()
     ]
     if missing_assets:
@@ -501,7 +507,7 @@ def _inspect_frontend(static_dir: Path) -> dict:
         return result
 
     result["status"] = "ok"
-    result["assets"] = script_srcs
+    result["assets"] = local_script_srcs
     return result
 
 
